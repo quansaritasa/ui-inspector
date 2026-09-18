@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ORDER = ['styles', 'format', 'cssvars', 'sources', 'inspect', 'overlay', 'panel', 'core'];
+const ORDER = ['styles', 'format', 'cssvars', 'sources', 'inspect', 'overlay', 'editrows', 'panel', 'core'];
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist', 'ui-inspector.js');
 const pkg = require('./package.json');

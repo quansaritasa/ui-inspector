@@ -76,6 +76,7 @@ function uiiOnKey(e) {
     return;
   }
   if (!S.on) return;
+  if (e.target === S.host) return; // typing in a panel input: leave the keys alone
   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); uiiDisable(); return; }
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);

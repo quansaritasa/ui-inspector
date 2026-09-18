@@ -51,7 +51,8 @@ function uiiFormatForAI(info) {
   if (info.code && info.code.length) loc.push(info.code.join(', '));
   const css = uiiCssFiles(info);
   if (css.length) loc.push(css.join(', '));
-  return info.name + ' (' + loc.join(' · ') + ')';
+  const edits = uiiEditsText(info.el);
+  return info.name + ' (' + loc.join(' · ') + ')' + (edits ? ' — apply: ' + edits : '');
 }
 
 // Multi-line block with the computed look, for when the AI must match or
@@ -69,6 +70,8 @@ function uiiFormatDetails(info) {
   L.push('Font: ' + info.fontFamily + ' ' + info.fontSize + ' / ' + info.lineHeight + ' weight ' + info.fontWeight);
   L.push('Padding: ' + info.padding + ' | Margin: ' + info.margin);
   L.push('Border: ' + info.border + ' | Radius: ' + info.borderRadius);
+  const edits = uiiEditsText(info.el);
+  if (edits) L.push('Live edits to apply: ' + edits);
   if (info.rules.length) {
     L.push('Matched CSS rules:');
     for (const r of info.rules) L.push('  ' + r.file + ' → ' + r.selector);

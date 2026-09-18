@@ -23,17 +23,20 @@ function uiiBuildPanel(sh) {
   const copyAI = uiiEl('button', '', '📋 Copy for AI');
   const copySel = uiiEl('button', '', 'Copy selector');
   const copyAll = uiiEl('button', '', 'Copy details');
+  const reset = uiiEl('button', 'reset', '↺ Reset');
+  reset.title = 'Undo every live edit on this element';
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
   copyAll.title = 'Full block: colours, font, spacing, every matched rule';
   const ok = uiiEl('span', 'ok', '');
-  foot.append(copyAI, copySel, copyAll, ok);
+  foot.append(copyAI, copySel, copyAll, reset, ok);
   p.append(head, body, foot);
   sh.appendChild(p);
-  S.panel = { root: p, name, tag, body, ok };
+  S.panel = { root: p, name, tag, body, ok, reset };
   close.addEventListener('click', () => p.classList.remove('on'));
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(S.info)));
   copySel.addEventListener('click', () => uiiCopy(S.info.path));
   copyAll.addEventListener('click', () => uiiCopy(uiiFormatDetails(S.info)));
+  reset.addEventListener('click', () => uiiResetEdits(S.info.el));
   uiiDrag(head, p);
 }
 
@@ -83,14 +86,6 @@ function uiiRow(k, v, swatchHex) {
   return row;
 }
 
-function uiiColorRow(k, c) {
-  const row = uiiRow(k, c.hex, c.hex);
-  const v = row.lastChild;
-  if (c.vars.length) v.appendChild(uiiEl('span', 'var', '  ' + c.vars.join(' ')));
-  if (c.from) v.appendChild(document.createTextNode('  ← ' + c.from));
-  return row;
-}
-
 function uiiRenderPanel(info) {
   const P = uiiState.panel;
   if (!P) return;
@@ -109,22 +104,8 @@ function uiiRenderPanel(info) {
   b.appendChild(uiiRow('Code', info.code ? (info.code.join(', ') || '— (no script mentions it)') : 'scanning…'));
   b.appendChild(uiiRow('CSS', uiiCssFiles(info).join(', ') || '—'));
 
-  b.appendChild(uiiEl('div', 'sec', 'Colours'));
-  b.appendChild(uiiColorRow('Background', info.bg));
-  b.appendChild(uiiColorRow('Text', info.color));
-
-  b.appendChild(uiiEl('div', 'sec', 'Type'));
-  const ff = uiiRow('Font', info.fontFamily);
-  ff.title = info.fontFamilyFull;
-  b.appendChild(ff);
-  b.appendChild(uiiRow('Size / line', info.fontSize + ' / ' + info.lineHeight));
-  b.appendChild(uiiRow('Weight', info.fontWeight));
-
-  b.appendChild(uiiEl('div', 'sec', 'Box'));
-  b.appendChild(uiiRow('Padding', info.padding));
-  b.appendChild(uiiRow('Margin', info.margin));
-  b.appendChild(uiiRow('Border', info.border));
-  b.appendChild(uiiRow('Radius', info.borderRadius));
+  b.appendChild(uiiEl('div', 'sec', 'Style — edit to try it live'));
+  uiiRenderEditRows(b, info);
 
   b.appendChild(uiiEl('div', 'sec', 'Matched CSS rules (' + info.rules.length + ')'));
   for (const r of info.rules) {
@@ -133,5 +114,6 @@ function uiiRenderPanel(info) {
     d.appendChild(document.createTextNode(r.selector));
     b.appendChild(d);
   }
+  P.reset.hidden = !uiiEditsText(info.el);
   P.root.classList.add('on');
 }
