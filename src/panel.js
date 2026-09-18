@@ -22,14 +22,18 @@ function uiiBuildPanel(sh) {
   const foot = uiiEl('div', 'foot');
   const copyAI = uiiEl('button', '', '📋 Copy for AI');
   const copySel = uiiEl('button', '', 'Copy selector');
+  const copyAll = uiiEl('button', '', 'Copy details');
+  copyAI.title = 'One line: name, selector, element, stylesheet rules';
+  copyAll.title = 'Full block: colours, font, spacing, every matched rule';
   const ok = uiiEl('span', 'ok', '');
-  foot.append(copyAI, copySel, ok);
+  foot.append(copyAI, copySel, copyAll, ok);
   p.append(head, body, foot);
   sh.appendChild(p);
   S.panel = { root: p, name, tag, body, ok };
   close.addEventListener('click', () => p.classList.remove('on'));
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(S.info)));
   copySel.addEventListener('click', () => uiiCopy(S.info.path));
+  copyAll.addEventListener('click', () => uiiCopy(uiiFormatDetails(S.info)));
   uiiDrag(head, p);
 }
 

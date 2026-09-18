@@ -4,8 +4,8 @@ A tiny, dependency-free overlay for any web page or Electron renderer. Press a
 shortcut, and every control on screen gets a coloured outline. Hover to see its
 name, click to pin it, and a panel shows the details you need to describe the
 component to a person or an AI: selector, colours (with the CSS variable they
-come from), font, spacing, and the stylesheet rules that match it. A single
-button copies all of that as plain text.
+come from), font, spacing, and the stylesheet rules that match it. One button copies a one-line locator for an AI
+prompt; another copies the full details.
 
 ## Install
 
@@ -30,8 +30,9 @@ Copy `dist/ui-inspector.js` into your app and load it with one script tag:
 | Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest control |
 | `↑` `↓` `←` `→` | Walk to the parent, first child, previous or next sibling of the pinned element |
 | Drag the panel header | Move the panel |
-| **Copy for AI** | Copy a plain-text summary of the pinned element |
+| **Copy for AI** | Copy one line that locates the element: name, selector, tag, text, and the stylesheet rules that match it |
 | **Copy selector** | Copy only the CSS selector path |
+| **Copy details** | Copy a multi-line block with colours, font, spacing and every matched rule |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
 
 Outline colours: blue for buttons, green for inputs, purple for links, orange
@@ -67,7 +68,8 @@ UIInspector.init({
 | `enable()` / `disable()` / `toggle()` | Drive inspect mode without the keyboard. |
 | `select(element)` | Enable and pin a specific element. |
 | `info()` | The data object for the pinned element, or `null`. |
-| `formatForAI(info)` | The plain-text summary for any info object. |
+| `formatForAI(info)` | The one-line locator for any info object. |
+| `formatDetails(info)` | The multi-line block with computed colours, font and spacing. |
 | `destroy()` | Disable and unbind the shortcut. |
 
 ## Notes

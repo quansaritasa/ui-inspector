@@ -135,4 +135,5 @@ const uiiApi = {
   info: () => uiiState.info,
   isOn: () => uiiState.on,
   formatForAI: uiiFormatForAI,
+  formatDetails: uiiFormatDetails,
 };

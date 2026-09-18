@@ -43,9 +43,26 @@ function uiiColorLine(c) {
   return notes.length ? s + ' (' + notes.join('; ') + ')' : s;
 }
 
-// Plain-text block meant to be pasted into an AI chat: enough to find the
-// element in the source and to describe how it looks today.
+// One line for an AI chat: just enough to find the element in the source.
+// "UI: Edit (#edit-btn) — <button id="edit-btn"> "✎ Edit" — css: renderer/style.css (#edit-btn, #edit-btn:hover)"
 function uiiFormatForAI(info) {
+  const ident = info.id && info.name !== info.id ? info.name + ' (' + info.path + ')' : info.path;
+  const elem = '<' + info.tag + (info.id ? ' id="' + info.id + '"' : '')
+    + (!info.id && info.classes.length ? ' class="' + info.classes.join(' ') + '"' : '') + '>';
+  const parts = ['UI: ' + ident, elem + (info.text ? ' "' + uiiShort(info.text, 30) + '"' : '')];
+  const byFile = new Map();
+  for (const r of info.rules) {
+    if (r.selector === '*' || r.selector === 'html' || r.selector === 'body') continue; // resets, not this component
+    if (!byFile.has(r.file)) byFile.set(r.file, []);
+    byFile.get(r.file).push(r.selector);
+  }
+  for (const [file, sels] of byFile) parts.push('css: ' + file + ' (' + sels.slice(-6).join(', ') + ')');
+  return parts.join(' — ');
+}
+
+// Multi-line block with the computed look, for when the AI must match or
+// change colours and type rather than just locate the element.
+function uiiFormatDetails(info) {
   const L = [];
   L.push('UI component: ' + info.name);
   L.push('Selector: ' + info.path);
