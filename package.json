@@ -1,0 +1,13 @@
+{
+  "name": "ui-inspector",
+  "version": "0.1.0",
+  "description": "Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.",
+  "license": "MIT",
+  "author": "Quan Dao",
+  "homepage": "https://github.com/quansaritasa/qview/tree/main/lib/ui-inspector",
+  "main": "dist/ui-inspector.js",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "node build.js"
+  }
+}
