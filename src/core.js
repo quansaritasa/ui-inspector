@@ -9,6 +9,7 @@ const UII_DEFAULTS = {
   nameAttr: 'data-ui',        // attribute the app uses to label components
   ignore: [],                 // selectors never outlined or selectable
   maxOutlines: 400,           // cap on outline boxes per frame
+  scripts: null,              // (url) => bool: which <script src> to scan for the element; default skips vendor/
   onCopy: null,               // (text) => void; default navigator.clipboard
   onToggle: null,             // (on) => void
 };
@@ -17,7 +18,7 @@ const uiiState = {
   opts: null, selList: '', on: false, bound: false,
   host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
-  hovered: null, selected: null, info: null, key: null,
+  hovered: null, selected: null, info: null, key: null, sources: null,
 };
 
 // "Mod+Shift+/" -> { mod, ctrl, meta, alt, shift, key }

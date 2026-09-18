@@ -105,6 +105,10 @@ function uiiRenderPanel(info) {
   if (info.text) b.appendChild(uiiRow('Text', info.text));
   b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display));
 
+  b.appendChild(uiiEl('div', 'sec', 'Where to edit'));
+  b.appendChild(uiiRow('Code', info.code ? (info.code.join(', ') || '— (no script mentions it)') : 'scanning…'));
+  b.appendChild(uiiRow('CSS', uiiCssFiles(info).join(', ') || '—'));
+
   b.appendChild(uiiEl('div', 'sec', 'Colours'));
   b.appendChild(uiiColorRow('Background', info.bg));
   b.appendChild(uiiColorRow('Text', info.color));

@@ -30,7 +30,7 @@ Copy `dist/ui-inspector.js` into your app and load it with one script tag:
 | Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest control |
 | `↑` `↓` `←` `→` | Walk to the parent, first child, previous or next sibling of the pinned element |
 | Drag the panel header | Move the panel |
-| **Copy for AI** | Copy one line that locates the element: name, selector, tag, text, and the stylesheet rules that match it |
+| **Copy for AI** | Copy one line: `name (selector · script files · stylesheet files)`, e.g. `edit-btn (#edit-btn · edit.js · style.css)` |
 | **Copy selector** | Copy only the CSS selector path |
 | **Copy details** | Copy a multi-line block with colours, font, spacing and every matched rule |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
@@ -55,6 +55,7 @@ UIInspector.init({
   nameAttr: 'data-ui',    // attribute used as the preferred name
   ignore: [],             // selectors that are never outlined or pinned
   maxOutlines: 400,       // outline boxes drawn per frame
+  scripts: null,          // (url) => bool: which <script src> files to scan; default skips vendor/
   onCopy: null,           // (text) => void, replaces navigator.clipboard
   onToggle: null,         // (isOn) => void
 });
@@ -68,9 +69,20 @@ UIInspector.init({
 | `enable()` / `disable()` / `toggle()` | Drive inspect mode without the keyboard. |
 | `select(element)` | Enable and pin a specific element. |
 | `info()` | The data object for the pinned element, or `null`. |
-| `formatForAI(info)` | The one-line locator for any info object. |
+| `formatForAI(info)` | The one-line locator for any info object (`info.code` is filled asynchronously after `select`). |
 | `formatDetails(info)` | The multi-line block with computed colours, font and spacing. |
 | `destroy()` | Disable and unbind the shortcut. |
+
+## Where to edit
+
+The panel's **Where to edit** rows name the files to open:
+
+- **Code** — the page's own `<script src>` files are fetched once (same origin;
+  works over `file://` in Electron) and searched for the element's id and
+  classes in quoted or selector form. Best matches first, up to three.
+  Files under `vendor/`, `node_modules/` or `dist/` are skipped; pass
+  `scripts: (url) => bool` to change that.
+- **CSS** — the stylesheets behind the matched rules, resets excluded.
 
 ## Notes
 

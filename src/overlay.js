@@ -148,8 +148,15 @@ function uiiSelect(el) {
   S.selected = el;
   uiiPlace(S.selBox, el.getBoundingClientRect());
   S.selBox.classList.add('on');
-  S.info = uiiCollect(el);
-  uiiRenderPanel(S.info);
+  const info = uiiCollect(el);
+  S.info = info;
+  uiiRenderPanel(info);
+  // Script scan is async (first call fetches every <script src>); re-render
+  // only if this is still the pinned element when it lands.
+  uiiCodeFiles(info).then((files) => {
+    info.code = files;
+    if (S.info === info) uiiRenderPanel(info);
+  });
 }
 
 const UII_EVENTS = [
