@@ -44,19 +44,26 @@ function uiiColorLine(c) {
 }
 
 // One line for an AI chat: just enough to find the element in the source.
-// "UI: Edit (#edit-btn) — <button id="edit-btn"> "✎ Edit" — css: renderer/style.css (#edit-btn, #edit-btn:hover)"
+// UI: #edit-btn — <button id="edit-btn"> "✎ Edit" — css: style.css: #edit-btn, #edit-btn:hover | themes/modern.css: .md-editor ×4
 function uiiFormatForAI(info) {
   const ident = info.id && info.name !== info.id ? info.name + ' (' + info.path + ')' : info.path;
   const elem = '<' + info.tag + (info.id ? ' id="' + info.id + '"' : '')
     + (!info.id && info.classes.length ? ' class="' + info.classes.join(' ') + '"' : '') + '>';
   const parts = ['UI: ' + ident, elem + (info.text ? ' "' + uiiShort(info.text, 30) + '"' : '')];
+  // Same selector from several rules (top level + @media) collapses to "sel ×N".
   const byFile = new Map();
   for (const r of info.rules) {
     if (r.selector === '*' || r.selector === 'html' || r.selector === 'body') continue; // resets, not this component
-    if (!byFile.has(r.file)) byFile.set(r.file, []);
-    byFile.get(r.file).push(r.selector);
+    if (!byFile.has(r.file)) byFile.set(r.file, new Map());
+    const m = byFile.get(r.file);
+    m.set(r.selector, (m.get(r.selector) || 0) + 1);
   }
-  for (const [file, sels] of byFile) parts.push('css: ' + file + ' (' + sels.slice(-6).join(', ') + ')');
+  const files = [];
+  for (const [file, m] of byFile) {
+    const sels = [...m].map(([sel, n]) => n > 1 ? sel + ' ×' + n : sel).slice(-6);
+    files.push(file.replace(/^renderer\//, '') + ': ' + sels.join(', '));
+  }
+  if (files.length) parts.push('css: ' + files.join(' | '));
   return parts.join(' — ');
 }
 

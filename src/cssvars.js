@@ -20,8 +20,11 @@ function uiiAllRules() {
     let rules;
     try { rules = sh.cssRules; } catch (e) { continue; }
     if (!rules) continue;
+    // A linked sheet is named by its last two path segments; an inline <style>
+    // by its id when it has one (usually injected by a script at runtime).
+    const node = sh.ownerNode;
     const file = sh.href ? sh.href.split('/').slice(-2).join('/').split('?')[0]
-      : '<style>#' + i + (sh.ownerNode && sh.ownerNode.id ? ' (' + sh.ownerNode.id + ')' : '');
+      : node && node.id ? '<style id="' + node.id + '"> (injected)' : '<style>#' + i;
     walk(rules, file);
   }
   return out;
