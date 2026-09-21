@@ -53,7 +53,7 @@ your key controls gives the clearest labels.
 UIInspector.init({
   shortcut: 'Mod+/',      // 'Ctrl+Shift+I', 'Alt+I', … or null to disable the key
   selectors: ['button', 'input', 'select', 'textarea', 'a', 'label', 'summary',
-              '[role]', '[id]', '[data-ui]', '[contenteditable]'],
+              'section', '[role]', '[id]', '[data-ui]', '[contenteditable]'],
   nameAttr: 'data-ui',    // attribute used as the preferred name
   ignore: [],             // selectors that are never outlined or pinned
   maxOutlines: 400,       // outline boxes drawn per frame

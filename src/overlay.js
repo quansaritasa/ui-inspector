@@ -19,7 +19,7 @@ function uiiMount() {
   S.selBox = mk('hover sel');
   S.tip = mk('tip');
   S.badge = mk('badge');
-  S.badge.innerHTML = 'Inspect — hover, click to pin, <kbd>Alt</kbd> for exact element, <kbd>Esc</kbd> to quit';
+  S.badge.innerHTML = 'Inspect — hover, click to pin, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
   uiiBuildPanel(sh);

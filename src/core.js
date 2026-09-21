@@ -5,7 +5,7 @@
 const UII_DEFAULTS = {
   shortcut: 'Mod+/',          // Mod = Cmd on macOS, Ctrl elsewhere; null = no key binding
   selectors: ['button', 'input', 'select', 'textarea', 'a', 'label', 'summary',
-    '[role]', '[id]', '[data-ui]', '[contenteditable]'],
+    'section', '[role]', '[id]', '[data-ui]', '[contenteditable]'],
   nameAttr: 'data-ui',        // attribute the app uses to label components
   ignore: [],                 // selectors never outlined or selectable
   maxOutlines: 400,           // cap on outline boxes per frame
