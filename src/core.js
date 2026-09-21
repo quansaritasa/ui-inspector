@@ -76,7 +76,11 @@ function uiiOnKey(e) {
     return;
   }
   if (!S.on) return;
-  if (e.target === S.host) return; // typing in a panel input: leave the keys alone
+  // Shadow DOM retargets e.target to S.host for anything inside the panel —
+  // a focused button reports the same target as a focused text input. Use
+  // composedPath() to find what was actually focused, so Escape/arrows still
+  // work after clicking a panel button; only real text entry gets skipped.
+  if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); uiiDisable(); return; }
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
