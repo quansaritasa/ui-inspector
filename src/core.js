@@ -9,6 +9,14 @@ const UII_DEFAULTS = {
   nameAttr: 'data-ui',        // attribute the app uses to label components
   ignore: [],                 // selectors never outlined or selectable
   maxOutlines: 400,           // cap on outline boxes per frame
+  // Time budget for ONE scan, in ms. This is a hard cap on the whole walk, not
+  // only on how much it outlines, because reading a rect is the expensive half:
+  // on a list whose rows opt into `content-visibility: auto` every
+  // getBoundingClientRect() forces the layout that rule was skipping, so a
+  // 56,000-element document measured ~3 ms PER ELEMENT — three minutes with the
+  // renderer pinned and no key reaching the page. Anything left unscanned is
+  // simply not outlined this frame; a scroll or a mutation reschedules the draw.
+  maxScanMs: 120,
   scripts: null,              // (url) => bool: which <script src> to scan for the element; default skips vendor/
   onCopy: null,               // (text) => void; default navigator.clipboard
   onToggle: null,             // (on) => void
