@@ -58,23 +58,46 @@ function uiiFormatForAI(info) {
   return info.name + ' (' + loc.join(' · ') + ')' + (edits ? ' — apply: ' + edits : '');
 }
 
-// The Changes box: every edit made since inspect mode opened, on any
-// element, as the final value per rule — one line per rule, no history.
-//   style.css .grid-task-title { font-size: calc(var(--g) * 1.1) /* 14.3px */; }
-//   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
-function uiiFormatChanges() {
+// Every edit made since the page loaded, on any element, as Map(head ->
+// [decl]) — the final value per rule, no history. A detached element counts
+// while its rule rewrite stands (Apply to similar): the re-rendered element
+// still shows it. Otherwise the edit left the screen with the element.
+function uiiChangeLines() {
   const byRule = new Map();
-  for (const el of (uiiState.edits || new Map()).keys()) {
-    if (!el.isConnected) continue; // re-rendered away: the edit is gone from screen too
-    for (const c of uiiEditChanges(el)) {
-      const { head, decl } = uiiChangeDecl(el, c);
+  const edits = uiiState.edits || new Map();
+  for (const [el, e] of edits) {
+    let lines = e.last;
+    if (el.isConnected) {
+      lines = e.last = uiiEditChanges(el).map((c) => uiiChangeDecl(el, c));
+    } else if (!uiiState.similar || !lines) {
+      edits.delete(el);
+      continue;
+    }
+    for (const { head, decl } of lines) {
       if (!byRule.has(head)) byRule.set(head, []);
       byRule.get(head).push(decl);
     }
   }
+  return byRule;
+}
+
+// How many lines the Changes box lists. Counted without naming rules, so it
+// works after inspect mode closed (no pinned info to cache rule lookups on).
+function uiiEditCount() {
+  let n = 0;
+  for (const [el, e] of uiiState.edits || []) {
+    n += el.isConnected ? uiiEditChanges(el).length : uiiState.similar && e.last ? e.last.length : 0;
+  }
+  return n;
+}
+
+// The Changes box, from uiiChangeLines.
+//   style.css .grid-task-title { font-size: calc(var(--g) * 1.1) /* 14.3px */; }
+//   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
+function uiiFormatChanges() {
   const L = ['Apply these CSS changes (final values). Edit each rule in place; /* add */ = add that line'
     + ' to the rule; /* new rule */ = create it. Keep var()/calc() as written.'];
-  for (const [head, decls] of byRule) L.push(head + ' { ' + decls.join('; ') + '; }');
+  for (const [head, decls] of uiiChangeLines()) L.push(head + ' { ' + decls.join('; ') + '; }');
   if (L.length === 1) return '(no changes yet)';
   if (!uiiState.similar) L.push('Only these elements: add a more specific selector, leave the shared rules.');
   return L.join('\n');

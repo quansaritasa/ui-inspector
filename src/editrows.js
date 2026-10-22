@@ -9,7 +9,7 @@ function uiiEditsFor(el, create) {
   if (!S.edits) S.edits = new Map();
   let e = S.edits.get(el);
   if (!e && create) {
-    e = { orig: el.getAttribute('style'), props: {}, from: {} };
+    e = { orig: el.getAttribute('style'), props: {}, from: {}, rule: {} };
     S.edits.set(el, e);
   }
   return e || null;
@@ -20,7 +20,7 @@ function uiiApplyEdit(el, prop, value) {
   if (!(prop in e.from)) e.from[prop] = getComputedStyle(el).getPropertyValue(prop).trim();
   e.props[prop] = value;
   el.style.setProperty(prop, value);
-  if (uiiState.similar) uiiRuleApply(el, prop, value);
+  if (uiiState.similar) e.rule[prop] = uiiRuleApply(el, prop, value);
   if (uiiState.panel) {
     uiiState.panel.reset.hidden = false;
     // Building the log matches CSS rules; once a drag settles is enough.

@@ -32,39 +32,22 @@ function uiiConvertUnit(el, prop, unit) {
   return Math.round((px / ref) * 1000) / 1000 + unit;
 }
 
-// opt: {units: [...] | null (no unit), step, onSet(v)}
-function uiiNumField(info, label, props, opt) {
-  props = [].concat(props);
-  opt = opt || {};
-  const units = 'units' in opt ? opt.units : (UII_UNITS[props[0]] || UII_UNITS_BOX);
-  const target = uiiTargetEl(info, props[0]);
-  const wrap = uiiEl('span', 'nf');
-  const box = uiiEl('input');
-  box.spellcheck = false;
-  wrap.appendChild(box);
-  let sel = null;
-  // calc(var(--x) * k) in the stylesheet: the box edits k, unit "× --x".
-  const fx = units ? uiiFormula(target, props[0]) : null;
-  if (units) {
-    sel = uiiEl('select', 'u');
-    if (fx) {
-      sel.appendChild(new Option('× ' + fx.name, 'var'));
-      sel.title = 'Factor of ' + fx.name + ' (' + fx.varPx + 'px here)';
-    }
-    for (const u of units) sel.appendChild(new Option(u || '×', u));
-    wrap.appendChild(sel);
+// The unit dropdown: a variable factor first ("× --x"), then `units`.
+function uiiUnitSelect(units, fx) {
+  const sel = uiiEl('select', 'u');
+  if (fx) {
+    sel.appendChild(new Option('× ' + fx.name, 'var'));
+    sel.title = 'Factor of ' + fx.name + ' (' + fx.varPx + 'px here)';
   }
-  const unit = () => (sel ? sel.value : '');
-  const show = (v) => {
-    const f = fx && uiiParseVarFactor(v);
-    if (f) { box.value = String(f.k); sel.value = 'var'; return; }
-    const p = uiiParseNum(v);
-    box.value = p ? String(p.n) : v;
-    if (!sel || !p) return;
-    if (![...sel.options].some((o) => o.value === p.unit)) sel.appendChild(new Option(p.unit, p.unit));
-    sel.value = p.unit;
-  };
-  show(uiiEditValue(info, props[0]));
+  for (const u of units) sel.appendChild(new Option(u || '×', u));
+  return sel;
+}
+
+// write / nudge / cur for a number field, wired to its box. c: {info, props,
+// opt, fx, target, box, unit, show, pxNote}; pxNote is read at call time, as
+// the field sets it once its label exists.
+function uiiNumWriter(c) {
+  const { info, props, opt, fx, target, box, unit } = c;
   const write = (raw) => {
     const t = String(raw).trim();
     // A bare number takes the selected unit; anything else ("auto", "1.5em",
@@ -72,12 +55,12 @@ function uiiNumField(info, label, props, opt) {
     const bare = /^-?\d*\.?\d+$/.test(t);
     const v = bare && unit() === 'var' ? uiiVarCalc(fx.name, parseFloat(t)) : bare ? t + unit() : t;
     for (const p of props) uiiSet(info, p, v);
-    show(v);
+    c.show(v);
     if (opt.onSet) opt.onSet(v);
-    pxNote();
+    c.pxNote();
   };
   const step = () => opt.step || (unit() === 'var' ? 0.01 : unit() === 'px' || unit() === '%' ? 1 : 0.1);
-  // Number now; for "normal" / "auto" the computed value in the shown unit.
+  // Number now; for "normal" / "auto" / Mixed the computed value in the shown unit.
   const cur = () => {
     const n = parseFloat(box.value);
     return isNaN(n) ? parseFloat(uiiConvertUnit(target, props[0], unit())) : n;
@@ -95,17 +78,50 @@ function uiiNumField(info, label, props, opt) {
       nudge(cur(), (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1));
     }
   });
+  return { write, nudge, cur };
+}
+
+// opt: {units: [...] | null (no unit), step, onSet(v)}
+function uiiNumField(info, label, props, opt) {
+  props = [].concat(props);
+  opt = opt || {};
+  const units = 'units' in opt ? opt.units : (UII_UNITS[props[0]] || UII_UNITS_BOX);
+  const target = uiiTargetEl(info, props[0]);
+  const wrap = uiiEl('span', 'nf');
+  const box = uiiEl('input');
+  box.spellcheck = false;
+  wrap.appendChild(box);
+  // calc(var(--x) * k) in the stylesheet: the box edits k, unit "× --x".
+  const fx = units ? uiiFormula(target, props[0]) : null;
+  const sel = units ? wrap.appendChild(uiiUnitSelect(units, fx)) : null;
+  const unit = () => (sel ? sel.value : '');
+  const show = (v) => {
+    box.placeholder = '';
+    const f = fx && uiiParseVarFactor(v);
+    if (f) { box.value = String(f.k); sel.value = 'var'; return; }
+    const p = uiiParseNum(v);
+    box.value = p ? String(p.n) : v;
+    if (!sel || !p) return;
+    if (![...sel.options].some((o) => o.value === p.unit)) sel.appendChild(new Option(p.unit, p.unit));
+    sel.value = p.unit;
+  };
+  show(uiiEditValue(info, props[0]));
+  // A ↕ / ↔ pair whose sides differ shows no number: either one would lie.
+  // The first write sets both sides; show() clears the placeholder.
+  if (new Set(props.map((p) => uiiEditValue(info, p))).size > 1) { box.value = ''; box.placeholder = 'Mixed'; }
+  const c = { info, props, opt, fx, target, box, unit, show };
+  const { write, nudge, cur } = uiiNumWriter(c);
   if (sel) sel.addEventListener('change', () => write(sel.value === 'var'
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
     : uiiConvertUnit(target, props[0], sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
   const fld = uiiFld(label, wrap);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
-  const pxNote = () => {
+  c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));
     fld.lab.textContent = label + (unit() && unit() !== 'px' && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
   };
-  pxNote();
+  c.pxNote();
   uiiScrub(fld.lab, cur, nudge);
   fld.set = show;
   return fld;
@@ -119,6 +135,7 @@ function uiiStepper(bump) {
     b.type = 'button';
     b.tabIndex = -1;
     b.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // a right-click opens no menu here, and must not step
       e.preventDefault();
       const k = d * (e.shiftKey ? 10 : 1);
       uiiHold(true);
@@ -137,6 +154,7 @@ function uiiStepper(bump) {
 function uiiScrub(handle, read, apply) {
   handle.classList.add('scrub');
   handle.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
     const sx = e.clientX, start = read();
     let want = 0, done = 0, raf = 0;
     const flush = () => { raf = 0; if (want !== done) { done = want; apply(start, want); } };

@@ -80,6 +80,7 @@ UIInspector.init({
 | `formatForAI(info)` | The one-line locator for any info object (`info.code` is filled asynchronously after `select`). |
 | `formatDetails(info)` | The multi-line block with computed colours, font and spacing. |
 | `isCovered(element)` | `true` when a fixed layer on screen (a popup and its backdrop) paints over the element — the rule that keeps it unoutlined. |
+| `editCount()` | How many live style edits the Changes box lists — they stay on screen after inspect mode closes, so the host can say so. |
 | `destroy()` | Disable and unbind the shortcut. |
 
 ## Trying a change live
@@ -104,7 +105,7 @@ the pinned element; the Changes box then asks for a more specific selector.
 
 The **Changes** box under it holds the selector (and source location), then
 one line per rule to edit with the final values only — for every element
-edited since inspect mode opened, not just the pinned one —
+edited since the page loaded, not just the pinned one —
 `style.css .grid-task-title { font-size: calc(var(--grid) * 1.1) /* 14.3px */; }`.
 The box opens with one instruction line for the AI. A broad rule (`*`, a
 bare tag like `#grid td`) is never the target when the element has a rule of
@@ -120,7 +121,8 @@ line per element so an AI edits each rule. It is plain text you can
 trim before **📋 Copy** — it refills on the next edit. Edits are also listed in
 both footer Copy buttons as `apply: font-size: 14px; …`. **Reset**
 restores the element's original `style` attribute. Edits survive leaving
-inspect mode; reload the page to clear them all.
+inspect mode; reload the page to clear them all. `editCount()` lets the host
+say so when inspect mode closes.
 
 ## Where to edit
 

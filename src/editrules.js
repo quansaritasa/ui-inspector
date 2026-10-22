@@ -14,13 +14,15 @@ function uiiDeclValue(style, prop) {
   return (o ? o.v : style.getPropertyValue(prop)).trim();
 }
 
-function uiiRuleApply(el, prop, value) {
-  const d = uiiEditRule(el, prop);
-  if (!d) return; // no rule to share (inherited, or only `*`): the inline edit is it
+// Returns the rule it rewrote, so a caller can replay it once the element is
+// gone (a detached element has no computed style to find the rule by).
+function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
+  if (!d) return null; // no rule to share (inherited, or only `*`): the inline edit is it
   if (!uiiRuleOrig.has(d.style)) uiiRuleOrig.set(d.style, new Map());
   const m = uiiRuleOrig.get(d.style);
   if (!m.has(prop)) m.set(prop, { v: d.style.getPropertyValue(prop), p: d.style.getPropertyPriority(prop) });
   d.style.setProperty(prop, value, m.get(prop).p);
+  return d;
 }
 
 // Put every touched rule back, then — when the box is ticked — replay the
@@ -32,7 +34,9 @@ function uiiSyncRules() {
   uiiRuleOrig.clear();
   if (uiiState.similar && uiiState.edits) {
     for (const [el, e] of uiiState.edits) {
-      for (const [prop, v] of Object.entries(e.props)) uiiRuleApply(el, prop, v);
+      for (const [prop, v] of Object.entries(e.props)) {
+        e.rule[prop] = uiiRuleApply(el, prop, v, el.isConnected ? undefined : e.rule[prop] || null);
+      }
     }
   }
   uiiScheduleDraw();

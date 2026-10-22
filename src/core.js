@@ -156,4 +156,5 @@ const uiiApi = {
   formatForAI: uiiFormatForAI,
   formatDetails: uiiFormatDetails,
   isCovered: (el) => uiiOcclusion()(el, el.getBoundingClientRect()),
+  editCount: uiiEditCount,
 };
