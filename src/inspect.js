@@ -89,6 +89,7 @@ function uiiCollect(el) {
     classes: typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [],
     text: uiiShort(el.innerText || el.value || '', 60),
     path: uiiPath(el),
+    src: uiiState.opts.srcAttr ? (el.getAttribute(uiiState.opts.srcAttr) || '') : '',
     width: Math.round(r.width),
     height: Math.round(r.height),
     bg: uiiColorInfo(bg.rgb, bg.from, varMap),

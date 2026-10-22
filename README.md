@@ -55,8 +55,10 @@ UIInspector.init({
   selectors: ['button', 'input', 'select', 'textarea', 'a', 'label', 'summary',
               'section', '[role]', '[id]', '[data-ui]', '[contenteditable]'],
   nameAttr: 'data-ui',    // attribute used as the preferred name
+  srcAttr: 'data-src',    // attribute holding a stamped source location, e.g. 'grid-rows.js:33'; null = off
   ignore: [],             // selectors that are never outlined or pinned
   maxOutlines: 400,       // outline boxes drawn per frame
+  maxScanMs: 120,         // time budget for one scan; anything unscanned waits for the next frame
   scripts: null,          // (url) => bool: which <script src> files to scan; default skips vendor/
   onCopy: null,           // (text) => void, replaces navigator.clipboard
   onToggle: null,         // (isOn) => void
@@ -73,6 +75,7 @@ UIInspector.init({
 | `info()` | The data object for the pinned element, or `null`. |
 | `formatForAI(info)` | The one-line locator for any info object (`info.code` is filled asynchronously after `select`). |
 | `formatDetails(info)` | The multi-line block with computed colours, font and spacing. |
+| `isCovered(element)` | `true` when a fixed layer on screen (a popup and its backdrop) paints over the element — the rule that keeps it unoutlined. |
 | `destroy()` | Disable and unbind the shortcut. |
 
 ## Trying a change live
@@ -99,6 +102,11 @@ The panel's **Where to edit** rows name the files to open:
 
 - Everything is drawn inside one shadow root on a `<div data-uii>` host, so
   your CSS cannot restyle the overlay and the overlay's CSS cannot leak out.
+- A control under a fixed layer — the grid behind an open popup — is not
+  outlined. One scan hit-tests a 5x5 grid of points to find the fixed layers
+  on screen, then decides by geometry, so the cost does not grow with the
+  page. Small covers the probes miss (a toast, a tooltip) are not detected,
+  and the inspector's own panel never counts as cover.
 - While inspect mode is on, mouse events are captured before they reach your
   app, so clicking a button inspects it rather than pressing it.
 - Matched rules are read from `document.styleSheets`. Cross-origin sheets are
@@ -109,5 +117,5 @@ The panel's **Where to edit** rows name the files to open:
 ## Development
 
 Sources live in `src/` in fixed order (`styles`, `format`, `cssvars`,
-`inspect`, `overlay`, `panel`, `core`). Run `node build.js` to regenerate
+`inspect`, `occlusion`, `overlay`, `panel`, `core`). Run `node build.js` to regenerate
 `dist/ui-inspector.js`. Do not edit the `dist` file by hand.

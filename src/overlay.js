@@ -46,19 +46,25 @@ function uiiIgnored(el) {
   return false;
 }
 
-// Visible candidates inside the viewport, capped so a 5,000-row tree does not
-// turn into 5,000 divs.
+// Visible, uncovered candidates inside the viewport, capped so a 5,000-row
+// tree does not turn into 5,000 divs. The time budget truncates in document
+// order, so if it ever trips, a popup late in the markup is what goes
+// unoutlined — the box count with a popup open is the check that it does not.
 function uiiControls() {
   const S = uiiState;
   const vw = window.innerWidth, vh = window.innerHeight;
   const out = [];
   const all = document.querySelectorAll(S.selList);
+  const t0 = performance.now();
+  const covered = uiiOcclusion();
   for (const el of all) {
     if (out.length >= S.opts.maxOutlines) break;
+    if (performance.now() - t0 > S.opts.maxScanMs) break;
     if (el === S.host || S.host.contains(el) || uiiIgnored(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1 || r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) continue;
     if (getComputedStyle(el).visibility === 'hidden') continue;
+    if (covered(el, r)) continue;
     out.push({ el, r });
   }
   return out;

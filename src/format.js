@@ -43,11 +43,14 @@ function uiiColorLine(c) {
   return notes.length ? s + ' (' + notes.join('; ') + ')' : s;
 }
 
-// One line for an AI chat: the control's name and where to edit it —
-// selector, the script(s) that mention it, the stylesheet(s) that style it.
-//   edit-btn (#edit-btn · edit.js · style.css)
+// One line for an AI chat: the control's name and where to edit it — the
+// stamped source location when the app set one, then the selector, the
+// script(s) that mention it, the stylesheet(s) that style it.
+//   edit-btn (edit.js:12 · #edit-btn · edit.js · style.css)
 function uiiFormatForAI(info) {
   const loc = [info.path];
+  // Location first: it is the one part an AI can act on without searching.
+  if (info.src) loc.unshift(info.src);
   if (info.code && info.code.length) loc.push(info.code.join(', '));
   const css = uiiCssFiles(info);
   if (css.length) loc.push(css.join(', '));
@@ -61,6 +64,7 @@ function uiiFormatDetails(info) {
   const L = [];
   L.push('UI component: ' + info.name);
   L.push('Selector: ' + info.path);
+  if (info.src) L.push('Source: ' + info.src);
   L.push('Element: <' + info.tag + (info.id ? ' id="' + info.id + '"' : '')
     + (info.classes.length ? ' class="' + info.classes.join(' ') + '"' : '') + '>');
   if (info.text) L.push('Text: "' + info.text + '"');

@@ -7,6 +7,10 @@ const UII_DEFAULTS = {
   selectors: ['button', 'input', 'select', 'textarea', 'a', 'label', 'summary',
     'section', '[role]', '[id]', '[data-ui]', '[contenteditable]'],
   nameAttr: 'data-ui',        // attribute the app uses to label components
+  // Attribute holding a source location the app stamped on the element, e.g.
+  // "grid-rows.js:33". It is a location, not a name: it never enters the name
+  // chain, and null turns the whole feature off.
+  srcAttr: 'data-src',
   ignore: [],                 // selectors never outlined or selectable
   maxOutlines: 400,           // cap on outline boxes per frame
   // Time budget for ONE scan, in ms. This is a hard cap on the whole walk, not
@@ -150,4 +154,5 @@ const uiiApi = {
   isOn: () => uiiState.on,
   formatForAI: uiiFormatForAI,
   formatDetails: uiiFormatDetails,
+  isCovered: (el) => uiiOcclusion()(el, el.getBoundingClientRect()),
 };
