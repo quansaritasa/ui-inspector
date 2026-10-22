@@ -79,7 +79,7 @@ function uiiMatchedRules(el, all) {
       if (!s) continue;
       let hit = false;
       try { hit = el.matches(s); } catch (e) { hit = false; }
-      if (hit) { out.push({ file, selector: s, props: rule.style.length }); break; }
+      if (hit) { out.push({ file, selector: s, props: rule.style.length, style: rule.style }); break; }
     }
   }
   return out;

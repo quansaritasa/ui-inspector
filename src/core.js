@@ -27,6 +27,7 @@ const UII_DEFAULTS = {
 };
 
 const uiiState = {
+  similar: true,  // edits also rewrite the CSS rule (see editrules.js)
   opts: null, selList: '', on: false, bound: false,
   host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,

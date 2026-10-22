@@ -58,6 +58,28 @@ function uiiFormatForAI(info) {
   return info.name + ' (' + loc.join(' · ') + ')' + (edits ? ' — apply: ' + edits : '');
 }
 
+// The Changes box: every edit made since inspect mode opened, on any
+// element, as the final value per rule — one line per rule, no history.
+//   style.css .grid-task-title { font-size: calc(var(--g) * 1.1) /* 14.3px */; }
+//   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
+function uiiFormatChanges() {
+  const byRule = new Map();
+  for (const el of (uiiState.edits || new Map()).keys()) {
+    if (!el.isConnected) continue; // re-rendered away: the edit is gone from screen too
+    for (const c of uiiEditChanges(el)) {
+      const { head, decl } = uiiChangeDecl(el, c);
+      if (!byRule.has(head)) byRule.set(head, []);
+      byRule.get(head).push(decl);
+    }
+  }
+  const L = ['Apply these CSS changes (final values). Edit each rule in place; /* add */ = add that line'
+    + ' to the rule; /* new rule */ = create it. Keep var()/calc() as written.'];
+  for (const [head, decls] of byRule) L.push(head + ' { ' + decls.join('; ') + '; }');
+  if (L.length === 1) return '(no changes yet)';
+  if (!uiiState.similar) L.push('Only these elements: add a more specific selector, leave the shared rules.');
+  return L.join('\n');
+}
+
 // Multi-line block with the computed look, for when the AI must match or
 // change colours and type rather than just locate the element.
 function uiiFormatDetails(info) {

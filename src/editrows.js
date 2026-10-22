@@ -1,29 +1,15 @@
-/* ================= live editing =================
-   Each editable row writes straight to the pinned element's inline style, so
-   a tweak shows on screen at once. Edits are remembered per element so Reset
-   can put the original style attribute back, and so the Copy buttons can
-   tell an AI what was changed. */
-
-// [label, css property, kind] — kind 'color' adds a colour picker.
-const UII_EDITABLE = [
-  ['Background', 'background-color', 'color'],
-  ['Text', 'color', 'color'],
-  ['Font', 'font-family', 'text'],
-  ['Size', 'font-size', 'text'],
-  ['Line height', 'line-height', 'text'],
-  ['Weight', 'font-weight', 'text'],
-  ['Padding', 'padding', 'text'],
-  ['Margin', 'margin', 'text'],
-  ['Border', 'border', 'text'],
-  ['Radius', 'border-radius', 'text'],
-];
+/* ================= live editing: state =================
+   Each field writes straight to the pinned element's inline style, so a tweak
+   shows on screen at once. Edits are remembered per element: the original
+   style attribute (for Reset), the value typed, and the computed value before
+   the first edit (for the "from → to" change log an AI can act on). */
 
 function uiiEditsFor(el, create) {
   const S = uiiState;
   if (!S.edits) S.edits = new Map();
   let e = S.edits.get(el);
   if (!e && create) {
-    e = { orig: el.getAttribute('style'), props: {} };
+    e = { orig: el.getAttribute('style'), props: {}, from: {} };
     S.edits.set(el, e);
   }
   return e || null;
@@ -31,17 +17,41 @@ function uiiEditsFor(el, create) {
 
 function uiiApplyEdit(el, prop, value) {
   const e = uiiEditsFor(el, true);
+  if (!(prop in e.from)) e.from[prop] = getComputedStyle(el).getPropertyValue(prop).trim();
   e.props[prop] = value;
   el.style.setProperty(prop, value);
-  if (uiiState.panel) uiiState.panel.reset.hidden = false;
+  if (uiiState.similar) uiiRuleApply(el, prop, value);
+  if (uiiState.panel) {
+    uiiState.panel.reset.hidden = false;
+    // Building the log matches CSS rules; once a drag settles is enough.
+    clearTimeout(uiiState.chgTimer);
+    uiiState.chgTimer = setTimeout(uiiRefreshChanges, 150);
+  }
   uiiScheduleDraw();
 }
 
-function uiiResetEdits(el) {
+// While a value is dragged or held, outline redraws wait (each re-measures
+// every control on the page) and run once when it ends.
+function uiiHold(on) {
+  const S = uiiState;
+  S.holding = on;
+  if (!on && S.drawLater) { S.drawLater = false; uiiScheduleDraw(); }
+}
+
+function uiiResetOne(el) {
   const e = uiiEditsFor(el, false);
   if (!e) return;
   if (e.orig === null) el.removeAttribute('style'); else el.setAttribute('style', e.orig);
   uiiState.edits.delete(el);
+}
+
+// The pinned element plus every text child an edit reached (see uiiSet).
+function uiiResetEdits(el) {
+  const e = uiiEditsFor(el, false);
+  if (!e) return;
+  for (const k of e.kids || []) uiiResetOne(k);
+  uiiResetOne(el);
+  uiiSyncRules();
   uiiSelect(el);
 }
 
@@ -52,42 +62,38 @@ function uiiEditsText(el) {
   return Object.entries(e.props).map(([k, v]) => k + ': ' + v).join('; ');
 }
 
-// Current value shown in the box: the edit if there is one, else computed.
-function uiiEditValue(info, prop) {
-  const e = uiiEditsFor(info.el, false);
-  if (e && prop in e.props) return e.props[prop];
-  const cs = getComputedStyle(info.el);
-  if (prop === 'background-color') return info.bg.hex;
-  if (prop === 'color') return info.color.hex;
-  if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
-  return cs.getPropertyValue(prop);
-}
-
-function uiiEditRow(info, label, prop, kind) {
-  const row = uiiEl('div', 'row');
-  row.appendChild(uiiEl('span', 'k', label));
-  const v = uiiEl('span', 'v edit');
-  const value = uiiEditValue(info, prop);
-  const box = uiiEl('input', 'in');
-  box.type = 'text';
-  box.value = value;
-  box.spellcheck = false;
-  if (kind === 'color') {
-    const pick = uiiEl('input', 'pick');
-    pick.type = 'color';
-    if (/^#[0-9a-f]{6}$/i.test(value)) pick.value = value;
-    pick.addEventListener('input', () => { box.value = pick.value; uiiApplyEdit(info.el, prop, pick.value); });
-    v.appendChild(pick);
+// [{prop, from, to}] for every edited property whose computed value really
+// moved — typing a value back to where it started drops it from the log.
+function uiiEditChanges(el) {
+  const e = uiiEditsFor(el, false);
+  if (!e) return [];
+  const cs = getComputedStyle(el);
+  const out = [];
+  for (const [prop, to] of Object.entries(e.props)) {
+    if (cs.getPropertyValue(prop).trim() === e.from[prop]) continue;
+    out.push({ prop, from: uiiToHex(e.from[prop]), to });
   }
-  box.addEventListener('change', () => uiiApplyEdit(info.el, prop, box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  v.appendChild(box);
-  const c = info[prop === 'background-color' ? 'bg' : prop === 'color' ? 'color' : ''];
-  if (c && c.vars && c.vars.length) v.appendChild(uiiEl('span', 'var', c.vars.join(' ')));
-  row.appendChild(v);
-  return row;
+  return out;
 }
 
-function uiiRenderEditRows(body, info) {
-  for (const [label, prop, kind] of UII_EDITABLE) body.appendChild(uiiEditRow(info, label, prop, kind));
+// Current value shown in a field: the edit if there is one, else computed.
+// Text properties read the main text, which is what the edit changes;
+// a variable factor (calc(var(--x) * k)) or a plain authored value (1.125em)
+// wins over the computed px.
+function uiiEditValue(info, prop) {
+  const el = uiiTargetEl(info, prop);
+  const e = uiiEditsFor(el, false);
+  if (e && prop in e.props) return e.props[prop];
+  if (prop === 'background-color') return info.bg.hex;
+  if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
+  if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
+  const fx = uiiFormula(el, prop);
+  if (fx) return uiiVarCalc(fx.name, fx.k);
+  return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
+}
+
+// Refill the Changes box from the pinned element's edits.
+function uiiRefreshChanges() {
+  const P = uiiState.panel;
+  if (P && P.changes && uiiState.info) P.changes.value = uiiFormatChanges();
 }

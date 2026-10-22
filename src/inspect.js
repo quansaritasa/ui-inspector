@@ -105,5 +105,6 @@ function uiiCollect(el) {
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),
+    all, // every stylesheet rule, reused for the text children's lookups
   };
 }

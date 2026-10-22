@@ -99,6 +99,7 @@ function uiiDrawOutlines() {
 
 function uiiScheduleDraw() {
   const S = uiiState;
+  if (S.holding) { S.drawLater = true; return; }
   if (S.raf) return;
   S.raf = requestAnimationFrame(() => { S.raf = 0; uiiDrawOutlines(); });
 }
@@ -123,7 +124,8 @@ function uiiSetHover(el) {
   S.hoverBox.classList.add('on');
   S.tip.innerHTML = '<b></b> <span></span>';
   S.tip.firstChild.textContent = uiiName(el);
-  S.tip.lastChild.textContent = '<' + el.tagName.toLowerCase() + '> ' + Math.round(r.width) + '×' + Math.round(r.height);
+  S.tip.lastChild.textContent = '<' + el.tagName.toLowerCase() + '> ' + Math.round(r.width) + '×' + Math.round(r.height)
+    + ' · ' + getComputedStyle(el).fontSize;
   const top = r.top > 28 ? r.top - 24 : r.bottom + 4;
   S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
   S.tip.style.top = top + 'px';
@@ -136,6 +138,9 @@ function uiiOnMove(e) {
 }
 
 function uiiOnBlock(e) {
+  // A drag that starts in the panel (scrub, resize, move) and ends outside it
+  // makes the browser click the common ancestor — <html> — which would re-pin.
+  if (e.type === 'mousedown') uiiState.downInPanel = uiiFromPanel(e);
   if (uiiFromPanel(e)) return;
   e.preventDefault();
   e.stopPropagation();
@@ -145,6 +150,7 @@ function uiiOnClick(e) {
   if (uiiFromPanel(e)) return;
   e.preventDefault();
   e.stopPropagation();
+  if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
   const el = uiiTargetFrom(e);
   if (el) uiiSelect(el);
 }
@@ -157,12 +163,9 @@ function uiiSelect(el) {
   const info = uiiCollect(el);
   S.info = info;
   uiiRenderPanel(info);
-  // Script scan is async (first call fetches every <script src>); re-render
-  // only if this is still the pinned element when it lands.
-  uiiCodeFiles(info).then((files) => {
-    info.code = files;
-    if (S.info === info) uiiRenderPanel(info);
-  });
+  // Script scan is async (first call fetches every <script src>); the Copy
+  // buttons read info.code when pressed.
+  uiiCodeFiles(info).then((files) => { info.code = files; });
 }
 
 const UII_EVENTS = [

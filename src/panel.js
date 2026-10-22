@@ -15,9 +15,13 @@ function uiiBuildPanel(sh) {
   const head = uiiEl('div', 'head');
   const name = uiiEl('span', 'name');
   const tag = uiiEl('span', 'tag');
+  // Minimize folds the panel to its header so the page underneath shows;
+  // the class lives on the panel, so a new selection stays folded.
+  const fold = uiiEl('button', '', '—');
+  fold.title = 'Minimize';
   const close = uiiEl('button', '', '✕');
   close.title = 'Close panel (selection stays)';
-  head.append(name, tag, close);
+  head.append(name, tag, fold, close);
   const body = uiiEl('div', 'body');
   const foot = uiiEl('div', 'foot');
   const copyAI = uiiEl('button', '', '📋 Copy for AI');
@@ -29,15 +33,23 @@ function uiiBuildPanel(sh) {
   copyAll.title = 'Full block: colours, font, spacing, every matched rule';
   const ok = uiiEl('span', 'ok', '');
   foot.append(copyAI, copySel, copyAll, reset, ok);
-  p.append(head, body, foot);
+  const grip = uiiEl('div', 'grip');
+  grip.title = 'Drag to resize';
+  p.append(grip, head, body, foot);
   sh.appendChild(p);
   S.panel = { root: p, name, tag, body, ok, reset };
   close.addEventListener('click', () => p.classList.remove('on'));
+  fold.addEventListener('click', () => {
+    const min = p.classList.toggle('min');
+    fold.textContent = min ? '▢' : '—';
+    fold.title = min ? 'Maximize' : 'Minimize';
+  });
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(S.info)));
   copySel.addEventListener('click', () => uiiCopy(S.info.path));
   copyAll.addEventListener('click', () => uiiCopy(uiiFormatDetails(S.info)));
   reset.addEventListener('click', () => uiiResetEdits(S.info.el));
   uiiDrag(head, p);
+  uiiResizeLeft(grip, p);
 }
 
 function uiiDrag(handle, box) {
@@ -54,6 +66,26 @@ function uiiDrag(handle, box) {
     if (e.target.tagName === 'BUTTON') return;
     const r = box.getBoundingClientRect();
     sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+    e.preventDefault();
+  });
+}
+
+// Drag the left edge to resize; the right edge stays put, as the panel sits
+// at the right of the window. Same capture-listener pattern as uiiDrag.
+function uiiResizeLeft(handle, box) {
+  let sx = 0, sw = 0, right = 0;
+  const move = (e) => {
+    const w = Math.max(320, Math.min(window.innerWidth - 16, sw + sx - e.clientX));
+    box.style.width = w + 'px';
+    box.style.left = Math.max(0, right - w) + 'px';
+    box.style.right = 'auto';
+  };
+  const up = () => { window.removeEventListener('mousemove', move, true); window.removeEventListener('mouseup', up, true); };
+  handle.addEventListener('mousedown', (e) => {
+    const r = box.getBoundingClientRect();
+    sx = e.clientX; sw = r.width; right = r.right;
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
     e.preventDefault();
@@ -98,22 +130,35 @@ function uiiRenderPanel(info) {
   if (info.id) b.appendChild(uiiRow('id', info.id));
   if (info.classes.length) b.appendChild(uiiRow('class', info.classes.join(' ')));
   if (info.text) b.appendChild(uiiRow('Text', info.text));
-  b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display));
+  b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display + ' · font ' + info.fontSize));
 
-  b.appendChild(uiiEl('div', 'sec', 'Where to edit'));
-  b.appendChild(uiiRow('Code', info.code ? (info.code.join(', ') || '— (no script mentions it)') : 'scanning…'));
-  b.appendChild(uiiRow('CSS', uiiCssFiles(info).join(', ') || '—'));
 
-  b.appendChild(uiiEl('div', 'sec', 'Style — edit to try it live'));
+  // Where-to-edit and the matched-rule list live in the Copy buttons; the
+  // Changes box names the one rule each edit touches.
+  const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ');
+  const sim = uiiEl('label', 'sim');
+  const box = uiiEl('input');
+  box.type = 'checkbox';
+  box.checked = uiiState.similar;
+  sim.title = 'Also edit the CSS rule itself, so every element it styles changes too';
+  sim.append(box, document.createTextNode(' Apply to similar'));
+  box.addEventListener('change', () => { uiiState.similar = box.checked; uiiSyncRules(); uiiRefreshChanges(); });
+  stHead.appendChild(sim);
+  b.appendChild(stHead);
   uiiRenderEditRows(b, info);
 
-  b.appendChild(uiiEl('div', 'sec', 'Matched CSS rules (' + info.rules.length + ')'));
-  for (const r of info.rules) {
-    const d = uiiEl('div', 'rule');
-    d.appendChild(uiiEl('span', 'f', r.file + ' → '));
-    d.appendChild(document.createTextNode(r.selector));
-    b.appendChild(d);
-  }
-  P.reset.hidden = !uiiEditsText(info.el);
+  // Rebuilt with the rest of the body, so typing in it lasts until the next
+  // edit or selection refills it.
+  const chHead = uiiEl('div', 'sec', 'All changes — copy for AI ');
+  const chCopy = uiiEl('button', 'mini', '📋 Copy');
+  chHead.appendChild(chCopy);
+  const changes = uiiEl('textarea', 'chg');
+  changes.spellcheck = false;
+  changes.rows = 7;
+  chCopy.addEventListener('click', () => uiiCopy(changes.value));
+  b.append(chHead, changes);
+  P.changes = changes;
+  uiiRefreshChanges();
+  P.reset.hidden = !uiiEditsFor(info.el, false);
   P.root.classList.add('on');
 }
