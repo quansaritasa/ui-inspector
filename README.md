@@ -9,7 +9,17 @@ prompt; another copies the full details.
 
 ## Install
 
-Copy `dist/ui-inspector.js` into your app and load it with one script tag:
+`dist/ui-inspector.js` is committed, so any tag can be fetched directly. Pin a
+version and copy the file into your app:
+
+```sh
+# npm, straight from GitHub; copy node_modules/ui-inspector/dist/ui-inspector.js
+npm i github:quansaritasa/ui-inspector#v0.4.1
+# or one file, no npm
+curl -fsSL https://raw.githubusercontent.com/quansaritasa/ui-inspector/v0.4.1/dist/ui-inspector.js -o vendor/ui-inspector.js
+```
+
+Then load it with one script tag:
 
 ```html
 <script src="vendor/ui-inspector.js"></script>

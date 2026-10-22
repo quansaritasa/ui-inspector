@@ -4,9 +4,10 @@
   "description": "Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.",
   "license": "MIT",
   "author": "Quan Dao",
-  "homepage": "https://github.com/quansaritasa/qview/tree/main/lib/ui-inspector",
+  "homepage": "https://github.com/quansaritasa/ui-inspector",
+  "repository": "github:quansaritasa/ui-inspector",
   "main": "dist/ui-inspector.js",
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "node build.js"
   }
