@@ -42,12 +42,10 @@ Then load it with one script tag:
 | Drag the panel header | Move the panel |
 | Drag the panel's left edge | Resize its width |
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
-| **Copy for AI** | Copy one line: `name (selector · script files · stylesheet files)`, e.g. `edit-btn (#edit-btn · edit.js · style.css)` |
-| **Copy selector** | Copy only the CSS selector path |
-| **Copy details** | Copy a multi-line block with colours, font, spacing and every matched rule |
+| **📋 Copy ID** on **Identity** | Copy one line: `name (selector · script files · stylesheet files)`, e.g. `edit-btn (#edit-btn · edit.js · style.css)` |
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
-| **📋 Copy** on **Changes** | Copy the control's location plus each edited rule with its final value |
+| **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
 | **↺ Reset** | Undo every live edit on the pinned element |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
 
@@ -128,8 +126,8 @@ font, size, weight, line height, spacing) follow the text: pin a cell and
 change its size, and the title span inside it changes too — the field shows
 the main text's value, other text scales in proportion, and the log lists a
 line per element so an AI edits each rule. It is plain text you can
-trim before **📋 Copy** — it refills on the next edit. Edits are also listed in
-both footer Copy buttons as `apply: font-size: 14px; …`. **Reset**
+trim before **📋 Copy for AI** — it refills on the next edit. Edits are also listed in
+**📋 Copy ID** as `apply: font-size: 14px; …`. **Reset**
 restores the element's original `style` attribute. Edits survive leaving
 inspect mode; reload the page to clear them all. `editCount()` lets the host
 say so when inspect mode closes.

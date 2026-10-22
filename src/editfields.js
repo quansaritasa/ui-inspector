@@ -34,7 +34,7 @@ function uiiColorField(info, label, prop) {
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   wrap.append(pick, box);
-  const c = info[prop === 'background-color' ? 'bg' : 'color'];
+  const c = info[{ 'background-color': 'bg', color: 'color' }[prop]];
   if (c && c.vars && c.vars.length) wrap.appendChild(uiiEl('span', 'var', c.vars.join(' ')));
   return uiiFld(label, wrap).f;
 }
@@ -94,6 +94,9 @@ function uiiRenderEditRows(body, info) {
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
     uiiCard('Colour', uiiPair(uiiColorField(info, 'Background', 'background-color'), uiiColorField(info, 'Text', 'color'))),
+    uiiCard('Size',
+      uiiPair(num('Width', 'width'), num('Height', 'height')),
+      uiiPair(num('Min W', 'min-width'), num('Min H', 'min-height'))),
     uiiCard('Typography',
       uiiTextField(info, 'Font', 'font-family'),
       uiiPair(num('Size', 'font-size'), num('Space', 'letter-spacing')),
@@ -104,5 +107,5 @@ function uiiRenderEditRows(body, info) {
       uiiPair(num('Margin ↕', ['margin-top', 'margin-bottom']), num('Margin ↔', ['margin-left', 'margin-right']))),
     uiiCard('Border',
       uiiTextField(info, 'Border', 'border'),
-      uiiPair(num('Radius', 'border-radius'), uiiEl('span'))));
+      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
 }

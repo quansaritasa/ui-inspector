@@ -1,4 +1,4 @@
-/*! ui-inspector v0.4.1 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.4.2 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -39,16 +39,16 @@ const UII_CSS = `
   box-shadow: 0 12px 32px rgba(0,0,0,.25);
   font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
 .panel.on { display: flex; }
-.panel.min .body, .panel.min .foot { display: none; }
+.panel.min .body { display: none; }
 .panel.min .head { border-bottom: 0; border-radius: 8px; }
-.head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: move;
+.head { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; cursor: move;
   background: #f3f4f6; border-bottom: 1px solid #e5e7eb; border-radius: 8px 8px 0 0; user-select: none; }
 .head .name { flex: 1; min-width: 0; font-weight: 700; font-size: 13px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .head .tag { color: #6b7280; font-family: ui-monospace, Menlo, monospace; }
-.head button, .foot button { font: inherit; padding: 3px 8px; border: 1px solid #d1d5db;
+.head button { font: inherit; padding: 0 6px; border: 1px solid #d1d5db;
   border-radius: 4px; background: #fff; color: #111827; cursor: pointer; }
-.head button:hover, .foot button:hover { background: #e5e7eb; }
+.head button:hover { background: #e5e7eb; }
 .body { overflow: auto; padding: 0 0 6px; }
 .body > .sec:first-child { margin-top: 0; }
 .grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; }
@@ -98,10 +98,9 @@ const UII_CSS = `
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
   background-size: 6px 6px; background-position: 0 0, 3px 3px; }
 .sw i { display: block; width: 100%; height: 100%; }
-.foot { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-top: 1px solid #e5e7eb; }
-.foot .reset { color: #b91c1c; }
-.foot .reset[hidden] { display: none; }
-.foot .ok { color: #16a34a; align-self: center; }
+.head .reset { color: #b91c1c; }
+.head .reset[hidden] { display: none; }
+.head .ok { color: #16a34a; white-space: nowrap; }
 `;
 
 /* ================= value formatting =================
@@ -854,6 +853,8 @@ function uiiEditValue(info, prop) {
   if (e && prop in e.props) return e.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
+  // One picker sets all four sides; it shows the top one.
+  if (prop === 'border-color') return uiiToHex(getComputedStyle(el).borderTopColor);
   if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
   const fx = uiiFormula(el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);
@@ -1367,7 +1368,7 @@ function uiiColorField(info, label, prop) {
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   wrap.append(pick, box);
-  const c = info[prop === 'background-color' ? 'bg' : 'color'];
+  const c = info[{ 'background-color': 'bg', color: 'color' }[prop]];
   if (c && c.vars && c.vars.length) wrap.appendChild(uiiEl('span', 'var', c.vars.join(' ')));
   return uiiFld(label, wrap).f;
 }
@@ -1427,6 +1428,9 @@ function uiiRenderEditRows(body, info) {
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
     uiiCard('Colour', uiiPair(uiiColorField(info, 'Background', 'background-color'), uiiColorField(info, 'Text', 'color'))),
+    uiiCard('Size',
+      uiiPair(num('Width', 'width'), num('Height', 'height')),
+      uiiPair(num('Min W', 'min-width'), num('Min H', 'min-height'))),
     uiiCard('Typography',
       uiiTextField(info, 'Font', 'font-family'),
       uiiPair(num('Size', 'font-size'), num('Space', 'letter-spacing')),
@@ -1437,7 +1441,7 @@ function uiiRenderEditRows(body, info) {
       uiiPair(num('Margin ↕', ['margin-top', 'margin-bottom']), num('Margin ↔', ['margin-left', 'margin-right']))),
     uiiCard('Border',
       uiiTextField(info, 'Border', 'border'),
-      uiiPair(num('Radius', 'border-radius'), uiiEl('span'))));
+      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
 }
 
 /* ================= details panel =================
@@ -1463,21 +1467,15 @@ function uiiBuildPanel(sh) {
   fold.title = 'Minimize';
   const close = uiiEl('button', '', '✕');
   close.title = 'Close panel (selection stays)';
-  head.append(name, tag, fold, close);
-  const body = uiiEl('div', 'body');
-  const foot = uiiEl('div', 'foot');
-  const copyAI = uiiEl('button', '', '📋 Copy for AI');
-  const copySel = uiiEl('button', '', 'Copy selector');
-  const copyAll = uiiEl('button', '', 'Copy details');
+  // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset');
   reset.title = 'Undo every live edit on this element';
-  copyAI.title = 'One line: name, selector, element, stylesheet rules';
-  copyAll.title = 'Full block: colours, font, spacing, every matched rule';
   const ok = uiiEl('span', 'ok', '');
-  foot.append(copyAI, copySel, copyAll, reset, ok);
+  head.append(name, tag, ok, reset, fold, close);
+  const body = uiiEl('div', 'body');
   const grip = uiiEl('div', 'grip');
   grip.title = 'Drag to resize';
-  p.append(grip, head, body, foot);
+  p.append(grip, head, body);
   sh.appendChild(p);
   S.panel = { root: p, name, tag, body, ok, reset };
   close.addEventListener('click', () => p.classList.remove('on'));
@@ -1486,9 +1484,6 @@ function uiiBuildPanel(sh) {
     fold.textContent = min ? '▢' : '—';
     fold.title = min ? 'Maximize' : 'Minimize';
   });
-  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(S.info)));
-  copySel.addEventListener('click', () => uiiCopy(S.info.path));
-  copyAll.addEventListener('click', () => uiiCopy(uiiFormatDetails(S.info)));
   reset.addEventListener('click', () => uiiResetEdits(S.info.el));
   uiiDrag(head, p);
   uiiResizeLeft(grip, p);
@@ -1567,7 +1562,12 @@ function uiiRenderPanel(info) {
   P.tag.textContent = '<' + info.tag + '>';
   const b = P.body;
   b.textContent = '';
-  b.appendChild(uiiEl('div', 'sec', 'Identity'));
+  const idHead = uiiEl('div', 'sec', 'Identity ');
+  const copyAI = uiiEl('button', 'mini', '📋 Copy ID');
+  copyAI.title = 'One line: name, selector, element, stylesheet rules';
+  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info)));
+  idHead.appendChild(copyAI);
+  b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
   if (info.classes.length) b.appendChild(uiiRow('class', info.classes.join(' ')));
@@ -1591,8 +1591,8 @@ function uiiRenderPanel(info) {
 
   // Rebuilt with the rest of the body, so typing in it lasts until the next
   // edit or selection refills it.
-  const chHead = uiiEl('div', 'sec', 'All changes — copy for AI ');
-  const chCopy = uiiEl('button', 'mini', '📋 Copy');
+  const chHead = uiiEl('div', 'sec', 'All changes ');
+  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI');
   chHead.appendChild(chCopy);
   const changes = uiiEl('textarea', 'chg');
   changes.spellcheck = false;

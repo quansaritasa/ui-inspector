@@ -1,6 +1,6 @@
 {
   "name": "ui-inspector",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.",
   "license": "MIT",
   "author": "Quan Dao",

@@ -86,6 +86,8 @@ function uiiEditValue(info, prop) {
   if (e && prop in e.props) return e.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
+  // One picker sets all four sides; it shows the top one.
+  if (prop === 'border-color') return uiiToHex(getComputedStyle(el).borderTopColor);
   if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
   const fx = uiiFormula(el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);

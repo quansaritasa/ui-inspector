@@ -33,16 +33,16 @@ const UII_CSS = `
   box-shadow: 0 12px 32px rgba(0,0,0,.25);
   font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
 .panel.on { display: flex; }
-.panel.min .body, .panel.min .foot { display: none; }
+.panel.min .body { display: none; }
 .panel.min .head { border-bottom: 0; border-radius: 8px; }
-.head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: move;
+.head { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; cursor: move;
   background: #f3f4f6; border-bottom: 1px solid #e5e7eb; border-radius: 8px 8px 0 0; user-select: none; }
 .head .name { flex: 1; min-width: 0; font-weight: 700; font-size: 13px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .head .tag { color: #6b7280; font-family: ui-monospace, Menlo, monospace; }
-.head button, .foot button { font: inherit; padding: 3px 8px; border: 1px solid #d1d5db;
+.head button { font: inherit; padding: 0 6px; border: 1px solid #d1d5db;
   border-radius: 4px; background: #fff; color: #111827; cursor: pointer; }
-.head button:hover, .foot button:hover { background: #e5e7eb; }
+.head button:hover { background: #e5e7eb; }
 .body { overflow: auto; padding: 0 0 6px; }
 .body > .sec:first-child { margin-top: 0; }
 .grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; }
@@ -92,8 +92,7 @@ const UII_CSS = `
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
   background-size: 6px 6px; background-position: 0 0, 3px 3px; }
 .sw i { display: block; width: 100%; height: 100%; }
-.foot { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-top: 1px solid #e5e7eb; }
-.foot .reset { color: #b91c1c; }
-.foot .reset[hidden] { display: none; }
-.foot .ok { color: #16a34a; align-self: center; }
+.head .reset { color: #b91c1c; }
+.head .reset[hidden] { display: none; }
+.head .ok { color: #16a34a; white-space: nowrap; }
 `;

@@ -21,21 +21,15 @@ function uiiBuildPanel(sh) {
   fold.title = 'Minimize';
   const close = uiiEl('button', '', '✕');
   close.title = 'Close panel (selection stays)';
-  head.append(name, tag, fold, close);
-  const body = uiiEl('div', 'body');
-  const foot = uiiEl('div', 'foot');
-  const copyAI = uiiEl('button', '', '📋 Copy for AI');
-  const copySel = uiiEl('button', '', 'Copy selector');
-  const copyAll = uiiEl('button', '', 'Copy details');
+  // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset');
   reset.title = 'Undo every live edit on this element';
-  copyAI.title = 'One line: name, selector, element, stylesheet rules';
-  copyAll.title = 'Full block: colours, font, spacing, every matched rule';
   const ok = uiiEl('span', 'ok', '');
-  foot.append(copyAI, copySel, copyAll, reset, ok);
+  head.append(name, tag, ok, reset, fold, close);
+  const body = uiiEl('div', 'body');
   const grip = uiiEl('div', 'grip');
   grip.title = 'Drag to resize';
-  p.append(grip, head, body, foot);
+  p.append(grip, head, body);
   sh.appendChild(p);
   S.panel = { root: p, name, tag, body, ok, reset };
   close.addEventListener('click', () => p.classList.remove('on'));
@@ -44,9 +38,6 @@ function uiiBuildPanel(sh) {
     fold.textContent = min ? '▢' : '—';
     fold.title = min ? 'Maximize' : 'Minimize';
   });
-  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(S.info)));
-  copySel.addEventListener('click', () => uiiCopy(S.info.path));
-  copyAll.addEventListener('click', () => uiiCopy(uiiFormatDetails(S.info)));
   reset.addEventListener('click', () => uiiResetEdits(S.info.el));
   uiiDrag(head, p);
   uiiResizeLeft(grip, p);
@@ -125,7 +116,12 @@ function uiiRenderPanel(info) {
   P.tag.textContent = '<' + info.tag + '>';
   const b = P.body;
   b.textContent = '';
-  b.appendChild(uiiEl('div', 'sec', 'Identity'));
+  const idHead = uiiEl('div', 'sec', 'Identity ');
+  const copyAI = uiiEl('button', 'mini', '📋 Copy ID');
+  copyAI.title = 'One line: name, selector, element, stylesheet rules';
+  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info)));
+  idHead.appendChild(copyAI);
+  b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
   if (info.classes.length) b.appendChild(uiiRow('class', info.classes.join(' ')));
@@ -149,8 +145,8 @@ function uiiRenderPanel(info) {
 
   // Rebuilt with the rest of the body, so typing in it lasts until the next
   // edit or selection refills it.
-  const chHead = uiiEl('div', 'sec', 'All changes — copy for AI ');
-  const chCopy = uiiEl('button', 'mini', '📋 Copy');
+  const chHead = uiiEl('div', 'sec', 'All changes ');
+  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI');
   chHead.appendChild(chCopy);
   const changes = uiiEl('textarea', 'chg');
   changes.spellcheck = false;
