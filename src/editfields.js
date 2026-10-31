@@ -5,10 +5,14 @@
 const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 'Regular'],
   [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extra Bold'], [900, 'Black']];
 
-// Labelled field: <div.fld><span.lab>Size</span>{control}</div>
+// Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
+// also names the pair for scripts: the field is "field-size", the control
+// inside it "size" (see uiiEl — each name is written as id and data-ui).
 function uiiFld(label, control) {
-  const f = uiiEl('div', 'fld');
+  const name = uiiSlug(label);
+  const f = uiiEl('div', 'fld', undefined, 'field-' + name);
   const lab = uiiEl('span', 'lab', label);
+  if (!control.id) { control.setAttribute('data-ui', name); control.id = name; }
   f.append(lab, control);
   return { f, lab };
 }
@@ -78,7 +82,7 @@ function uiiAlignField(info) {
 }
 
 function uiiCard(title, ...rows) {
-  const c = uiiEl('div', 'card');
+  const c = uiiEl('div', 'card', undefined, 'card-' + uiiSlug(title));
   c.appendChild(uiiEl('div', 'ct', title));
   for (const r of rows) if (r) c.appendChild(r);
   return c;

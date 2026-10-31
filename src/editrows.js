@@ -42,6 +42,7 @@ function uiiResetOne(el) {
   const e = uiiEditsFor(el, false);
   if (!e) return;
   if (e.orig === null) el.removeAttribute('style'); else el.setAttribute('style', e.orig);
+  uiiRestoreText(e);
   uiiState.edits.delete(el);
 }
 

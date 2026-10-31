@@ -1,4 +1,4 @@
-/*! ui-inspector v0.4.2 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.5.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -59,6 +59,10 @@ const UII_CSS = `
 .row .k { color: #6b7280; }
 .row .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
 .row .v .var { color: #0f766e; margin-left: 6px; }
+.row .txt { width: 100%; min-height: 20px; padding: 2px 5px; resize: vertical;
+  font: 12px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;
+  border: 1px solid #d1d5db; border-radius: 4px; }
+.row .txt:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
 .card { margin: 8px 10px; padding: 8px 10px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;
   display: flex; flex-direction: column; gap: 8px; }
 .card .ct { font-weight: 700; font-size: 12px; }
@@ -809,6 +813,7 @@ function uiiResetOne(el) {
   const e = uiiEditsFor(el, false);
   if (!e) return;
   if (e.orig === null) el.removeAttribute('style'); else el.setAttribute('style', e.orig);
+  uiiRestoreText(e);
   uiiState.edits.delete(el);
 }
 
@@ -1339,10 +1344,14 @@ function uiiScrub(handle, read, apply) {
 const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 'Regular'],
   [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extra Bold'], [900, 'Black']];
 
-// Labelled field: <div.fld><span.lab>Size</span>{control}</div>
+// Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
+// also names the pair for scripts: the field is "field-size", the control
+// inside it "size" (see uiiEl — each name is written as id and data-ui).
 function uiiFld(label, control) {
-  const f = uiiEl('div', 'fld');
+  const name = uiiSlug(label);
+  const f = uiiEl('div', 'fld', undefined, 'field-' + name);
   const lab = uiiEl('span', 'lab', label);
+  if (!control.id) { control.setAttribute('data-ui', name); control.id = name; }
   f.append(lab, control);
   return { f, lab };
 }
@@ -1412,7 +1421,7 @@ function uiiAlignField(info) {
 }
 
 function uiiCard(title, ...rows) {
-  const c = uiiEl('div', 'card');
+  const c = uiiEl('div', 'card', undefined, 'card-' + uiiSlug(title));
   c.appendChild(uiiEl('div', 'ct', title));
   for (const r of rows) if (r) c.appendChild(r);
   return c;
@@ -1444,36 +1453,113 @@ function uiiRenderEditRows(body, info) {
       uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
 }
 
+/* ================= live editing: the words on screen =================
+   The style fields change how a control looks; this one changes what it
+   says. Retyping the label is how you find out whether a button survives a
+   longer word, so the Text row in the panel is a box you can type into and
+   the page follows every keystroke. Reset puts the original words back. */
+
+// The text node holding most of an element's words. A node, not an element:
+// writing to it leaves an icon, a badge or a nested <b> exactly where it was,
+// where setting textContent would wipe them out.
+function uiiMainTextNode(el) {
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let best = null, n;
+  for (let i = 0; (n = walk.nextNode()) && i < 200; i++) {
+    if (n.data.trim() && (!best || n.data.trim().length > best.data.trim().length)) best = n;
+  }
+  return best;
+}
+
+// What a form control says lives in .value, not in a child node.
+function uiiValueEl(el) {
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' ? el : null;
+}
+
+function uiiSetText(info, value) {
+  const el = info.el;
+  const e = uiiEditsFor(el, true);
+  const ve = uiiValueEl(el);
+  if (!e.text) e.text = ve ? { el: ve, from: ve.value } : { node: info.textNode, from: info.textNode.data };
+  // The node's own indentation is not part of the words: a <span> written
+  // across two lines keeps the spaces that separate it from its neighbours.
+  if (ve) ve.value = value;
+  else {
+    const pad = /^(\s*)[\s\S]*?(\s*)$/.exec(e.text.from);
+    e.text.node.data = pad[1] + value + pad[2];
+  }
+  if (uiiState.panel) uiiState.panel.reset.hidden = false;
+  uiiScheduleDraw();
+}
+
+// The Text row: a box, not a label, whenever there are words to retype.
+function uiiTextContentField(info) {
+  const ve = uiiValueEl(info.el);
+  info.textNode = ve ? null : uiiMainTextNode(info.el);
+  if (!ve && !info.textNode) return null;
+  const row = uiiEl('div', 'row', undefined, 'row-text');
+  row.appendChild(uiiEl('span', 'k', 'Text'));
+  const box = uiiEl('textarea', 'txt', undefined, 'text-content');
+  box.spellcheck = false;
+  box.rows = 1;
+  box.title = 'Type to change the words on screen — ↺ Reset puts them back';
+  box.value = ve ? ve.value : info.textNode.data.trim();
+  box.addEventListener('input', () => uiiSetText(info, box.value));
+  row.appendChild(box);
+  return row;
+}
+
+// Undo half of uiiSetText, for uiiResetOne.
+function uiiRestoreText(e) {
+  if (!e.text) return;
+  if (e.text.el) e.text.el.value = e.text.from;
+  else e.text.node.data = e.text.from;
+}
+
 /* ================= details panel =================
    Built once per mount inside the shadow root; re-rendered on every
-   selection. Drag by the header; buttons copy text for the clipboard. */
+   selection. Drag by the header; buttons copy text for the clipboard.
+   Every control carries a name of its own, written as both id and data-ui,
+   so a script driving the panel has something stable to aim at — the classes
+   here are styling hooks and change with the layout. The ids are safe: the
+   panel lives in a shadow root, so they cannot collide with the host page. */
 
-function uiiEl(tag, cls, text) {
+function uiiEl(tag, cls, text, ui) {
   const d = document.createElement(tag);
   if (cls) d.className = cls;
   if (text !== undefined) d.textContent = text;
+  if (ui) { d.setAttribute('data-ui', ui); d.id = ui; }
   return d;
+}
+
+// "Padding ↕" → "padding-y": a data-ui name from a human label. The two
+// arrows are the only thing telling a pair of fields apart, so they become
+// axes rather than being dropped with the rest of the punctuation.
+function uiiSlug(label) {
+  return String(label).replace(/↕/g, ' y').replace(/↔/g, ' x')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function uiiBuildPanel(sh) {
   const S = uiiState;
-  const p = uiiEl('div', 'panel');
-  const head = uiiEl('div', 'head');
-  const name = uiiEl('span', 'name');
-  const tag = uiiEl('span', 'tag');
+  const p = uiiEl('div', 'panel', undefined, 'inspector-panel');
+  const head = uiiEl('div', 'head', undefined, 'panel-head');
+  const name = uiiEl('span', 'name', undefined, 'panel-name');
+  const tag = uiiEl('span', 'tag', undefined, 'panel-tag');
   // Minimize folds the panel to its header so the page underneath shows;
   // the class lives on the panel, so a new selection stays folded.
-  const fold = uiiEl('button', '', '—');
+  const fold = uiiEl('button', '', '—', 'minimize');
   fold.title = 'Minimize';
-  const close = uiiEl('button', '', '✕');
+  const close = uiiEl('button', '', '✕', 'close-panel');
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
-  const reset = uiiEl('button', 'reset', '↺ Reset');
+  const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
   reset.title = 'Undo every live edit on this element';
-  const ok = uiiEl('span', 'ok', '');
+  const ok = uiiEl('span', 'ok', '', 'copy-status');
   head.append(name, tag, ok, reset, fold, close);
-  const body = uiiEl('div', 'body');
-  const grip = uiiEl('div', 'grip');
+  const body = uiiEl('div', 'body', undefined, 'panel-body');
+  const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
   p.append(grip, head, body);
   sh.appendChild(p);
@@ -1540,7 +1626,7 @@ function uiiCopy(text) {
 }
 
 function uiiRow(k, v, swatchHex) {
-  const row = uiiEl('div', 'row');
+  const row = uiiEl('div', 'row', undefined, 'row-' + uiiSlug(k));
   row.appendChild(uiiEl('span', 'k', k));
   const val = uiiEl('span', 'v');
   if (swatchHex && swatchHex !== 'transparent') {
@@ -1562,8 +1648,8 @@ function uiiRenderPanel(info) {
   P.tag.textContent = '<' + info.tag + '>';
   const b = P.body;
   b.textContent = '';
-  const idHead = uiiEl('div', 'sec', 'Identity ');
-  const copyAI = uiiEl('button', 'mini', '📋 Copy ID');
+  const idHead = uiiEl('div', 'sec', 'Identity ', 'section-identity');
+  const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info)));
   idHead.appendChild(copyAI);
@@ -1571,15 +1657,16 @@ function uiiRenderPanel(info) {
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
   if (info.classes.length) b.appendChild(uiiRow('class', info.classes.join(' ')));
-  if (info.text) b.appendChild(uiiRow('Text', info.text));
+  const textRow = uiiTextContentField(info);
+  if (textRow) b.appendChild(textRow);
   b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display + ' · font ' + info.fontSize));
 
 
   // Where-to-edit and the matched-rule list live in the Copy buttons; the
   // Changes box names the one rule each edit touches.
-  const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ');
+  const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ', 'section-style');
   const sim = uiiEl('label', 'sim');
-  const box = uiiEl('input');
+  const box = uiiEl('input', '', undefined, 'apply-to-similar');
   box.type = 'checkbox';
   box.checked = uiiState.similar;
   sim.title = 'Also edit the CSS rule itself, so every element it styles changes too';
@@ -1591,10 +1678,10 @@ function uiiRenderPanel(info) {
 
   // Rebuilt with the rest of the body, so typing in it lasts until the next
   // edit or selection refills it.
-  const chHead = uiiEl('div', 'sec', 'All changes ');
-  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI');
+  const chHead = uiiEl('div', 'sec', 'All changes ', 'section-changes');
+  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI', 'copy-for-ai');
   chHead.appendChild(chCopy);
-  const changes = uiiEl('textarea', 'chg');
+  const changes = uiiEl('textarea', 'chg', undefined, 'changes');
   changes.spellcheck = false;
   changes.rows = 7;
   chCopy.addEventListener('click', () => uiiCopy(changes.value));

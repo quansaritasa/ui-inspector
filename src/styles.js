@@ -53,6 +53,10 @@ const UII_CSS = `
 .row .k { color: #6b7280; }
 .row .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
 .row .v .var { color: #0f766e; margin-left: 6px; }
+.row .txt { width: 100%; min-height: 20px; padding: 2px 5px; resize: vertical;
+  font: 12px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;
+  border: 1px solid #d1d5db; border-radius: 4px; }
+.row .txt:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
 .card { margin: 8px 10px; padding: 8px 10px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;
   display: flex; flex-direction: column; gap: 8px; }
 .card .ct { font-weight: 700; font-size: 12px; }

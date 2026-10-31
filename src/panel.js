@@ -1,33 +1,46 @@
 /* ================= details panel =================
    Built once per mount inside the shadow root; re-rendered on every
-   selection. Drag by the header; buttons copy text for the clipboard. */
+   selection. Drag by the header; buttons copy text for the clipboard.
+   Every control carries a name of its own, written as both id and data-ui,
+   so a script driving the panel has something stable to aim at — the classes
+   here are styling hooks and change with the layout. The ids are safe: the
+   panel lives in a shadow root, so they cannot collide with the host page. */
 
-function uiiEl(tag, cls, text) {
+function uiiEl(tag, cls, text, ui) {
   const d = document.createElement(tag);
   if (cls) d.className = cls;
   if (text !== undefined) d.textContent = text;
+  if (ui) { d.setAttribute('data-ui', ui); d.id = ui; }
   return d;
+}
+
+// "Padding ↕" → "padding-y": a data-ui name from a human label. The two
+// arrows are the only thing telling a pair of fields apart, so they become
+// axes rather than being dropped with the rest of the punctuation.
+function uiiSlug(label) {
+  return String(label).replace(/↕/g, ' y').replace(/↔/g, ' x')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function uiiBuildPanel(sh) {
   const S = uiiState;
-  const p = uiiEl('div', 'panel');
-  const head = uiiEl('div', 'head');
-  const name = uiiEl('span', 'name');
-  const tag = uiiEl('span', 'tag');
+  const p = uiiEl('div', 'panel', undefined, 'inspector-panel');
+  const head = uiiEl('div', 'head', undefined, 'panel-head');
+  const name = uiiEl('span', 'name', undefined, 'panel-name');
+  const tag = uiiEl('span', 'tag', undefined, 'panel-tag');
   // Minimize folds the panel to its header so the page underneath shows;
   // the class lives on the panel, so a new selection stays folded.
-  const fold = uiiEl('button', '', '—');
+  const fold = uiiEl('button', '', '—', 'minimize');
   fold.title = 'Minimize';
-  const close = uiiEl('button', '', '✕');
+  const close = uiiEl('button', '', '✕', 'close-panel');
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
-  const reset = uiiEl('button', 'reset', '↺ Reset');
+  const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
   reset.title = 'Undo every live edit on this element';
-  const ok = uiiEl('span', 'ok', '');
+  const ok = uiiEl('span', 'ok', '', 'copy-status');
   head.append(name, tag, ok, reset, fold, close);
-  const body = uiiEl('div', 'body');
-  const grip = uiiEl('div', 'grip');
+  const body = uiiEl('div', 'body', undefined, 'panel-body');
+  const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
   p.append(grip, head, body);
   sh.appendChild(p);
@@ -94,7 +107,7 @@ function uiiCopy(text) {
 }
 
 function uiiRow(k, v, swatchHex) {
-  const row = uiiEl('div', 'row');
+  const row = uiiEl('div', 'row', undefined, 'row-' + uiiSlug(k));
   row.appendChild(uiiEl('span', 'k', k));
   const val = uiiEl('span', 'v');
   if (swatchHex && swatchHex !== 'transparent') {
@@ -116,8 +129,8 @@ function uiiRenderPanel(info) {
   P.tag.textContent = '<' + info.tag + '>';
   const b = P.body;
   b.textContent = '';
-  const idHead = uiiEl('div', 'sec', 'Identity ');
-  const copyAI = uiiEl('button', 'mini', '📋 Copy ID');
+  const idHead = uiiEl('div', 'sec', 'Identity ', 'section-identity');
+  const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info)));
   idHead.appendChild(copyAI);
@@ -125,15 +138,16 @@ function uiiRenderPanel(info) {
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
   if (info.classes.length) b.appendChild(uiiRow('class', info.classes.join(' ')));
-  if (info.text) b.appendChild(uiiRow('Text', info.text));
+  const textRow = uiiTextContentField(info);
+  if (textRow) b.appendChild(textRow);
   b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display + ' · font ' + info.fontSize));
 
 
   // Where-to-edit and the matched-rule list live in the Copy buttons; the
   // Changes box names the one rule each edit touches.
-  const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ');
+  const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ', 'section-style');
   const sim = uiiEl('label', 'sim');
-  const box = uiiEl('input');
+  const box = uiiEl('input', '', undefined, 'apply-to-similar');
   box.type = 'checkbox';
   box.checked = uiiState.similar;
   sim.title = 'Also edit the CSS rule itself, so every element it styles changes too';
@@ -145,10 +159,10 @@ function uiiRenderPanel(info) {
 
   // Rebuilt with the rest of the body, so typing in it lasts until the next
   // edit or selection refills it.
-  const chHead = uiiEl('div', 'sec', 'All changes ');
-  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI');
+  const chHead = uiiEl('div', 'sec', 'All changes ', 'section-changes');
+  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI', 'copy-for-ai');
   chHead.appendChild(chCopy);
-  const changes = uiiEl('textarea', 'chg');
+  const changes = uiiEl('textarea', 'chg', undefined, 'changes');
   changes.spellcheck = false;
   changes.rows = 7;
   chCopy.addEventListener('click', () => uiiCopy(changes.value));

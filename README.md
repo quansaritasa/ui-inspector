@@ -93,6 +93,15 @@ UIInspector.init({
 
 ## Trying a change live
 
+The **Identity** section's **Text** row is a box, not a label: type in it and
+the words on screen change as you type, which is how you find out whether a
+button survives a longer label before anyone writes the copy. It writes to the
+one text node holding most of the element's words, so an icon, a badge or a
+nested `<b>` beside the text stays where it was; on an `<input>` or
+`<textarea>` it writes `value`. **Reset** puts the original words back, and
+the change is live only — it is for trying a label, not a string an AI should
+apply, so the Changes box stays CSS.
+
 The **Style** section groups fields in cards — Colour, Typography (font,
 size, letter spacing, line height, weight, align), Spacing (padding and margin
 as vertical ↕ / horizontal ↔) and Border. Type a value and press Enter, step a
@@ -158,9 +167,17 @@ The panel's **Where to edit** rows name the files to open:
   skipped. File names are shown; line numbers are not available from the CSSOM.
 - The shortcut is ignored while an input, textarea or editable element has
   focus, unless inspect mode is already on.
+- Every control in the panel carries a name of its own, written as both `id`
+  and `data-ui` — `inspector-panel`, `reset-edits`, `text-content`,
+  `field-line-height`, `changes` — so a test or a script can aim at one without
+  depending on a class that moves with the layout:
+  `document.querySelector('[data-uii]').shadowRoot.getElementById('text-content')`.
+  The ids cannot collide with your page: they live in the shadow root.
 
 ## Development
 
-Sources live in `src/` in fixed order (`styles`, `format`, `cssvars`,
-`inspect`, `occlusion`, `overlay`, `panel`, `core`). Run `node build.js` to regenerate
+Sources live in `src/` in the fixed order `build.js` lists (`styles`,
+`format`, `cssvars`, `sources`, `inspect`, `occlusion`, `overlay`, `editrows`,
+`editrules`, `edittext`, `editvar`, `editnum`, `editfields`, `content`,
+`panel`, `core`). Run `node build.js` to regenerate
 `dist/ui-inspector.js`. Do not edit the `dist` file by hand.
