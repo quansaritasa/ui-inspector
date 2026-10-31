@@ -4,6 +4,28 @@
    walking document.styleSheets — cross-origin sheets throw on .cssRules and
    are skipped. Runs only on click, so a few hundred rules is fine. */
 
+// A sheet's name as an AI should read it: the file, not where the page is
+// served from. Every same-origin sheet is the app's own, and
+// "localhost:8765/style.css" spends thirteen characters saying where the
+// reader already is — "style.css" is the string to grep. A cross-origin sheet
+// keeps its host and drops everything else: "photoswipe.css" alone would not
+// say which CDN served it, and the folders in front of it say nothing.
+function uiiSheetName(href) {
+  const url = String(href).split('?')[0];
+  try {
+    const u = new URL(url, document.baseURI);
+    const segs = u.pathname.split('/').filter(Boolean);
+    if (u.origin !== new URL(document.baseURI).origin) {
+      return (u.host ? u.host + '/' : '') + (segs.pop() || u.pathname);
+    }
+    // Two segments on a same-origin sheet, not one: /renderer/style.css is
+    // still the app's own file, and the folder is part of finding it.
+    return segs.slice(-2).join('/') || url;
+  } catch (e) {
+    return url; // an unparsable href is named by what it says
+  }
+}
+
 // Every CSSStyleRule in every readable sheet, flattened through @media /
 // @supports / @layer. Each entry: { rule, file }.
 function uiiAllRules() {
@@ -20,10 +42,10 @@ function uiiAllRules() {
     let rules;
     try { rules = sh.cssRules; } catch (e) { continue; }
     if (!rules) continue;
-    // A linked sheet is named by its last two path segments; an inline <style>
-    // by its id when it has one (usually injected by a script at runtime).
+    // A linked sheet is named by its file; an inline <style> by its id when it
+    // has one (usually injected by a script at runtime).
     const node = sh.ownerNode;
-    const file = sh.href ? sh.href.split('/').slice(-2).join('/').split('?')[0]
+    const file = sh.href ? uiiSheetName(sh.href)
       : node && node.id ? '<style id="' + node.id + '"> (injected)' : '<style>#' + i;
     walk(rules, file);
   }

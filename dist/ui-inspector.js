@@ -1,4 +1,4 @@
-/*! ui-inspector v0.5.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.5.1 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -243,6 +243,28 @@ function uiiFormatDetails(info) {
    walking document.styleSheets — cross-origin sheets throw on .cssRules and
    are skipped. Runs only on click, so a few hundred rules is fine. */
 
+// A sheet's name as an AI should read it: the file, not where the page is
+// served from. Every same-origin sheet is the app's own, and
+// "localhost:8765/style.css" spends thirteen characters saying where the
+// reader already is — "style.css" is the string to grep. A cross-origin sheet
+// keeps its host and drops everything else: "photoswipe.css" alone would not
+// say which CDN served it, and the folders in front of it say nothing.
+function uiiSheetName(href) {
+  const url = String(href).split('?')[0];
+  try {
+    const u = new URL(url, document.baseURI);
+    const segs = u.pathname.split('/').filter(Boolean);
+    if (u.origin !== new URL(document.baseURI).origin) {
+      return (u.host ? u.host + '/' : '') + (segs.pop() || u.pathname);
+    }
+    // Two segments on a same-origin sheet, not one: /renderer/style.css is
+    // still the app's own file, and the folder is part of finding it.
+    return segs.slice(-2).join('/') || url;
+  } catch (e) {
+    return url; // an unparsable href is named by what it says
+  }
+}
+
 // Every CSSStyleRule in every readable sheet, flattened through @media /
 // @supports / @layer. Each entry: { rule, file }.
 function uiiAllRules() {
@@ -259,10 +281,10 @@ function uiiAllRules() {
     let rules;
     try { rules = sh.cssRules; } catch (e) { continue; }
     if (!rules) continue;
-    // A linked sheet is named by its last two path segments; an inline <style>
-    // by its id when it has one (usually injected by a script at runtime).
+    // A linked sheet is named by its file; an inline <style> by its id when it
+    // has one (usually injected by a script at runtime).
     const node = sh.ownerNode;
-    const file = sh.href ? sh.href.split('/').slice(-2).join('/').split('?')[0]
+    const file = sh.href ? uiiSheetName(sh.href)
       : node && node.id ? '<style id="' + node.id + '"> (injected)' : '<style>#' + i;
     walk(rules, file);
   }
@@ -446,17 +468,49 @@ function uiiSegment(el) {
   return same.length > 1 ? tag + ':nth-of-type(' + (same.indexOf(el) + 1) + ')' : tag;
 }
 
-// Selector path up to the nearest ancestor with an id (or <body>), so it is
-// short but still unique enough to grep for.
-function uiiPath(el) {
-  const segs = [];
-  let n = el;
-  while (n && n !== document.body && segs.length < 6) {
-    segs.unshift(uiiSegment(n));
-    if (n.id) break;
+// The nearest ancestor an AI can grep for: an #id, or the app's own nameAttr
+// (data-ui), which is how an app labels a region. `up` counts the wrappers
+// between it and el, so the caller knows whether anything was collapsed
+// (0 = the direct parent).
+function uiiAnchor(el) {
+  const attr = uiiState.opts.nameAttr;
+  let n = el.parentElement;
+  let up = 0;
+  while (n && n !== document.body) {
+    const named = attr && n.getAttribute(attr);
+    if (n.id || named) {
+      const cls = typeof n.className === 'string' && n.className.trim();
+      // A named ancestor with no class and no id has no segment worth
+      // printing — uiiSegment() would answer "div:nth-of-type(2)" — so the
+      // attribute itself is written, which is at least the string to grep.
+      const seg = n.id || cls ? uiiSegment(n) : '[' + attr + '="' + named + '"]';
+      return { seg, up };
+    }
     n = n.parentElement;
+    up += 1;
   }
-  return segs.join(' > ');
+  return null;
+}
+
+// Selector path: the element, and the nearest ancestor that pins it, with "…"
+// for whatever sits between them. Two pieces name what to look for; six named
+// where it was and nothing else —
+//   div.jira-panel-body > div.jira-comments > div.jira-comments-list >
+//   div.jira-comment-replies > div.jira-comment.jira-comment-reply >
+//   div.jira-comment-body
+// is the same element as
+//   div.jira-comments-list > … > div.jira-comment-body
+// and the long one repeats "div" five times to say "somewhere deep". A prompt
+// pays for every one of those characters, and the source stamp beside the path
+// is what actually leads to the line to edit; the path only has to say what to
+// grep for. The "…" is the marker uiiFormatChanges() already writes.
+function uiiPath(el) {
+  const own = uiiSegment(el);
+  // An id on the element is already unique and already short.
+  if (el.id) return own;
+  const anchor = uiiAnchor(el);
+  if (!anchor) return own;
+  return anchor.up > 0 ? anchor.seg + ' > … > ' + own : anchor.seg + ' > ' + own;
 }
 
 // Walk up until something actually paints a background.

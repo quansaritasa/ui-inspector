@@ -44,17 +44,49 @@ function uiiSegment(el) {
   return same.length > 1 ? tag + ':nth-of-type(' + (same.indexOf(el) + 1) + ')' : tag;
 }
 
-// Selector path up to the nearest ancestor with an id (or <body>), so it is
-// short but still unique enough to grep for.
-function uiiPath(el) {
-  const segs = [];
-  let n = el;
-  while (n && n !== document.body && segs.length < 6) {
-    segs.unshift(uiiSegment(n));
-    if (n.id) break;
+// The nearest ancestor an AI can grep for: an #id, or the app's own nameAttr
+// (data-ui), which is how an app labels a region. `up` counts the wrappers
+// between it and el, so the caller knows whether anything was collapsed
+// (0 = the direct parent).
+function uiiAnchor(el) {
+  const attr = uiiState.opts.nameAttr;
+  let n = el.parentElement;
+  let up = 0;
+  while (n && n !== document.body) {
+    const named = attr && n.getAttribute(attr);
+    if (n.id || named) {
+      const cls = typeof n.className === 'string' && n.className.trim();
+      // A named ancestor with no class and no id has no segment worth
+      // printing — uiiSegment() would answer "div:nth-of-type(2)" — so the
+      // attribute itself is written, which is at least the string to grep.
+      const seg = n.id || cls ? uiiSegment(n) : '[' + attr + '="' + named + '"]';
+      return { seg, up };
+    }
     n = n.parentElement;
+    up += 1;
   }
-  return segs.join(' > ');
+  return null;
+}
+
+// Selector path: the element, and the nearest ancestor that pins it, with "…"
+// for whatever sits between them. Two pieces name what to look for; six named
+// where it was and nothing else —
+//   div.jira-panel-body > div.jira-comments > div.jira-comments-list >
+//   div.jira-comment-replies > div.jira-comment.jira-comment-reply >
+//   div.jira-comment-body
+// is the same element as
+//   div.jira-comments-list > … > div.jira-comment-body
+// and the long one repeats "div" five times to say "somewhere deep". A prompt
+// pays for every one of those characters, and the source stamp beside the path
+// is what actually leads to the line to edit; the path only has to say what to
+// grep for. The "…" is the marker uiiFormatChanges() already writes.
+function uiiPath(el) {
+  const own = uiiSegment(el);
+  // An id on the element is already unique and already short.
+  if (el.id) return own;
+  const anchor = uiiAnchor(el);
+  if (!anchor) return own;
+  return anchor.up > 0 ? anchor.seg + ' > … > ' + own : anchor.seg + ' > ' + own;
 }
 
 // Walk up until something actually paints a background.

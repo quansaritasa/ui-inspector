@@ -59,6 +59,34 @@ default), `aria-label`, `id`, `title`, `placeholder`, the element's own text
 (trimmed to 30 characters), or `tag.class`. Adding `data-ui="theme-menu"` to
 your key controls gives the clearest labels.
 
+## How an element's selector is written
+
+Two pieces: the element, and the nearest ancestor that pins it — an `#id`, or
+an ancestor carrying the `nameAttr`. Any wrappers between them collapse to `…`.
+
+```
+div.jira-comment.jira-comment-reply > div.jira-comment-body
+[data-ui="plain-region"] > span.target-span
+#grid
+```
+
+The chain from `<body>` used to be spelled out, six wrappers deep:
+
+```
+div.jira-panel-body > div.jira-comments > div.jira-comments-list >
+div.jira-comment-replies > div.jira-comment.jira-comment-reply >
+div.jira-comment-body
+```
+
+which names the element once, at the end, and costs a prompt thirty words to
+say "somewhere deep". What leads to the line to edit is the source stamp beside
+it (`jira-comments-card.js:155`); the selector only has to say what to grep for.
+
+A stylesheet keeps its file name and loses the origin the page is served from —
+`style.css`, not `localhost:8765/style.css`. A cross-origin sheet keeps its host
+(`cdn.jsdelivr.net/photoswipe.css`), since the file name alone would not say
+who served it.
+
 ## Options
 
 ```js
