@@ -48,7 +48,7 @@ function uiiColorLine(c) {
 // script(s) that mention it, the stylesheet(s) that style it.
 //   edit-btn (edit.js:12 · #edit-btn · edit.js · style.css)
 function uiiFormatForAI(info) {
-  // The selector leads: it is the ID. Then the source location, the one part
+  // The selector leads: id plus classes. Then the source location, the one part
   // an AI acts on without searching. Brackets make it one paste-ready token.
   const loc = [];
   if (info.src) loc.push(info.src);

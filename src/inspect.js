@@ -82,8 +82,12 @@ function uiiAnchor(el) {
 // grep for. The "…" is the marker uiiFormatChanges() already writes.
 function uiiPath(el) {
   const own = uiiSegment(el);
-  // An id on the element is already unique and already short.
-  if (el.id) return own;
+  // An id is unique but often minted at runtime, so nothing in the source
+  // greps for it; the element's own classes do, in the JS and the CSS alike.
+  if (el.id) {
+    const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [];
+    return own + cls.slice(0, 2).map((c) => '.' + CSS.escape(c)).join('');
+  }
   const anchor = uiiAnchor(el);
   if (!anchor) return own;
   return anchor.up > 0 ? anchor.seg + ' > … > ' + own : anchor.seg + ' > ' + own;

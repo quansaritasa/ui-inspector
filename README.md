@@ -43,7 +43,7 @@ Then load it with one script tag:
 | Drag the panel's left edge | Resize its width |
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
 | `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
-| **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet + winning selector)]`, e.g. `[#edit-btn (edit.js:12 · style.css .btn)]` |
+| **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet files)]`, e.g. `[#edit-btn.btn (edit.js:12 · style.css)]` — an element with an id also carries its classes, the part that greps in the source |
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |

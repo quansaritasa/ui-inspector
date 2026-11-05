@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.1 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.2 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -170,7 +170,7 @@ function uiiColorLine(c) {
 // script(s) that mention it, the stylesheet(s) that style it.
 //   edit-btn (edit.js:12 · #edit-btn · edit.js · style.css)
 function uiiFormatForAI(info) {
-  // The selector leads: it is the ID. Then the source location, the one part
+  // The selector leads: id plus classes. Then the source location, the one part
   // an AI acts on without searching. Brackets make it one paste-ready token.
   const loc = [];
   if (info.src) loc.push(info.src);
@@ -457,17 +457,18 @@ async function uiiCodeFiles(info) {
   return scored.slice(0, 3).map((s) => s.file);
 }
 
-// Stylesheets behind the matched rules, each with the selector to grep: the
-// last match in the file, which wins a specificity tie. Files keep first-seen
-// order so the first named is the app's own sheet, not a reset.
+// Stylesheet files behind the matched rules, most specific last in sheet
+// order so the first named is the app's own sheet, not a reset. No selector:
+// the element's class in the locator greps every rule at once.
 function uiiCssFiles(info) {
-  const last = new Map();
+  const out = [];
   for (const r of info.rules) {
     if (r.selector === '*' || r.selector === 'html' || r.selector === 'body') continue;
     if (r.file.startsWith('<style')) continue; // injected at runtime: nothing to open
-    last.set(r.file.replace(/^renderer\//, ''), r.selector);
+    const f = r.file.replace(/^renderer\//, '');
+    if (!out.includes(f)) out.push(f);
   }
-  return [...last].slice(0, 3).map(([f, sel]) => f + ' ' + sel);
+  return out.slice(0, 3);
 }
 
 /* ================= element facts =================
@@ -554,8 +555,12 @@ function uiiAnchor(el) {
 // grep for. The "…" is the marker uiiFormatChanges() already writes.
 function uiiPath(el) {
   const own = uiiSegment(el);
-  // An id on the element is already unique and already short.
-  if (el.id) return own;
+  // An id is unique but often minted at runtime, so nothing in the source
+  // greps for it; the element's own classes do, in the JS and the CSS alike.
+  if (el.id) {
+    const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [];
+    return own + cls.slice(0, 2).map((c) => '.' + CSS.escape(c)).join('');
+  }
   const anchor = uiiAnchor(el);
   if (!anchor) return own;
   return anchor.up > 0 ? anchor.seg + ' > … > ' + own : anchor.seg + ' > ' + own;
