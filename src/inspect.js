@@ -110,7 +110,8 @@ function uiiCollect(el) {
   const cs = getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const all = uiiAllRules();
-  const varMap = uiiColorVarMap(el, all);
+  const colorVars = uiiColorVars(el, all);
+  const varMap = uiiColorVarMap(colorVars);
   const bg = uiiEffectiveBg(el);
   return {
     el,
@@ -137,6 +138,7 @@ function uiiCollect(el) {
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),
+    colorVars, // the palette the colour fields offer (cssvars.js)
     all, // every stylesheet rule, reused for the text children's lookups
   };
 }

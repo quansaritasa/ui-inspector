@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ORDER = ['styles', 'format', 'cssvars', 'sources', 'inspect', 'occlusion', 'overlay', 'editrows', 'editrules', 'edittext', 'editvar', 'editnum', 'editfields', 'content', 'panel', 'core'];
+const ORDER = ['styles', 'format', 'cssvars', 'sources', 'inspect', 'occlusion', 'overlay', 'spacing', 'events', 'editrows', 'editrules', 'edittext', 'editvar', 'editnum', 'editfields', 'content', 'panel', 'core'];
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist', 'ui-inspector.js');
 const pkg = require('./package.json');

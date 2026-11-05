@@ -1,8 +1,7 @@
-/* ================= overlay: outlines, hover box, click capture =================
+/* ================= overlay: the host, the outlines, the hover box ============
    A single light-DOM host <div data-uii> carries a shadow root with every
-   visual piece. Events are captured on window so the app underneath never
-   sees a click while inspect mode is on; events whose target is the host
-   (i.e. came from inside the panel) pass through untouched. */
+   visual piece the inspector draws. What happens when the pointer moves over
+   them is events.js; the padding and margin bands are spacing.js. */
 
 function uiiMount() {
   const S = uiiState;
@@ -18,8 +17,13 @@ function uiiMount() {
   S.hoverBox = mk('hover');
   S.selBox = mk('hover sel');
   S.tip = mk('tip');
+  S.mgBox = mk('sp mg');
+  S.pdBox = mk('sp pd');
+  S.spv = mk('spv');
   S.badge = mk('badge');
-  S.badge.innerHTML = 'Inspect — hover, click to pin, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>Alt</kbd> for exact element,'
+    + ' <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+  S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
   uiiBuildPanel(sh);
@@ -32,7 +36,24 @@ function uiiUnmount() {
   const S = uiiState;
   if (S.host) S.host.remove();
   S.host = S.shadow = S.layer = S.hoverBox = S.selBox = S.tip = S.badge = S.scratch = S.panel = null;
+  S.mgBox = S.pdBox = S.spv = null;
   S.boxes = [];
+}
+
+// Say something in the badge for a moment, then let it fade back out. The
+// badge is the one piece of chrome on screen whether the panel is open,
+// minimised or closed, so it is where a keyboard action reports itself.
+function uiiFlash(text) {
+  const S = uiiState;
+  if (!S.badge) return;
+  clearTimeout(S.badgeTimer);
+  S.badge.textContent = text;
+  S.badge.classList.remove('off');
+  S.badgeTimer = setTimeout(() => {
+    if (!S.badge) return;
+    S.badge.innerHTML = S.badgeHtml;
+    S.badge.classList.add('off');
+  }, 1200);
 }
 
 function uiiFromPanel(e) {
@@ -95,6 +116,7 @@ function uiiDrawOutlines() {
   });
   if (S.selected && S.selected.isConnected) uiiPlace(S.selBox, S.selected.getBoundingClientRect());
   else S.selBox.classList.remove('on');
+  uiiDrawSpacing(S.selected);
 }
 
 function uiiScheduleDraw() {
@@ -102,90 +124,4 @@ function uiiScheduleDraw() {
   if (S.holding) { S.drawLater = true; return; }
   if (S.raf) return;
   S.raf = requestAnimationFrame(() => { S.raf = 0; uiiDrawOutlines(); });
-}
-
-// Nearest control ancestor of the pointer target, or the raw element while
-// Alt is held (to reach a <span> inside a button, say).
-function uiiTargetFrom(e) {
-  const t = e.target;
-  if (!t || t.nodeType !== 1 || t === uiiState.host) return null;
-  if (e.altKey) return t;
-  let c = null;
-  try { c = t.closest(uiiState.selList); } catch (err) { c = null; }
-  return c && c !== document.body && c !== document.documentElement ? c : t;
-}
-
-function uiiSetHover(el) {
-  const S = uiiState;
-  S.hovered = el;
-  if (!el) { S.hoverBox.classList.remove('on'); S.tip.classList.remove('on'); return; }
-  const r = el.getBoundingClientRect();
-  uiiPlace(S.hoverBox, r);
-  S.hoverBox.classList.add('on');
-  S.tip.innerHTML = '<b></b> <span></span>';
-  S.tip.firstChild.textContent = uiiName(el);
-  S.tip.lastChild.textContent = '<' + el.tagName.toLowerCase() + '> ' + Math.round(r.width) + '×' + Math.round(r.height)
-    + ' · ' + getComputedStyle(el).fontSize;
-  const top = r.top > 28 ? r.top - 24 : r.bottom + 4;
-  S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
-  S.tip.style.top = top + 'px';
-  S.tip.classList.add('on');
-}
-
-function uiiOnMove(e) {
-  if (uiiFromPanel(e)) { uiiSetHover(null); return; }
-  uiiSetHover(uiiTargetFrom(e));
-}
-
-function uiiOnBlock(e) {
-  // A drag that starts in the panel (scrub, resize, move) and ends outside it
-  // makes the browser click the common ancestor — <html> — which would re-pin.
-  if (e.type === 'mousedown') uiiState.downInPanel = uiiFromPanel(e);
-  if (uiiFromPanel(e)) return;
-  e.preventDefault();
-  e.stopPropagation();
-}
-
-function uiiOnClick(e) {
-  if (uiiFromPanel(e)) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
-  const el = uiiTargetFrom(e);
-  if (el) uiiSelect(el);
-}
-
-function uiiSelect(el) {
-  const S = uiiState;
-  S.selected = el;
-  uiiPlace(S.selBox, el.getBoundingClientRect());
-  S.selBox.classList.add('on');
-  const info = uiiCollect(el);
-  S.info = info;
-  uiiRenderPanel(info);
-  // Script scan is async (first call fetches every <script src>); the Copy
-  // buttons read info.code when pressed.
-  uiiCodeFiles(info).then((files) => { info.code = files; });
-}
-
-const UII_EVENTS = [
-  ['mousemove', uiiOnMove], ['mouseover', uiiOnBlock], ['mouseout', uiiOnBlock],
-  ['mousedown', uiiOnBlock], ['mouseup', uiiOnBlock], ['click', uiiOnClick],
-  ['dblclick', uiiOnBlock], ['contextmenu', uiiOnClick], ['pointerdown', uiiOnBlock],
-];
-
-function uiiBindEvents() {
-  for (const [n, fn] of UII_EVENTS) window.addEventListener(n, fn, true);
-  window.addEventListener('scroll', uiiScheduleDraw, true);
-  window.addEventListener('resize', uiiScheduleDraw);
-  uiiState.mo = new MutationObserver(uiiScheduleDraw);
-  uiiState.mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
-}
-
-function uiiUnbindEvents() {
-  for (const [n, fn] of UII_EVENTS) window.removeEventListener(n, fn, true);
-  window.removeEventListener('scroll', uiiScheduleDraw, true);
-  window.removeEventListener('resize', uiiScheduleDraw);
-  if (uiiState.mo) uiiState.mo.disconnect();
-  uiiState.mo = null;
 }

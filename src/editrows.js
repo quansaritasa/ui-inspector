@@ -46,12 +46,17 @@ function uiiResetOne(el) {
   uiiState.edits.delete(el);
 }
 
-// The pinned element plus every text child an edit reached (see uiiSet).
+// The pinned element plus every text child an edit reached (see uiiSet), and
+// every variable edited from the colour fields. A var edit belongs to no
+// element, so this button is the only place that can take it back.
 function uiiResetEdits(el) {
   const e = uiiEditsFor(el, false);
-  if (!e) return;
-  for (const k of e.kids || []) uiiResetOne(k);
-  uiiResetOne(el);
+  if (!e && !uiiVarEdits.size) return;
+  uiiVarReset();
+  if (e) {
+    for (const k of e.kids || []) uiiResetOne(k);
+    uiiResetOne(el);
+  }
   uiiSyncRules();
   uiiSelect(el);
 }

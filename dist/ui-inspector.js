@@ -1,4 +1,4 @@
-/*! ui-inspector v0.5.1 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -28,9 +28,23 @@ const UII_CSS = `
   overflow: hidden; text-overflow: ellipsis; }
 .tip.on { display: block; }
 .tip b { color: #fbbf24; font-weight: 600; }
+/* Padding (green, inside the border box) and margin (orange, outside it) of
+   the pinned element, each drawn as a border so the hole is the inner box. */
+.sp { position: fixed; pointer-events: none; z-index: 2147483001; display: none; border-style: solid; }
+.sp.on { display: block; }
+.sp.mg { border-color: rgba(246,178,107,.55); }
+.sp.pd { border-color: rgba(147,196,125,.6); }
+.spv { position: fixed; z-index: 2147483002; display: none; padding: 2px 6px; border-radius: 4px;
+  background: #111827; color: #9ca3af; font: 11px/1.3 ui-monospace, Menlo, monospace; white-space: nowrap; }
+.spv.on { display: block; }
+.spv b { color: #93c47d; font-weight: 600; }
+.spv i { color: #f6b26b; font-style: normal; }
+
 .badge { position: fixed; z-index: 2147483002; top: 8px; left: 50%; transform: translateX(-50%);
   padding: 4px 12px; border-radius: 999px; background: #111827; color: #f9fafb;
-  font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; pointer-events: none; }
+  font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; pointer-events: none;
+  transition: opacity .4s ease; }
+.badge.off { opacity: 0; }
 .badge kbd { background: #374151; padding: 0 4px; border-radius: 3px; font: inherit; }
 
 .panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: 500px; max-height: calc(100vh - 64px);
@@ -58,7 +72,6 @@ const UII_CSS = `
 .row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 2px 10px; }
 .row .k { color: #6b7280; }
 .row .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
-.row .v .var { color: #0f766e; margin-left: 6px; }
 .row .txt { width: 100%; min-height: 20px; padding: 2px 5px; resize: vertical;
   font: 12px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;
   border: 1px solid #d1d5db; border-radius: 4px; }
@@ -82,7 +95,7 @@ const UII_CSS = `
 .st button { width: 14px; height: 11px; padding: 0; border: 0; border-radius: 2px; background: none;
   color: #9ca3af; font-size: 7px; line-height: 11px; cursor: pointer; }
 .st button:hover { color: #111827; background: #e5e7eb; }
-.nf .var { color: #0f766e; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.nf select.cv { color: #0f766e; font-size: 10px; max-width: 46%; text-overflow: ellipsis; padding: 0 2px; }
 .nf select { font-size: 11px; border: 0; background: none; color: #374151; cursor: pointer; max-width: 55%; }
 .seg { display: flex; overflow: hidden; }
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }
@@ -173,6 +186,11 @@ function uiiFormatForAI(info) {
 // still shows it. Otherwise the edit left the screen with the element.
 function uiiChangeLines() {
   const byRule = new Map();
+  // Variable edits first: they move the whole page, not one element.
+  for (const [head, decl] of uiiVarLines()) {
+    if (!byRule.has(head)) byRule.set(head, []);
+    byRule.get(head).push(decl);
+  }
   const edits = uiiState.edits || new Map();
   for (const [el, e] of edits) {
     let lines = e.last;
@@ -193,7 +211,7 @@ function uiiChangeLines() {
 // How many lines the Changes box lists. Counted without naming rules, so it
 // works after inspect mode closed (no pinned info to cache rule lookups on).
 function uiiEditCount() {
-  let n = 0;
+  let n = uiiVarEdits.size;
   for (const [el, e] of uiiState.edits || []) {
     n += el.isConnected ? uiiEditChanges(el).length : uiiState.similar && e.last ? e.last.length : 0;
   }
@@ -312,21 +330,49 @@ function uiiNormColor(v) {
   return getComputedStyle(s).color;
 }
 
-// hex -> [--var, ...] for every custom property whose value, resolved on this
+// [{name, hex}] for every custom property whose value, resolved on this
 // element, is a colour. Vars set on ancestors or :root all resolve here.
-function uiiColorVarMap(el, all) {
+// This is the palette the colour fields offer, so it is sorted by name.
+function uiiColorVars(el, all) {
   const cs = getComputedStyle(el);
-  const map = new Map();
+  const out = [];
   for (const name of uiiVarNames(all)) {
     const raw = cs.getPropertyValue(name).trim();
     if (!raw || raw.length > 40) continue; // shadows, font stacks: never a colour
     const rgb = uiiNormColor(raw);
     if (!rgb) continue;
-    const hex = uiiToHex(rgb);
+    out.push({ name, hex: uiiToHex(rgb) });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// hex -> [--var, ...], from the same list.
+function uiiColorVarMap(vars) {
+  const map = new Map();
+  for (const { name, hex } of vars) {
     if (!map.has(hex)) map.set(hex, []);
     map.get(hex).push(name);
   }
   return map;
+}
+
+// The rule that gives `name` its value for `el`: the last rule in sheet order
+// that declares it and whose selector matches el or an ancestor (`:root` is
+// where an app keeps its palette, but a theme block may set it lower down).
+// null when no readable sheet declares it — the var came from an inline
+// style attribute, and `uiiVarApply` writes it on :root instead.
+function uiiVarRule(name, el, all) {
+  let hit = null;
+  for (const { rule, file } of all) {
+    if (!rule.style.getPropertyValue(name)) continue;
+    for (const sel of rule.selectorText.split(',')) {
+      const s = sel.trim();
+      let up = null;
+      try { up = s && el.closest(s); } catch (e) { up = null; }
+      if (up) { hit = { file, selector: s, style: rule.style }; break; }
+    }
+  }
+  return hit;
 }
 
 // Rules whose selector matches el, in sheet order. Selector lists are split so
@@ -534,7 +580,8 @@ function uiiCollect(el) {
   const cs = getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const all = uiiAllRules();
-  const varMap = uiiColorVarMap(el, all);
+  const colorVars = uiiColorVars(el, all);
+  const varMap = uiiColorVarMap(colorVars);
   const bg = uiiEffectiveBg(el);
   return {
     el,
@@ -561,6 +608,7 @@ function uiiCollect(el) {
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),
+    colorVars, // the palette the colour fields offer (cssvars.js)
     all, // every stylesheet rule, reused for the text children's lookups
   };
 }
@@ -631,11 +679,10 @@ function uiiOcclusion() {
   };
 }
 
-/* ================= overlay: outlines, hover box, click capture =================
+/* ================= overlay: the host, the outlines, the hover box ============
    A single light-DOM host <div data-uii> carries a shadow root with every
-   visual piece. Events are captured on window so the app underneath never
-   sees a click while inspect mode is on; events whose target is the host
-   (i.e. came from inside the panel) pass through untouched. */
+   visual piece the inspector draws. What happens when the pointer moves over
+   them is events.js; the padding and margin bands are spacing.js. */
 
 function uiiMount() {
   const S = uiiState;
@@ -651,8 +698,13 @@ function uiiMount() {
   S.hoverBox = mk('hover');
   S.selBox = mk('hover sel');
   S.tip = mk('tip');
+  S.mgBox = mk('sp mg');
+  S.pdBox = mk('sp pd');
+  S.spv = mk('spv');
   S.badge = mk('badge');
-  S.badge.innerHTML = 'Inspect — hover, click to pin, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>Alt</kbd> for exact element,'
+    + ' <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+  S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
   uiiBuildPanel(sh);
@@ -665,7 +717,24 @@ function uiiUnmount() {
   const S = uiiState;
   if (S.host) S.host.remove();
   S.host = S.shadow = S.layer = S.hoverBox = S.selBox = S.tip = S.badge = S.scratch = S.panel = null;
+  S.mgBox = S.pdBox = S.spv = null;
   S.boxes = [];
+}
+
+// Say something in the badge for a moment, then let it fade back out. The
+// badge is the one piece of chrome on screen whether the panel is open,
+// minimised or closed, so it is where a keyboard action reports itself.
+function uiiFlash(text) {
+  const S = uiiState;
+  if (!S.badge) return;
+  clearTimeout(S.badgeTimer);
+  S.badge.textContent = text;
+  S.badge.classList.remove('off');
+  S.badgeTimer = setTimeout(() => {
+    if (!S.badge) return;
+    S.badge.innerHTML = S.badgeHtml;
+    S.badge.classList.add('off');
+  }, 1200);
 }
 
 function uiiFromPanel(e) {
@@ -728,6 +797,7 @@ function uiiDrawOutlines() {
   });
   if (S.selected && S.selected.isConnected) uiiPlace(S.selBox, S.selected.getBoundingClientRect());
   else S.selBox.classList.remove('on');
+  uiiDrawSpacing(S.selected);
 }
 
 function uiiScheduleDraw() {
@@ -736,6 +806,71 @@ function uiiScheduleDraw() {
   if (S.raf) return;
   S.raf = requestAnimationFrame(() => { S.raf = 0; uiiDrawOutlines(); });
 }
+
+/* ================= overlay: padding and margin =================
+   The panel lists the numbers, but reading a layout means seeing where the
+   space actually sits. The pinned element gets DevTools' two bands — green
+   padding inside the border box, orange margin outside it — plus one chip
+   carrying the numbers, because a 1px band is visible and still unreadable.
+   Pinned only: on hover the bands would chase the pointer. */
+
+const UII_SIDES = ['top', 'right', 'bottom', 'left'];
+
+// [t, r, b, l] of a box property, in px.
+function uiiBoxSides(cs, prop) {
+  return UII_SIDES.map((s) => parseFloat(cs.getPropertyValue(prop + '-' + s + (prop === 'border' ? '-width' : ''))) || 0);
+}
+
+// CSS shorthand collapse: [8,8,8,8] -> "8", [4,8,4,8] -> "4 8".
+function uiiShortSides(a) {
+  const [t, r, b, l] = a.map((v) => Math.round(v * 10) / 10);
+  if (t === r && r === b && b === l) return String(t);
+  if (t === b && r === l) return t + ' ' + r;
+  return [t, r, b, l].join(' ');
+}
+
+// Place a band: `out` is the outer rect, `w` the four band widths. The band
+// is drawn as a border, so the hole in the middle is the inner box.
+function uiiBand(box, out, w) {
+  uiiPlace(box, out);
+  box.style.borderWidth = w.map((v) => Math.max(0, v) + 'px').join(' ');
+  box.classList.add('on');
+}
+
+function uiiDrawSpacing(el) {
+  const S = uiiState;
+  if (!S.mgBox) return;
+  if (!el || !el.isConnected) {
+    for (const b of [S.mgBox, S.pdBox, S.spv]) b.classList.remove('on');
+    return;
+  }
+  const cs = getComputedStyle(el);
+  const r = el.getBoundingClientRect();
+  const m = uiiBoxSides(cs, 'margin');
+  const p = uiiBoxSides(cs, 'padding');
+  const bw = uiiBoxSides(cs, 'border');
+  // A negative margin pulls the element over its neighbour; the band cannot
+  // be drawn inside-out, so only the chip reports it.
+  uiiBand(S.mgBox, { left: r.left - Math.max(0, m[3]), top: r.top - Math.max(0, m[0]),
+    width: r.width + Math.max(0, m[1]) + Math.max(0, m[3]), height: r.height + Math.max(0, m[0]) + Math.max(0, m[2]) }, m);
+  uiiBand(S.pdBox, { left: r.left + bw[3], top: r.top + bw[0],
+    width: r.width - bw[1] - bw[3], height: r.height - bw[0] - bw[2] }, p);
+  S.spv.title = 'padding · margin, in px';
+  S.spv.innerHTML = 'p <b></b> · m <i></i>';
+  S.spv.querySelector('b').textContent = uiiShortSides(p);
+  S.spv.querySelector('i').textContent = uiiShortSides(m);
+  // Under the margin box, or over it when the element sits at the bottom.
+  const below = r.bottom + Math.max(0, m[2]) + 2;
+  S.spv.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 160)) + 'px';
+  S.spv.style.top = (below + 20 < window.innerHeight ? below : Math.max(4, r.top - Math.max(0, m[0]) - 20)) + 'px';
+  S.spv.classList.add('on');
+}
+
+/* ================= overlay: pointer events and pinning =================
+   Every pointer event is captured on window so the app underneath never sees
+   a click while inspect mode is on; events whose target is the host (they
+   came from inside the panel) pass through untouched. Pinning an element is
+   what builds the panel: see uiiCollect in inspect.js. */
 
 // Nearest control ancestor of the pointer target, or the raw element while
 // Alt is held (to reach a <span> inside a button, say).
@@ -793,6 +928,7 @@ function uiiSelect(el) {
   S.selected = el;
   uiiPlace(S.selBox, el.getBoundingClientRect());
   S.selBox.classList.add('on');
+  uiiDrawSpacing(el); // the bands belong to the click, not to the next frame
   const info = uiiCollect(el);
   S.info = info;
   uiiRenderPanel(info);
@@ -871,12 +1007,17 @@ function uiiResetOne(el) {
   uiiState.edits.delete(el);
 }
 
-// The pinned element plus every text child an edit reached (see uiiSet).
+// The pinned element plus every text child an edit reached (see uiiSet), and
+// every variable edited from the colour fields. A var edit belongs to no
+// element, so this button is the only place that can take it back.
 function uiiResetEdits(el) {
   const e = uiiEditsFor(el, false);
-  if (!e) return;
-  for (const k of e.kids || []) uiiResetOne(k);
-  uiiResetOne(el);
+  if (!e && !uiiVarEdits.size) return;
+  uiiVarReset();
+  if (e) {
+    for (const k of e.kids || []) uiiResetOne(k);
+    uiiResetOne(el);
+  }
   uiiSyncRules();
   uiiSelect(el);
 }
@@ -935,6 +1076,13 @@ function uiiRefreshChanges() {
 // CSSStyleDeclaration -> Map(prop -> {v, p}): the rule's text before any edit.
 const uiiRuleOrig = new Map();
 
+// CSSStyleDeclaration -> cssText before any edit. Restoring the block as a
+// whole, not property by property: a rule whose colour comes from a shorthand
+// ("background: color-mix(…)") has an empty background-color longhand, and
+// putting that emptiness back would strip the colour out of the shorthand and
+// leave the element painted by some weaker rule.
+const uiiRuleText = new Map();
+
 // What the stylesheet said before the inspector touched it.
 function uiiDeclValue(style, prop) {
   const m = uiiRuleOrig.get(style);
@@ -946,6 +1094,7 @@ function uiiDeclValue(style, prop) {
 // gone (a detached element has no computed style to find the rule by).
 function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
   if (!d) return null; // no rule to share (inherited, or only `*`): the inline edit is it
+  if (!uiiRuleText.has(d.style)) uiiRuleText.set(d.style, d.style.cssText);
   if (!uiiRuleOrig.has(d.style)) uiiRuleOrig.set(d.style, new Map());
   const m = uiiRuleOrig.get(d.style);
   if (!m.has(prop)) m.set(prop, { v: d.style.getPropertyValue(prop), p: d.style.getPropertyPriority(prop) });
@@ -956,10 +1105,12 @@ function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
 // Put every touched rule back, then — when the box is ticked — replay the
 // edits still standing. Used by Reset and by the checkbox.
 function uiiSyncRules() {
-  for (const [style, m] of uiiRuleOrig) {
-    for (const [prop, o] of m) style.setProperty(prop, o.v, o.p);
-  }
+  for (const [style, text] of uiiRuleText) style.cssText = text;
+  uiiRuleText.clear();
   uiiRuleOrig.clear();
+  // A variable edit may live in a rule just restored, and it outlives this:
+  // it belongs to the palette, not to the checkbox.
+  for (const [name, e] of uiiVarEdits) e.style.setProperty(name, e.to);
   if (uiiState.similar && uiiState.edits) {
     for (const [el, e] of uiiState.edits) {
       for (const [prop, v] of Object.entries(e.props)) {
@@ -968,6 +1119,52 @@ function uiiSyncRules() {
     }
   }
   uiiScheduleDraw();
+}
+
+/* ================= live editing: the variables themselves =================
+   A colour field pointed at `--bg` edits the variable rather than the
+   element, so every rule that uses it follows in one go — which is what an
+   app's palette is for. The declaring rule is rewritten in memory, the way
+   "Apply to similar" rewrites a plain one, and Reset puts it back. */
+
+// --name -> {style, file, selector, from, to, add}; `from` is what the sheet
+// said before the inspector touched it, `add` marks a var no sheet declared.
+const uiiVarEdits = new Map();
+
+function uiiVarApply(name, value, el) {
+  let e = uiiVarEdits.get(name);
+  if (!e) {
+    const r = uiiVarRule(name, el, uiiState.info.all);
+    // Nothing readable declares it (an inline style, a cross-origin sheet):
+    // own it on :root, where a palette belongs, and say so in the log.
+    const style = r ? r.style : document.documentElement.style;
+    e = { style, file: r ? r.file.split('/').pop() : '', selector: r ? r.selector : ':root',
+      from: style.getPropertyValue(name), add: !r };
+    uiiVarEdits.set(name, e);
+  }
+  e.to = value;
+  e.style.setProperty(name, value);
+  if (uiiState.panel) {
+    uiiState.panel.reset.hidden = false;
+    uiiRefreshChanges();
+  }
+  uiiScheduleDraw();
+}
+
+function uiiVarReset() {
+  for (const [name, e] of uiiVarEdits) {
+    if (e.from) e.style.setProperty(name, e.from); else e.style.removeProperty(name);
+  }
+  uiiVarEdits.clear();
+}
+
+// [[head, decl]] for the Changes box: "style.css :root", "--bg: #1f2937".
+// Page-wide, so uiiChangeLines lists these before the per-element ones.
+function uiiVarLines() {
+  return [...uiiVarEdits].map(([name, e]) => [
+    (e.file ? e.file + ' ' : '') + e.selector + (e.add ? ' /* new rule */' : ''),
+    name + ': ' + e.to,
+  ]);
 }
 
 /* ================= live editing: text follows the edit =================
@@ -1091,6 +1288,15 @@ function uiiParseVarFactor(v) {
   return m ? { name: m[2], k: parseFloat(m[1]) } : null;
 }
 
+// The variable a value is built on: "var(--bg)" -> "--bg". Anywhere in the
+// value, not only at the front, so a shorthand ("1px solid var(--line)") and
+// a fallback chain ("var(--btn-bg, var(--panel-2))") both answer with the
+// variable the page is actually reading.
+function uiiVarName(v) {
+  const m = /var\(\s*(--[\w-]+)/.exec(String(v || ''));
+  return m ? m[1] : '';
+}
+
 // The factor form of `value` on `el`, only when it really produces `px`
 // (the variable resolves to px there and k × var = px). Guards against a
 // rule that a more specific one overrides — sheet order is not the cascade.
@@ -1121,10 +1327,23 @@ function uiiRuleDecl(el, prop) {
   return m.get(prop);
 }
 
+// The part of a selector that names the element itself: "td" out of
+// "#grid tbody > td". `*` here means the rule styles everything.
+function uiiLastSeg(selector) {
+  return selector.split(/[\s>+~]+/).pop();
+}
+
 function uiiFindDecl(el, prop) {
   const rules = uiiRulesOf(el);
   for (let i = rules.length - 1; i >= 0; i--) {
     const r = rules[i];
+    // A universal rule — the `* { margin: 0 }` reset — is never an answer:
+    // uiiFindEditRule() refuses to edit one, so finding it is work thrown
+    // away. Probing it is also the most expensive probe there is: the
+    // sentinel lands on every element in the document, and reading the
+    // result back relayouts all of them (measured: 2 such probes = 82 of the
+    // 389 ms one panel render cost on a 5,000-element page).
+    if (uiiLastSeg(r.selector) === '*') continue;
     if (r.style && r.style.getPropertyValue(prop) && uiiWins(el, prop, r.style)) {
       return { file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style };
     }
@@ -1135,23 +1354,29 @@ function uiiFindDecl(el, prop) {
 // Would `prop` in this rule decide the element's value? Set a sentinel, see
 // if the computed value moves, put everything back (the element's own inline
 // value is lifted meanwhile, or it would always win).
+// The rule is put back by its whole cssText, never property by property: a
+// rule that paints through a shorthand ("background: color-mix(…)") reports
+// an empty background-color longhand, so removing the sentinel would take the
+// colour out of the shorthand with it and leave the page quietly restyled by
+// a probe that was only meant to read.
 function uiiWins(el, prop, style) {
   const iv = el.style.getPropertyValue(prop), ip = el.style.getPropertyPriority(prop);
   if (iv) el.style.removeProperty(prop);
   const before = getComputedStyle(el).getPropertyValue(prop);
-  const cv = style.getPropertyValue(prop), cp = style.getPropertyPriority(prop);
-  style.setProperty(prop, UII_PROBE[prop] || '1234.5px', cp);
+  const text = style.cssText;
+  style.setProperty(prop, UII_PROBE[prop] || '1234.5px', style.getPropertyPriority(prop));
   const win = getComputedStyle(el).getPropertyValue(prop) !== before;
-  if (cv) style.setProperty(prop, cv, cp); else style.removeProperty(prop);
+  style.cssText = text;
   if (iv) el.style.setProperty(prop, iv, ip);
   return win;
 }
 
 // Where an edit lands, cached per selection. The rule that sets the value
-// today, unless it is broad — its last part is `*` or a bare tag, like the
-// `* { margin }` reset or `#grid td` — and a rule naming the element's own
-// class or id would win if given the line: then that one, as an `add`.
-// Never `*`: editing it would move every element on the page.
+// today, unless it is broad — its last part is a bare tag, like `#grid td` —
+// and a rule naming the element's own class or id would win if given the
+// line: then that one, as an `add`. Never `*`: editing it would move every
+// element on the page — uiiFindDecl skips universal rules before they reach
+// here, and the `*` arms below keep that true for a hand-made call.
 function uiiEditRule(el, prop) {
   const I = uiiState.info;
   if (!I.declCache) I.declCache = new Map();
@@ -1164,7 +1389,9 @@ function uiiEditRule(el, prop) {
 
 function uiiFindEditRule(el, prop) {
   const d = uiiRuleDecl(el, prop);
-  const last = d ? d.selector.split(/[\s>+~]+/).pop() : '*';
+  // No rule found reads as `*`: both mean "nothing worth editing here", so
+  // the own-rule search below runs either way.
+  const last = d ? uiiLastSeg(d.selector) : '*';
   // add: the line exists only because Apply to similar put it there.
   if (d && !/^(\*|[a-z][\w-]*)$/i.test(last)) return { ...d, add: !d.value };
   const own = uiiOwnRules(el).find((r) => uiiWins(el, prop, r.style));
@@ -1208,7 +1435,7 @@ function uiiChangeDecl(el, c) {
 // classes — `.grid-task`, not `td` or `*` — last in sheet order first.
 function uiiOwnRules(el) {
   return uiiRulesOf(el).filter((r) => {
-    const last = r.selector.split(/[\s>+~]+/).pop();
+    const last = uiiLastSeg(r.selector);
     return (el.id && last.includes('#' + el.id)) || [...el.classList].some((c) => last.includes('.' + c));
   }).reverse();
 }
@@ -1419,20 +1646,68 @@ function uiiTextField(info, label, prop) {
   return uiiFld(label, box).f;
 }
 
+// Shorthands that can carry a colour: CSSOM leaves the longhand empty when
+// the shorthand holds a var(), so the var has to be read off the shorthand.
+const UII_COLOR_SHORTHAND = { 'background-color': 'background', 'border-color': 'border' };
+
+// The variable this colour comes from, '' when it is written out in full.
+function uiiColorVarOf(el, prop) {
+  const d = uiiRuleDecl(el, prop);
+  const named = uiiVarName(d && d.value);
+  if (named || !UII_COLOR_SHORTHAND[prop]) return named;
+  const rules = uiiRulesOf(el);
+  for (let i = rules.length - 1; i >= 0; i--) {
+    const n = rules[i].style && uiiVarName(uiiDeclValue(rules[i].style, UII_COLOR_SHORTHAND[prop]));
+    if (n) return n;
+  }
+  return '';
+}
+
+// The hex a variable resolves to on this element, '' when it is not a colour.
+function uiiVarHex(info, name, el) {
+  const v = info.colorVars.find((c) => c.name === name);
+  if (v) return v.hex;
+  const raw = getComputedStyle(el).getPropertyValue(name).trim();
+  return raw ? uiiToHex(uiiNormColor(raw) || raw) : '';
+}
+
+// A colour either sits on the element (#1f2937) or comes from a variable
+// (var(--bg)). The dropdown says which, and the picker edits whatever the
+// dropdown points at: on a variable it moves that palette entry, so every
+// rule using it follows; on "— none —" the element gets a colour of its own
+// again. Pointing a colour at a different variable is the dropdown alone.
 function uiiColorField(info, label, prop) {
+  const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
   const pick = uiiEl('input', 'pick');
   pick.type = 'color';
   const box = uiiEl('input');
   box.spellcheck = false;
-  box.value = uiiEditValue(info, prop);
-  if (/^#[0-9a-f]{6}$/i.test(box.value)) pick.value = box.value;
-  pick.addEventListener('input', () => { box.value = pick.value; uiiSet(info, prop, pick.value); });
-  box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
+  const sel = uiiEl('select', 'cv');
+  sel.title = 'Which variable this colour comes from. Pick one and the swatch'
+    + ' edits the variable itself — every element using it changes.';
+  sel.appendChild(new Option('— none —', ''));
+  for (const c of info.colorVars) sel.appendChild(new Option(c.name + ' ' + c.hex, c.name));
+  const named = uiiColorVarOf(target, prop);
+  // A var the palette list missed (it resolves to something uiiColorVars does
+  // not read as a colour) still belongs in the box: it is the current answer.
+  if (named && ![...sel.options].some((o) => o.value === named)) sel.appendChild(new Option(named, named));
+  sel.value = named;
+  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}$/i.test(v)) pick.value = v; };
+  show(sel.value ? uiiVarHex(info, sel.value, target) : uiiEditValue(info, prop));
+  // One write, two places it can land.
+  const write = (v) => {
+    if (sel.value) uiiVarApply(sel.value, v, target); else uiiSet(info, prop, v);
+    show(v);
+  };
+  pick.addEventListener('input', () => write(pick.value));
+  box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  wrap.append(pick, box);
-  const c = info[{ 'background-color': 'bg', color: 'color' }[prop]];
-  if (c && c.vars && c.vars.length) wrap.appendChild(uiiEl('span', 'var', c.vars.join(' ')));
+  sel.addEventListener('change', () => {
+    uiiSet(info, prop, sel.value ? 'var(' + sel.value + ')' : box.value.trim());
+    if (sel.value) show(uiiVarHex(info, sel.value, target));
+  });
+  wrap.append(pick, box, sel);
   return uiiFld(label, wrap).f;
 }
 
@@ -1609,7 +1884,7 @@ function uiiBuildPanel(sh) {
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
-  reset.title = 'Undo every live edit on this element';
+  reset.title = 'Undo every live edit on this element, and every variable edit';
   const ok = uiiEl('span', 'ok', '', 'copy-status');
   head.append(name, tag, ok, reset, fold, close);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
@@ -1671,12 +1946,18 @@ function uiiResizeLeft(handle, box) {
 
 function uiiCopy(text) {
   const S = uiiState;
+  // Both places: the panel's own line, and the badge for when C was pressed
+  // with the panel closed.
+  const say = (msg) => {
+    uiiFlash(msg);
+    if (S.panel) S.panel.ok.textContent = msg;
+  };
   const done = () => {
-    S.panel.ok.textContent = '✅ copied';
+    say('✅ copied');
     setTimeout(() => { if (S.panel) S.panel.ok.textContent = ''; }, 1200);
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
-  navigator.clipboard.writeText(text).then(done, () => { S.panel.ok.textContent = '⚠ clipboard blocked'; });
+  navigator.clipboard.writeText(text).then(done, () => say('⚠ clipboard blocked'));
 }
 
 function uiiRow(k, v, swatchHex) {
@@ -1742,7 +2023,7 @@ function uiiRenderPanel(info) {
   b.append(chHead, changes);
   P.changes = changes;
   uiiRefreshChanges();
-  P.reset.hidden = !uiiEditsFor(info.el, false);
+  P.reset.hidden = !uiiEditsFor(info.el, false) && !uiiVarEdits.size;
   P.root.classList.add('on');
 }
 
@@ -1780,7 +2061,12 @@ const uiiState = {
   host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
+  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '',
 };
+
+// How long the hint at the top stays before it fades. It says what the keys
+// do; once it has been read it is a strip across whatever sits under it.
+const UII_BADGE_MS = 2000;
 
 // "Mod+Shift+/" -> { mod, ctrl, meta, alt, shift, key }
 function uiiParseShortcut(s) {
@@ -1841,10 +2127,22 @@ function uiiOnKey(e) {
   // a focused button reports the same target as a focused text input. Use
   // composedPath() to find what was actually focused, so Escape/arrows still
   // work after clicking a panel button; only real text entry gets skipped.
+  // A page field can still hold focus from before inspect mode opened, and
+  // its typing must stay typing — C is a shortcut only outside a text box.
+  if (uiiInEditable(e.target)) return;
   if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); uiiDisable(); return; }
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
+    return;
+  }
+  // C copies the pinned element's one-line locator — the Copy ID button
+  // without reaching for the panel. Bare C only: Cmd/Ctrl+C still copies
+  // whatever is selected, in the panel or on the page.
+  if (e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey && S.info) {
+    e.preventDefault();
+    e.stopPropagation();
+    uiiCopy(uiiFormatForAI(S.info));
   }
 }
 
@@ -1855,6 +2153,7 @@ function uiiEnable() {
   uiiMount();
   uiiBindEvents();
   uiiDrawOutlines();
+  S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }
 
@@ -1862,6 +2161,7 @@ function uiiDisable() {
   const S = uiiState;
   if (!S.on) return;
   S.on = false;
+  clearTimeout(S.badgeTimer);
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   S.raf = 0;

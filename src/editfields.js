@@ -26,20 +26,68 @@ function uiiTextField(info, label, prop) {
   return uiiFld(label, box).f;
 }
 
+// Shorthands that can carry a colour: CSSOM leaves the longhand empty when
+// the shorthand holds a var(), so the var has to be read off the shorthand.
+const UII_COLOR_SHORTHAND = { 'background-color': 'background', 'border-color': 'border' };
+
+// The variable this colour comes from, '' when it is written out in full.
+function uiiColorVarOf(el, prop) {
+  const d = uiiRuleDecl(el, prop);
+  const named = uiiVarName(d && d.value);
+  if (named || !UII_COLOR_SHORTHAND[prop]) return named;
+  const rules = uiiRulesOf(el);
+  for (let i = rules.length - 1; i >= 0; i--) {
+    const n = rules[i].style && uiiVarName(uiiDeclValue(rules[i].style, UII_COLOR_SHORTHAND[prop]));
+    if (n) return n;
+  }
+  return '';
+}
+
+// The hex a variable resolves to on this element, '' when it is not a colour.
+function uiiVarHex(info, name, el) {
+  const v = info.colorVars.find((c) => c.name === name);
+  if (v) return v.hex;
+  const raw = getComputedStyle(el).getPropertyValue(name).trim();
+  return raw ? uiiToHex(uiiNormColor(raw) || raw) : '';
+}
+
+// A colour either sits on the element (#1f2937) or comes from a variable
+// (var(--bg)). The dropdown says which, and the picker edits whatever the
+// dropdown points at: on a variable it moves that palette entry, so every
+// rule using it follows; on "— none —" the element gets a colour of its own
+// again. Pointing a colour at a different variable is the dropdown alone.
 function uiiColorField(info, label, prop) {
+  const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
   const pick = uiiEl('input', 'pick');
   pick.type = 'color';
   const box = uiiEl('input');
   box.spellcheck = false;
-  box.value = uiiEditValue(info, prop);
-  if (/^#[0-9a-f]{6}$/i.test(box.value)) pick.value = box.value;
-  pick.addEventListener('input', () => { box.value = pick.value; uiiSet(info, prop, pick.value); });
-  box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
+  const sel = uiiEl('select', 'cv');
+  sel.title = 'Which variable this colour comes from. Pick one and the swatch'
+    + ' edits the variable itself — every element using it changes.';
+  sel.appendChild(new Option('— none —', ''));
+  for (const c of info.colorVars) sel.appendChild(new Option(c.name + ' ' + c.hex, c.name));
+  const named = uiiColorVarOf(target, prop);
+  // A var the palette list missed (it resolves to something uiiColorVars does
+  // not read as a colour) still belongs in the box: it is the current answer.
+  if (named && ![...sel.options].some((o) => o.value === named)) sel.appendChild(new Option(named, named));
+  sel.value = named;
+  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}$/i.test(v)) pick.value = v; };
+  show(sel.value ? uiiVarHex(info, sel.value, target) : uiiEditValue(info, prop));
+  // One write, two places it can land.
+  const write = (v) => {
+    if (sel.value) uiiVarApply(sel.value, v, target); else uiiSet(info, prop, v);
+    show(v);
+  };
+  pick.addEventListener('input', () => write(pick.value));
+  box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  wrap.append(pick, box);
-  const c = info[{ 'background-color': 'bg', color: 'color' }[prop]];
-  if (c && c.vars && c.vars.length) wrap.appendChild(uiiEl('span', 'var', c.vars.join(' ')));
+  sel.addEventListener('change', () => {
+    uiiSet(info, prop, sel.value ? 'var(' + sel.value + ')' : box.value.trim());
+    if (sel.value) show(uiiVarHex(info, sel.value, target));
+  });
+  wrap.append(pick, box, sel);
   return uiiFld(label, wrap).f;
 }
 

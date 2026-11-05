@@ -7,6 +7,13 @@
 // CSSStyleDeclaration -> Map(prop -> {v, p}): the rule's text before any edit.
 const uiiRuleOrig = new Map();
 
+// CSSStyleDeclaration -> cssText before any edit. Restoring the block as a
+// whole, not property by property: a rule whose colour comes from a shorthand
+// ("background: color-mix(…)") has an empty background-color longhand, and
+// putting that emptiness back would strip the colour out of the shorthand and
+// leave the element painted by some weaker rule.
+const uiiRuleText = new Map();
+
 // What the stylesheet said before the inspector touched it.
 function uiiDeclValue(style, prop) {
   const m = uiiRuleOrig.get(style);
@@ -18,6 +25,7 @@ function uiiDeclValue(style, prop) {
 // gone (a detached element has no computed style to find the rule by).
 function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
   if (!d) return null; // no rule to share (inherited, or only `*`): the inline edit is it
+  if (!uiiRuleText.has(d.style)) uiiRuleText.set(d.style, d.style.cssText);
   if (!uiiRuleOrig.has(d.style)) uiiRuleOrig.set(d.style, new Map());
   const m = uiiRuleOrig.get(d.style);
   if (!m.has(prop)) m.set(prop, { v: d.style.getPropertyValue(prop), p: d.style.getPropertyPriority(prop) });
@@ -28,10 +36,12 @@ function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
 // Put every touched rule back, then — when the box is ticked — replay the
 // edits still standing. Used by Reset and by the checkbox.
 function uiiSyncRules() {
-  for (const [style, m] of uiiRuleOrig) {
-    for (const [prop, o] of m) style.setProperty(prop, o.v, o.p);
-  }
+  for (const [style, text] of uiiRuleText) style.cssText = text;
+  uiiRuleText.clear();
   uiiRuleOrig.clear();
+  // A variable edit may live in a rule just restored, and it outlives this:
+  // it belongs to the palette, not to the checkbox.
+  for (const [name, e] of uiiVarEdits) e.style.setProperty(name, e.to);
   if (uiiState.similar && uiiState.edits) {
     for (const [el, e] of uiiState.edits) {
       for (const [prop, v] of Object.entries(e.props)) {
@@ -40,4 +50,50 @@ function uiiSyncRules() {
     }
   }
   uiiScheduleDraw();
+}
+
+/* ================= live editing: the variables themselves =================
+   A colour field pointed at `--bg` edits the variable rather than the
+   element, so every rule that uses it follows in one go — which is what an
+   app's palette is for. The declaring rule is rewritten in memory, the way
+   "Apply to similar" rewrites a plain one, and Reset puts it back. */
+
+// --name -> {style, file, selector, from, to, add}; `from` is what the sheet
+// said before the inspector touched it, `add` marks a var no sheet declared.
+const uiiVarEdits = new Map();
+
+function uiiVarApply(name, value, el) {
+  let e = uiiVarEdits.get(name);
+  if (!e) {
+    const r = uiiVarRule(name, el, uiiState.info.all);
+    // Nothing readable declares it (an inline style, a cross-origin sheet):
+    // own it on :root, where a palette belongs, and say so in the log.
+    const style = r ? r.style : document.documentElement.style;
+    e = { style, file: r ? r.file.split('/').pop() : '', selector: r ? r.selector : ':root',
+      from: style.getPropertyValue(name), add: !r };
+    uiiVarEdits.set(name, e);
+  }
+  e.to = value;
+  e.style.setProperty(name, value);
+  if (uiiState.panel) {
+    uiiState.panel.reset.hidden = false;
+    uiiRefreshChanges();
+  }
+  uiiScheduleDraw();
+}
+
+function uiiVarReset() {
+  for (const [name, e] of uiiVarEdits) {
+    if (e.from) e.style.setProperty(name, e.from); else e.style.removeProperty(name);
+  }
+  uiiVarEdits.clear();
+}
+
+// [[head, decl]] for the Changes box: "style.css :root", "--bg: #1f2937".
+// Page-wide, so uiiChangeLines lists these before the per-element ones.
+function uiiVarLines() {
+  return [...uiiVarEdits].map(([name, e]) => [
+    (e.file ? e.file + ' ' : '') + e.selector + (e.add ? ' /* new rule */' : ''),
+    name + ': ' + e.to,
+  ]);
 }

@@ -73,21 +73,49 @@ function uiiNormColor(v) {
   return getComputedStyle(s).color;
 }
 
-// hex -> [--var, ...] for every custom property whose value, resolved on this
+// [{name, hex}] for every custom property whose value, resolved on this
 // element, is a colour. Vars set on ancestors or :root all resolve here.
-function uiiColorVarMap(el, all) {
+// This is the palette the colour fields offer, so it is sorted by name.
+function uiiColorVars(el, all) {
   const cs = getComputedStyle(el);
-  const map = new Map();
+  const out = [];
   for (const name of uiiVarNames(all)) {
     const raw = cs.getPropertyValue(name).trim();
     if (!raw || raw.length > 40) continue; // shadows, font stacks: never a colour
     const rgb = uiiNormColor(raw);
     if (!rgb) continue;
-    const hex = uiiToHex(rgb);
+    out.push({ name, hex: uiiToHex(rgb) });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// hex -> [--var, ...], from the same list.
+function uiiColorVarMap(vars) {
+  const map = new Map();
+  for (const { name, hex } of vars) {
     if (!map.has(hex)) map.set(hex, []);
     map.get(hex).push(name);
   }
   return map;
+}
+
+// The rule that gives `name` its value for `el`: the last rule in sheet order
+// that declares it and whose selector matches el or an ancestor (`:root` is
+// where an app keeps its palette, but a theme block may set it lower down).
+// null when no readable sheet declares it — the var came from an inline
+// style attribute, and `uiiVarApply` writes it on :root instead.
+function uiiVarRule(name, el, all) {
+  let hit = null;
+  for (const { rule, file } of all) {
+    if (!rule.style.getPropertyValue(name)) continue;
+    for (const sel of rule.selectorText.split(',')) {
+      const s = sel.trim();
+      let up = null;
+      try { up = s && el.closest(s); } catch (e) { up = null; }
+      if (up) { hit = { file, selector: s, style: rule.style }; break; }
+    }
+  }
+  return hit;
 }
 
 // Rules whose selector matches el, in sheet order. Selector lists are split so

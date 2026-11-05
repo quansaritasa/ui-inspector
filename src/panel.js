@@ -36,7 +36,7 @@ function uiiBuildPanel(sh) {
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
-  reset.title = 'Undo every live edit on this element';
+  reset.title = 'Undo every live edit on this element, and every variable edit';
   const ok = uiiEl('span', 'ok', '', 'copy-status');
   head.append(name, tag, ok, reset, fold, close);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
@@ -98,12 +98,18 @@ function uiiResizeLeft(handle, box) {
 
 function uiiCopy(text) {
   const S = uiiState;
+  // Both places: the panel's own line, and the badge for when C was pressed
+  // with the panel closed.
+  const say = (msg) => {
+    uiiFlash(msg);
+    if (S.panel) S.panel.ok.textContent = msg;
+  };
   const done = () => {
-    S.panel.ok.textContent = '✅ copied';
+    say('✅ copied');
     setTimeout(() => { if (S.panel) S.panel.ok.textContent = ''; }, 1200);
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
-  navigator.clipboard.writeText(text).then(done, () => { S.panel.ok.textContent = '⚠ clipboard blocked'; });
+  navigator.clipboard.writeText(text).then(done, () => say('⚠ clipboard blocked'));
 }
 
 function uiiRow(k, v, swatchHex) {
@@ -169,6 +175,6 @@ function uiiRenderPanel(info) {
   b.append(chHead, changes);
   P.changes = changes;
   uiiRefreshChanges();
-  P.reset.hidden = !uiiEditsFor(info.el, false);
+  P.reset.hidden = !uiiEditsFor(info.el, false) && !uiiVarEdits.size;
   P.root.classList.add('on');
 }

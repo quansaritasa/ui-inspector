@@ -32,7 +32,12 @@ const uiiState = {
   host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
+  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '',
 };
+
+// How long the hint at the top stays before it fades. It says what the keys
+// do; once it has been read it is a strip across whatever sits under it.
+const UII_BADGE_MS = 2000;
 
 // "Mod+Shift+/" -> { mod, ctrl, meta, alt, shift, key }
 function uiiParseShortcut(s) {
@@ -93,10 +98,22 @@ function uiiOnKey(e) {
   // a focused button reports the same target as a focused text input. Use
   // composedPath() to find what was actually focused, so Escape/arrows still
   // work after clicking a panel button; only real text entry gets skipped.
+  // A page field can still hold focus from before inspect mode opened, and
+  // its typing must stay typing — C is a shortcut only outside a text box.
+  if (uiiInEditable(e.target)) return;
   if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
   if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); uiiDisable(); return; }
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
+    return;
+  }
+  // C copies the pinned element's one-line locator — the Copy ID button
+  // without reaching for the panel. Bare C only: Cmd/Ctrl+C still copies
+  // whatever is selected, in the panel or on the page.
+  if (e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey && S.info) {
+    e.preventDefault();
+    e.stopPropagation();
+    uiiCopy(uiiFormatForAI(S.info));
   }
 }
 
@@ -107,6 +124,7 @@ function uiiEnable() {
   uiiMount();
   uiiBindEvents();
   uiiDrawOutlines();
+  S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }
 
@@ -114,6 +132,7 @@ function uiiDisable() {
   const S = uiiState;
   if (!S.on) return;
   S.on = false;
+  clearTimeout(S.badgeTimer);
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   S.raf = 0;

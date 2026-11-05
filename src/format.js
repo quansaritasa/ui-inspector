@@ -64,6 +64,11 @@ function uiiFormatForAI(info) {
 // still shows it. Otherwise the edit left the screen with the element.
 function uiiChangeLines() {
   const byRule = new Map();
+  // Variable edits first: they move the whole page, not one element.
+  for (const [head, decl] of uiiVarLines()) {
+    if (!byRule.has(head)) byRule.set(head, []);
+    byRule.get(head).push(decl);
+  }
   const edits = uiiState.edits || new Map();
   for (const [el, e] of edits) {
     let lines = e.last;
@@ -84,7 +89,7 @@ function uiiChangeLines() {
 // How many lines the Changes box lists. Counted without naming rules, so it
 // works after inspect mode closed (no pinned info to cache rule lookups on).
 function uiiEditCount() {
-  let n = 0;
+  let n = uiiVarEdits.size;
   for (const [el, e] of uiiState.edits || []) {
     n += el.isConnected ? uiiEditChanges(el).length : uiiState.similar && e.last ? e.last.length : 0;
   }

@@ -22,9 +22,23 @@ const UII_CSS = `
   overflow: hidden; text-overflow: ellipsis; }
 .tip.on { display: block; }
 .tip b { color: #fbbf24; font-weight: 600; }
+/* Padding (green, inside the border box) and margin (orange, outside it) of
+   the pinned element, each drawn as a border so the hole is the inner box. */
+.sp { position: fixed; pointer-events: none; z-index: 2147483001; display: none; border-style: solid; }
+.sp.on { display: block; }
+.sp.mg { border-color: rgba(246,178,107,.55); }
+.sp.pd { border-color: rgba(147,196,125,.6); }
+.spv { position: fixed; z-index: 2147483002; display: none; padding: 2px 6px; border-radius: 4px;
+  background: #111827; color: #9ca3af; font: 11px/1.3 ui-monospace, Menlo, monospace; white-space: nowrap; }
+.spv.on { display: block; }
+.spv b { color: #93c47d; font-weight: 600; }
+.spv i { color: #f6b26b; font-style: normal; }
+
 .badge { position: fixed; z-index: 2147483002; top: 8px; left: 50%; transform: translateX(-50%);
   padding: 4px 12px; border-radius: 999px; background: #111827; color: #f9fafb;
-  font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; pointer-events: none; }
+  font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; pointer-events: none;
+  transition: opacity .4s ease; }
+.badge.off { opacity: 0; }
 .badge kbd { background: #374151; padding: 0 4px; border-radius: 3px; font: inherit; }
 
 .panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: 500px; max-height: calc(100vh - 64px);
@@ -52,7 +66,6 @@ const UII_CSS = `
 .row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 2px 10px; }
 .row .k { color: #6b7280; }
 .row .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
-.row .v .var { color: #0f766e; margin-left: 6px; }
 .row .txt { width: 100%; min-height: 20px; padding: 2px 5px; resize: vertical;
   font: 12px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;
   border: 1px solid #d1d5db; border-radius: 4px; }
@@ -76,7 +89,7 @@ const UII_CSS = `
 .st button { width: 14px; height: 11px; padding: 0; border: 0; border-radius: 2px; background: none;
   color: #9ca3af; font-size: 7px; line-height: 11px; cursor: pointer; }
 .st button:hover { color: #111827; background: #e5e7eb; }
-.nf .var { color: #0f766e; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.nf select.cv { color: #0f766e; font-size: 10px; max-width: 46%; text-overflow: ellipsis; padding: 0 2px; }
 .nf select { font-size: 11px; border: 0; background: none; color: #374151; cursor: pointer; max-width: 55%; }
 .seg { display: flex; overflow: hidden; }
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }

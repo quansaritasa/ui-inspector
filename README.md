@@ -42,12 +42,22 @@ Then load it with one script tag:
 | Drag the panel header | Move the panel |
 | Drag the panel's left edge | Resize its width |
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
+| `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
 | **📋 Copy ID** on **Identity** | Copy one line: `name (selector · script files · stylesheet files)`, e.g. `edit-btn (#edit-btn · edit.js · style.css)` |
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
 | **↺ Reset** | Undo every live edit on the pinned element |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
+
+The pinned element also gets its box model drawn the way DevTools draws it:
+a green band for padding inside the border box, an orange band for margin
+outside it, and a chip under it with both as CSS shorthand (`p 5 8 · m 10 10
+0 10`, in px) for the bands too thin to read.
+
+The hint at the top fades out two seconds after inspect mode opens — long
+enough to read, short enough not to sit over the page. It comes back for a
+moment to confirm a copy.
 
 Outline colours: blue for buttons, green for inputs, purple for links, orange
 for other named blocks.
@@ -142,6 +152,16 @@ that factor, unit `× --grid`, and the Changes box writes the rule back with
 the new factor so the variable keeps working. A bare number keeps
 the shown unit. Every change is written to the
 element's inline style, so the page shows it right away.
+
+Each colour field carries the variable it comes from in a dropdown beside the
+swatch — `--btn-bg` for `background: var(--btn-bg)`, read off a shorthand or a
+fallback chain too. The dropdown lists every custom property that resolves to
+a colour on this element, so picking another one points the colour at it
+(`background-color: var(--accent)`), and picking `— none —` gives the element
+a colour of its own again. While a variable is selected the swatch edits **the
+variable**, not the element: every rule using it moves at once, and the
+Changes box names the rule that declares it
+(`style.css :root { --accent: #00ff00; }`). ↺ Reset puts the palette back.
 
 **Apply to similar** (on by default) also edits the CSS rule itself in
 memory — the rule the Changes box names — so every element it styles

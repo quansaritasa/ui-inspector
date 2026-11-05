@@ -21,6 +21,15 @@ function uiiParseVarFactor(v) {
   return m ? { name: m[2], k: parseFloat(m[1]) } : null;
 }
 
+// The variable a value is built on: "var(--bg)" -> "--bg". Anywhere in the
+// value, not only at the front, so a shorthand ("1px solid var(--line)") and
+// a fallback chain ("var(--btn-bg, var(--panel-2))") both answer with the
+// variable the page is actually reading.
+function uiiVarName(v) {
+  const m = /var\(\s*(--[\w-]+)/.exec(String(v || ''));
+  return m ? m[1] : '';
+}
+
 // The factor form of `value` on `el`, only when it really produces `px`
 // (the variable resolves to px there and k × var = px). Guards against a
 // rule that a more specific one overrides — sheet order is not the cascade.
@@ -51,10 +60,23 @@ function uiiRuleDecl(el, prop) {
   return m.get(prop);
 }
 
+// The part of a selector that names the element itself: "td" out of
+// "#grid tbody > td". `*` here means the rule styles everything.
+function uiiLastSeg(selector) {
+  return selector.split(/[\s>+~]+/).pop();
+}
+
 function uiiFindDecl(el, prop) {
   const rules = uiiRulesOf(el);
   for (let i = rules.length - 1; i >= 0; i--) {
     const r = rules[i];
+    // A universal rule — the `* { margin: 0 }` reset — is never an answer:
+    // uiiFindEditRule() refuses to edit one, so finding it is work thrown
+    // away. Probing it is also the most expensive probe there is: the
+    // sentinel lands on every element in the document, and reading the
+    // result back relayouts all of them (measured: 2 such probes = 82 of the
+    // 389 ms one panel render cost on a 5,000-element page).
+    if (uiiLastSeg(r.selector) === '*') continue;
     if (r.style && r.style.getPropertyValue(prop) && uiiWins(el, prop, r.style)) {
       return { file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style };
     }
@@ -65,23 +87,29 @@ function uiiFindDecl(el, prop) {
 // Would `prop` in this rule decide the element's value? Set a sentinel, see
 // if the computed value moves, put everything back (the element's own inline
 // value is lifted meanwhile, or it would always win).
+// The rule is put back by its whole cssText, never property by property: a
+// rule that paints through a shorthand ("background: color-mix(…)") reports
+// an empty background-color longhand, so removing the sentinel would take the
+// colour out of the shorthand with it and leave the page quietly restyled by
+// a probe that was only meant to read.
 function uiiWins(el, prop, style) {
   const iv = el.style.getPropertyValue(prop), ip = el.style.getPropertyPriority(prop);
   if (iv) el.style.removeProperty(prop);
   const before = getComputedStyle(el).getPropertyValue(prop);
-  const cv = style.getPropertyValue(prop), cp = style.getPropertyPriority(prop);
-  style.setProperty(prop, UII_PROBE[prop] || '1234.5px', cp);
+  const text = style.cssText;
+  style.setProperty(prop, UII_PROBE[prop] || '1234.5px', style.getPropertyPriority(prop));
   const win = getComputedStyle(el).getPropertyValue(prop) !== before;
-  if (cv) style.setProperty(prop, cv, cp); else style.removeProperty(prop);
+  style.cssText = text;
   if (iv) el.style.setProperty(prop, iv, ip);
   return win;
 }
 
 // Where an edit lands, cached per selection. The rule that sets the value
-// today, unless it is broad — its last part is `*` or a bare tag, like the
-// `* { margin }` reset or `#grid td` — and a rule naming the element's own
-// class or id would win if given the line: then that one, as an `add`.
-// Never `*`: editing it would move every element on the page.
+// today, unless it is broad — its last part is a bare tag, like `#grid td` —
+// and a rule naming the element's own class or id would win if given the
+// line: then that one, as an `add`. Never `*`: editing it would move every
+// element on the page — uiiFindDecl skips universal rules before they reach
+// here, and the `*` arms below keep that true for a hand-made call.
 function uiiEditRule(el, prop) {
   const I = uiiState.info;
   if (!I.declCache) I.declCache = new Map();
@@ -94,7 +122,9 @@ function uiiEditRule(el, prop) {
 
 function uiiFindEditRule(el, prop) {
   const d = uiiRuleDecl(el, prop);
-  const last = d ? d.selector.split(/[\s>+~]+/).pop() : '*';
+  // No rule found reads as `*`: both mean "nothing worth editing here", so
+  // the own-rule search below runs either way.
+  const last = d ? uiiLastSeg(d.selector) : '*';
   // add: the line exists only because Apply to similar put it there.
   if (d && !/^(\*|[a-z][\w-]*)$/i.test(last)) return { ...d, add: !d.value };
   const own = uiiOwnRules(el).find((r) => uiiWins(el, prop, r.style));
@@ -138,7 +168,7 @@ function uiiChangeDecl(el, c) {
 // classes — `.grid-task`, not `td` or `*` — last in sheet order first.
 function uiiOwnRules(el) {
   return uiiRulesOf(el).filter((r) => {
-    const last = r.selector.split(/[\s>+~]+/).pop();
+    const last = uiiLastSeg(r.selector);
     return (el.id && last.includes('#' + el.id)) || [...el.classList].some((c) => last.includes('.' + c));
   }).reverse();
 }
