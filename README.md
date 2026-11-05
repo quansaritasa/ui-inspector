@@ -177,8 +177,8 @@ bare tag like `#grid td`) is never the target when the element has a rule of
 its own that would win; `*` never is. When no rule sets a property, the line
 names a rule that already targets
 the element and marks the declaration `/* add */`; only with no such rule does
-it fall back to the element's classes (its path when it has none — never a
-runtime id), marked `/* new rule */`. Text properties
+it fall back to the element's classes (its id or path only when it has none,
+since a runtime id changes with a label), marked `/* new rule */`. Text properties
 the children only inherit are set once, on the pinned element. Text properties (colour,
 font, size, weight, line height, spacing) follow the text: pin a cell and
 change its size, and the title span inside it changes too — the field shows
