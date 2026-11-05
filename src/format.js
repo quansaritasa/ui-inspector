@@ -48,14 +48,16 @@ function uiiColorLine(c) {
 // script(s) that mention it, the stylesheet(s) that style it.
 //   edit-btn (edit.js:12 · #edit-btn · edit.js · style.css)
 function uiiFormatForAI(info) {
-  const loc = [info.path];
-  // Location first: it is the one part an AI can act on without searching.
-  if (info.src) loc.unshift(info.src);
+  // The selector leads: it is the ID. Then the source location, the one part
+  // an AI acts on without searching. Brackets make it one paste-ready token.
+  const loc = [];
+  if (info.src) loc.push(info.src);
   if (info.code && info.code.length) loc.push(info.code.join(', '));
   const css = uiiCssFiles(info);
   if (css.length) loc.push(css.join(', '));
   const edits = uiiEditsText(info.el);
-  return info.name + ' (' + loc.join(' · ') + ')' + (edits ? ' — apply: ' + edits : '');
+  return '[' + info.path + (loc.length ? ' (' + loc.join(' · ') + ')' : '') +
+    (edits ? ' — apply: ' + edits : '') + ']';
 }
 
 // Every edit made since the page loaded, on any element, as Map(head ->

@@ -43,7 +43,7 @@ Then load it with one script tag:
 | Drag the panel's left edge | Resize its width |
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
 | `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
-| **📋 Copy ID** on **Identity** | Copy one line: `name (selector · script files · stylesheet files)`, e.g. `edit-btn (#edit-btn · edit.js · style.css)` |
+| **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet + winning selector)]`, e.g. `[#edit-btn (edit.js:12 · style.css .btn)]` |
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
@@ -52,7 +52,7 @@ Then load it with one script tag:
 
 The pinned element also gets its box model drawn the way DevTools draws it:
 a green band for padding inside the border box, an orange band for margin
-outside it, and a chip under it with both as CSS shorthand (`p 5 8 · m 10 10
+outside it, and a chip under it with both as CSS shorthand (`padding 5 8 · margin 10 10
 0 10`, in px) for the bands too thin to read.
 
 The hint at the top fades out two seconds after inspect mode opens — long

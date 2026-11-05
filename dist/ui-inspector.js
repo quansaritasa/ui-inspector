@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.1 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -170,14 +170,16 @@ function uiiColorLine(c) {
 // script(s) that mention it, the stylesheet(s) that style it.
 //   edit-btn (edit.js:12 · #edit-btn · edit.js · style.css)
 function uiiFormatForAI(info) {
-  const loc = [info.path];
-  // Location first: it is the one part an AI can act on without searching.
-  if (info.src) loc.unshift(info.src);
+  // The selector leads: it is the ID. Then the source location, the one part
+  // an AI acts on without searching. Brackets make it one paste-ready token.
+  const loc = [];
+  if (info.src) loc.push(info.src);
   if (info.code && info.code.length) loc.push(info.code.join(', '));
   const css = uiiCssFiles(info);
   if (css.length) loc.push(css.join(', '));
   const edits = uiiEditsText(info.el);
-  return info.name + ' (' + loc.join(' · ') + ')' + (edits ? ' — apply: ' + edits : '');
+  return '[' + info.path + (loc.length ? ' (' + loc.join(' · ') + ')' : '') +
+    (edits ? ' — apply: ' + edits : '') + ']';
 }
 
 // Every edit made since the page loaded, on any element, as Map(head ->
@@ -455,17 +457,17 @@ async function uiiCodeFiles(info) {
   return scored.slice(0, 3).map((s) => s.file);
 }
 
-// Stylesheet files behind the matched rules, most specific last in sheet
+// Stylesheets behind the matched rules, each with the selector to grep: the
+// last match in the file, which wins a specificity tie. Files keep first-seen
 // order so the first named is the app's own sheet, not a reset.
 function uiiCssFiles(info) {
-  const out = [];
+  const last = new Map();
   for (const r of info.rules) {
     if (r.selector === '*' || r.selector === 'html' || r.selector === 'body') continue;
     if (r.file.startsWith('<style')) continue; // injected at runtime: nothing to open
-    const f = r.file.replace(/^renderer\//, '');
-    if (!out.includes(f)) out.push(f);
+    last.set(r.file.replace(/^renderer\//, ''), r.selector);
   }
-  return out.slice(0, 3);
+  return [...last].slice(0, 3).map(([f, sel]) => f + ' ' + sel);
 }
 
 /* ================= element facts =================
@@ -856,12 +858,12 @@ function uiiDrawSpacing(el) {
   uiiBand(S.pdBox, { left: r.left + bw[3], top: r.top + bw[0],
     width: r.width - bw[1] - bw[3], height: r.height - bw[0] - bw[2] }, p);
   S.spv.title = 'padding · margin, in px';
-  S.spv.innerHTML = 'p <b></b> · m <i></i>';
+  S.spv.innerHTML = 'padding <b></b> · margin <i></i>';
   S.spv.querySelector('b').textContent = uiiShortSides(p);
   S.spv.querySelector('i').textContent = uiiShortSides(m);
   // Under the margin box, or over it when the element sits at the bottom.
   const below = r.bottom + Math.max(0, m[2]) + 2;
-  S.spv.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 160)) + 'px';
+  S.spv.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 240)) + 'px';
   S.spv.style.top = (below + 20 < window.innerHeight ? below : Math.max(4, r.top - Math.max(0, m[0]) - 20)) + 'px';
   S.spv.classList.add('on');
 }

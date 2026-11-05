@@ -47,12 +47,12 @@ function uiiDrawSpacing(el) {
   uiiBand(S.pdBox, { left: r.left + bw[3], top: r.top + bw[0],
     width: r.width - bw[1] - bw[3], height: r.height - bw[0] - bw[2] }, p);
   S.spv.title = 'padding · margin, in px';
-  S.spv.innerHTML = 'p <b></b> · m <i></i>';
+  S.spv.innerHTML = 'padding <b></b> · margin <i></i>';
   S.spv.querySelector('b').textContent = uiiShortSides(p);
   S.spv.querySelector('i').textContent = uiiShortSides(m);
   // Under the margin box, or over it when the element sits at the bottom.
   const below = r.bottom + Math.max(0, m[2]) + 2;
-  S.spv.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 160)) + 'px';
+  S.spv.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 240)) + 'px';
   S.spv.style.top = (below + 20 < window.innerHeight ? below : Math.max(4, r.top - Math.max(0, m[0]) - 20)) + 'px';
   S.spv.classList.add('on');
 }

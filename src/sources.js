@@ -61,15 +61,15 @@ async function uiiCodeFiles(info) {
   return scored.slice(0, 3).map((s) => s.file);
 }
 
-// Stylesheet files behind the matched rules, most specific last in sheet
+// Stylesheets behind the matched rules, each with the selector to grep: the
+// last match in the file, which wins a specificity tie. Files keep first-seen
 // order so the first named is the app's own sheet, not a reset.
 function uiiCssFiles(info) {
-  const out = [];
+  const last = new Map();
   for (const r of info.rules) {
     if (r.selector === '*' || r.selector === 'html' || r.selector === 'body') continue;
     if (r.file.startsWith('<style')) continue; // injected at runtime: nothing to open
-    const f = r.file.replace(/^renderer\//, '');
-    if (!out.includes(f)) out.push(f);
+    last.set(r.file.replace(/^renderer\//, ''), r.selector);
   }
-  return out.slice(0, 3);
+  return [...last].slice(0, 3).map(([f, sel]) => f + ' ' + sel);
 }
