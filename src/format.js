@@ -102,12 +102,22 @@ function uiiEditCount() {
 //   style.css .grid-task-title { font-size: calc(var(--g) * 1.1) /* 14.3px */; }
 //   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
 function uiiFormatChanges() {
-  const L = ['Apply these CSS changes (final values). Edit each rule in place; /* add */ = add that line'
-    + ' to the rule; /* new rule */ = create it. Keep var()/calc() as written.'];
+  const L = ['Apply these CSS changes (final values). Edit each rule in place; a declaration with no'
+    + ' marker replaces the value already in the rule; /* add */ = add that line to the rule;'
+    + ' /* new rule */ = create it. Keep var()/calc() as written.'];
   for (const [head, decls] of uiiChangeLines()) L.push(head + ' { ' + decls.join('; ') + '; }');
   if (L.length === 1) return '(no changes yet)';
   if (!uiiState.similar) L.push('Only these elements: add a more specific selector, leave the shared rules.');
   return L.join('\n');
+}
+
+// What the Changes box's Copy button copies, for the A shortcut. The
+// textarea is the source when the panel has one: it is editable, and the
+// button copies what is in it, not what was last generated.
+function uiiCopyChanges() {
+  const P = uiiState.panel;
+  if (!uiiEditCount()) { uiiFlash('No changes yet'); return; }
+  uiiCopy(P && P.changes ? P.changes.value : uiiFormatChanges());
 }
 
 // Multi-line block with the computed look, for when the AI must match or

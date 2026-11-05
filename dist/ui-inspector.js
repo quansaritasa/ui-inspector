@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.8 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.10 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -47,6 +47,12 @@ const UII_CSS = `
   transition: opacity .4s ease; }
 .badge.off { opacity: 0; }
 .badge kbd { background: #374151; padding: 0 4px; border-radius: 3px; font: inherit; }
+/* Normal view (V): the panel stays, everything the inspector draws goes, so
+   an edit is judged against the real screen. !important, because the pieces
+   are shown by a second class (.hover.on) of equal weight. */
+:host(.peek) .layer, :host(.peek) .hover, :host(.peek) .tip,
+:host(.peek) .sp, :host(.peek) .spv, :host(.peek) .badge { display: none !important; }
+.head button.on { background: #1f2937; border-color: #1f2937; color: #fff; }
 
 .panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: 500px; max-height: calc(100vh - 64px);
   display: none; flex-direction: column; pointer-events: auto;
@@ -242,12 +248,22 @@ function uiiEditCount() {
 //   style.css .grid-task-title { font-size: calc(var(--g) * 1.1) /* 14.3px */; }
 //   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
 function uiiFormatChanges() {
-  const L = ['Apply these CSS changes (final values). Edit each rule in place; /* add */ = add that line'
-    + ' to the rule; /* new rule */ = create it. Keep var()/calc() as written.'];
+  const L = ['Apply these CSS changes (final values). Edit each rule in place; a declaration with no'
+    + ' marker replaces the value already in the rule; /* add */ = add that line to the rule;'
+    + ' /* new rule */ = create it. Keep var()/calc() as written.'];
   for (const [head, decls] of uiiChangeLines()) L.push(head + ' { ' + decls.join('; ') + '; }');
   if (L.length === 1) return '(no changes yet)';
   if (!uiiState.similar) L.push('Only these elements: add a more specific selector, leave the shared rules.');
   return L.join('\n');
+}
+
+// What the Changes box's Copy button copies, for the A shortcut. The
+// textarea is the source when the panel has one: it is editable, and the
+// button copies what is in it, not what was last generated.
+function uiiCopyChanges() {
+  const P = uiiState.panel;
+  if (!uiiEditCount()) { uiiFlash('No changes yet'); return; }
+  uiiCopy(P && P.changes ? P.changes.value : uiiFormatChanges());
 }
 
 // Multi-line block with the computed look, for when the AI must match or
@@ -742,8 +758,8 @@ function uiiMount() {
   S.pdBox = mk('sp pd');
   S.spv = mk('spv');
   S.badge = mk('badge');
-  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>Alt</kbd> for exact element,'
-    + ' <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
+    + ' <kbd>V</kbd> normal view, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
@@ -775,6 +791,39 @@ function uiiFlash(text) {
     S.badge.innerHTML = S.badgeHtml;
     S.badge.classList.add('off');
   }, 1200);
+}
+
+// Normal view: hide every outline and band, and hand the pointer back to the
+// page, so a live edit can be judged on the real screen. The panel stays open
+// with its edits, so the next press returns to a pinned element, not a blank
+// one. Entering it unbinds the capture listeners — that is what makes the app
+// clickable again — so nothing redraws until it is left.
+function uiiPeek(on) {
+  const S = uiiState;
+  if (!S.on) return;
+  const want = on === undefined ? !S.peek : !!on;
+  if (want === S.peek) return;
+  S.peek = want;
+  S.host.classList.toggle('peek', want);
+  if (want) {
+    uiiUnbindEvents();
+    if (S.raf) cancelAnimationFrame(S.raf);
+    clearTimeout(S.drawTimer);
+    S.raf = 0;
+    uiiSetHover(null);
+  } else {
+    uiiBindEvents();
+    uiiDrawOutlines();
+    // The page may have scrolled or re-rendered while the overlay was off.
+    if (S.selected && S.selected.isConnected) {
+      uiiPlace(S.selBox, S.selected.getBoundingClientRect());
+      uiiDrawSpacing(S.selected);
+    }
+  }
+  const P = S.panel;
+  if (!P || !P.peek) return;
+  P.peek.classList.toggle('on', want);
+  P.peek.title = want ? 'Back to inspect (V)' : 'Normal view — hide the overlay and use the page (V)';
 }
 
 function uiiFromPanel(e) {
@@ -2093,20 +2142,25 @@ function uiiBuildPanel(sh) {
   // the class lives on the panel, so a new selection stays folded.
   const fold = uiiEl('button', '', '—', 'minimize');
   fold.title = 'Minimize';
+  // Normal view hides the overlay without closing the panel: the edits, the
+  // Changes box and the pinned element all survive the look.
+  const peek = uiiEl('button', '', '👁', 'normal-view');
+  peek.title = 'Normal view — hide the overlay and use the page (V)';
   const close = uiiEl('button', '', '✕', 'close-panel');
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
   reset.title = 'Undo every live edit on this element, and every variable edit';
   const ok = uiiEl('span', 'ok', '', 'copy-status');
-  head.append(name, tag, ok, reset, fold, close);
+  head.append(name, tag, ok, reset, peek, fold, close);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
   const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
   p.append(grip, head, body);
   sh.appendChild(p);
-  S.panel = { root: p, name, tag, body, ok, reset };
+  S.panel = { root: p, name, tag, body, ok, reset, peek };
   close.addEventListener('click', () => p.classList.remove('on'));
+  peek.addEventListener('click', () => uiiPeek());
   fold.addEventListener('click', () => {
     const min = p.classList.toggle('min');
     fold.textContent = min ? '▢' : '—';
@@ -2291,7 +2345,7 @@ const uiiState = {
   host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
-  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '',
+  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
 };
 
 // How long the hint at the top stays before it fades. It says what the keys
@@ -2375,15 +2429,19 @@ function uiiOnKey(e) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
-  // C copies the pinned element's one-line locator — the Copy ID button
-  // without reaching for the panel. Bare C only: Cmd/Ctrl+C still copies
-  // whatever is selected, in the panel or on the page.
-  if (e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey && S.info) {
-    e.preventDefault();
-    e.stopPropagation();
-    uiiCopy(uiiFormatForAI(S.info));
-  }
+  // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
+  // panel or on the page. Each is a panel button without the reach — C the
+  // Copy ID line, A the Changes box, V the Normal view toggle.
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
+  else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
+  else if (k === 'v') uiiKeyAction(e, uiiPeek);
 }
+
+// A single-letter shortcut swallows its key, so the app underneath never
+// sees it while inspect mode is on.
+function uiiKeyAction(e, run) { e.preventDefault(); e.stopPropagation(); run(); }
 
 function uiiEnable() {
   const S = uiiState;
@@ -2409,6 +2467,7 @@ function uiiDisable() {
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;
+  S.peek = false;
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(false);
 }
 

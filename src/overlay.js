@@ -21,8 +21,8 @@ function uiiMount() {
   S.pdBox = mk('sp pd');
   S.spv = mk('spv');
   S.badge = mk('badge');
-  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>Alt</kbd> for exact element,'
-    + ' <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
+    + ' <kbd>V</kbd> normal view, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
@@ -54,6 +54,39 @@ function uiiFlash(text) {
     S.badge.innerHTML = S.badgeHtml;
     S.badge.classList.add('off');
   }, 1200);
+}
+
+// Normal view: hide every outline and band, and hand the pointer back to the
+// page, so a live edit can be judged on the real screen. The panel stays open
+// with its edits, so the next press returns to a pinned element, not a blank
+// one. Entering it unbinds the capture listeners — that is what makes the app
+// clickable again — so nothing redraws until it is left.
+function uiiPeek(on) {
+  const S = uiiState;
+  if (!S.on) return;
+  const want = on === undefined ? !S.peek : !!on;
+  if (want === S.peek) return;
+  S.peek = want;
+  S.host.classList.toggle('peek', want);
+  if (want) {
+    uiiUnbindEvents();
+    if (S.raf) cancelAnimationFrame(S.raf);
+    clearTimeout(S.drawTimer);
+    S.raf = 0;
+    uiiSetHover(null);
+  } else {
+    uiiBindEvents();
+    uiiDrawOutlines();
+    // The page may have scrolled or re-rendered while the overlay was off.
+    if (S.selected && S.selected.isConnected) {
+      uiiPlace(S.selBox, S.selected.getBoundingClientRect());
+      uiiDrawSpacing(S.selected);
+    }
+  }
+  const P = S.panel;
+  if (!P || !P.peek) return;
+  P.peek.classList.toggle('on', want);
+  P.peek.title = want ? 'Back to inspect (V)' : 'Normal view — hide the overlay and use the page (V)';
 }
 
 function uiiFromPanel(e) {

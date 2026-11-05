@@ -32,7 +32,7 @@ const uiiState = {
   host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
-  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '',
+  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
 };
 
 // How long the hint at the top stays before it fades. It says what the keys
@@ -116,15 +116,19 @@ function uiiOnKey(e) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
-  // C copies the pinned element's one-line locator — the Copy ID button
-  // without reaching for the panel. Bare C only: Cmd/Ctrl+C still copies
-  // whatever is selected, in the panel or on the page.
-  if (e.key.toLowerCase() === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey && S.info) {
-    e.preventDefault();
-    e.stopPropagation();
-    uiiCopy(uiiFormatForAI(S.info));
-  }
+  // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
+  // panel or on the page. Each is a panel button without the reach — C the
+  // Copy ID line, A the Changes box, V the Normal view toggle.
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
+  else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
+  else if (k === 'v') uiiKeyAction(e, uiiPeek);
 }
+
+// A single-letter shortcut swallows its key, so the app underneath never
+// sees it while inspect mode is on.
+function uiiKeyAction(e, run) { e.preventDefault(); e.stopPropagation(); run(); }
 
 function uiiEnable() {
   const S = uiiState;
@@ -150,6 +154,7 @@ function uiiDisable() {
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;
+  S.peek = false;
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(false);
 }
 

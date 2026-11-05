@@ -29,20 +29,25 @@ function uiiBuildPanel(sh) {
   // the class lives on the panel, so a new selection stays folded.
   const fold = uiiEl('button', '', '—', 'minimize');
   fold.title = 'Minimize';
+  // Normal view hides the overlay without closing the panel: the edits, the
+  // Changes box and the pinned element all survive the look.
+  const peek = uiiEl('button', '', '👁', 'normal-view');
+  peek.title = 'Normal view — hide the overlay and use the page (V)';
   const close = uiiEl('button', '', '✕', 'close-panel');
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
   reset.title = 'Undo every live edit on this element, and every variable edit';
   const ok = uiiEl('span', 'ok', '', 'copy-status');
-  head.append(name, tag, ok, reset, fold, close);
+  head.append(name, tag, ok, reset, peek, fold, close);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
   const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
   p.append(grip, head, body);
   sh.appendChild(p);
-  S.panel = { root: p, name, tag, body, ok, reset };
+  S.panel = { root: p, name, tag, body, ok, reset, peek };
   close.addEventListener('click', () => p.classList.remove('on'));
+  peek.addEventListener('click', () => uiiPeek());
   fold.addEventListener('click', () => {
     const min = p.classList.toggle('min');
     fold.textContent = min ? '▢' : '—';

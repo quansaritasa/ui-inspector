@@ -41,6 +41,12 @@ const UII_CSS = `
   transition: opacity .4s ease; }
 .badge.off { opacity: 0; }
 .badge kbd { background: #374151; padding: 0 4px; border-radius: 3px; font: inherit; }
+/* Normal view (V): the panel stays, everything the inspector draws goes, so
+   an edit is judged against the real screen. !important, because the pieces
+   are shown by a second class (.hover.on) of equal weight. */
+:host(.peek) .layer, :host(.peek) .hover, :host(.peek) .tip,
+:host(.peek) .sp, :host(.peek) .spv, :host(.peek) .badge { display: none !important; }
+.head button.on { background: #1f2937; border-color: #1f2937; color: #fff; }
 
 .panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: 500px; max-height: calc(100vh - 64px);
   display: none; flex-direction: column; pointer-events: auto;

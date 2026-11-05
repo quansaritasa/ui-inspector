@@ -56,6 +56,8 @@ code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
+| `A` | Copy the same **Changes** text from the keyboard — the badge says `No changes yet` when there is nothing to copy |
+| `V`, or **👁** in the panel header | Normal view: hide every overlay and give the pointer back to the page, so an edit can be judged on the real screen. The panel, its edits and the pinned element stay; press again to go back to inspecting |
 | **↺ Reset** | Undo every live edit on the pinned element |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
 
