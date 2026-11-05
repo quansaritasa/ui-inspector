@@ -68,20 +68,69 @@ function uiiLastSeg(selector) {
 
 function uiiFindDecl(el, prop) {
   const rules = uiiRulesOf(el);
-  for (let i = rules.length - 1; i >= 0; i--) {
-    const r = rules[i];
-    // A universal rule — the `* { margin: 0 }` reset — is never an answer:
-    // uiiFindEditRule() refuses to edit one, so finding it is work thrown
-    // away. Probing it is also the most expensive probe there is: the
-    // sentinel lands on every element in the document, and reading the
-    // result back relayouts all of them (measured: 2 such probes = 82 of the
-    // 389 ms one panel render cost on a 5,000-element page).
-    if (uiiLastSeg(r.selector) === '*') continue;
-    if (r.style && r.style.getPropertyValue(prop) && uiiWins(el, prop, r.style)) {
-      return { file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style };
-    }
-  }
-  return null;
+  const sets = rules.filter((r) => r.style && r.style.getPropertyValue(prop));
+  // One matched rule sets it, unconditionally, with no `*` rule beside it
+  // (an `!important` reset could still beat it): nothing can override it,
+  // so it wins without the probe, which restyles the whole page. Not when
+  // the list may be cut (uiiCollect keeps the last 30): a dropped rule counts.
+  const sure = rules.length < 30 && sets.length === 1 && !sets[0].cond && uiiLastSeg(sets[0].selector) !== '*';
+  // Candidates, last in sheet order first. A universal rule — the
+  // `* { margin: 0 }` reset — is never an answer: uiiFindEditRule() refuses
+  // to edit one, so finding it is work thrown away. Probing it is also the
+  // most expensive probe there is: the sentinel lands on every element in
+  // the document, and reading the result back relayouts all of them
+  // (measured: 2 such probes = 82 of the 389 ms one panel render cost on a
+  // 5,000-element page).
+  const cands = sets.filter((r) => uiiLastSeg(r.selector) !== '*').reverse();
+  const out = (r) => ({ file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style });
+  if (sure) return out(cands[0]);
+  const w = cands.length > 1 ? uiiProbeAll(el, prop, cands) : null;
+  if (w) return out(w);
+  if (w === false) return null;
+  const r = cands.find((c) => uiiWins(el, prop, c.style));
+  return r ? out(r) : null;
+}
+
+// Sentinel number i for `prop`, distinct per i; null where a property has too
+// few values to tell rules apart (text-align).
+function uiiProbeVal(prop, i) {
+  if (prop === 'text-align') return null;
+  if (prop === 'font-weight') return String(137 + i);
+  if (prop === 'font-family') return 'uii-probe-' + i;
+  if (prop === 'border') return '7px dotted rgb(1, 2, ' + (3 + i) + ')';
+  if (/color$/.test(prop)) return 'rgb(1, 2, ' + (3 + i) + ')';
+  return (1234.5 + i) + 'px';
+}
+
+// uiiWins for every candidate in one go: each gets its own sentinel, the
+// element is read once, and the sentinel that shows names the winner — one
+// page restyle instead of one per rule (~110 ms each on 60,000 elements).
+// false when the value did not move at all: the winner is none of them (a
+// rule past the 30 kept, an `!important` `*`), which is what probing rule by
+// rule would also conclude, one restyle per rule later. null when it moved to
+// none of the sentinels (max-width clamping a width, say): the caller falls
+// back to probing rule by rule.
+function uiiProbeAll(el, prop, cands) {
+  const s = uiiState.scratch;
+  if (!s || cands.length > 200) return null;
+  const vals = cands.map((r, i) => uiiProbeVal(prop, i));
+  if (vals.includes(null)) return null;
+  // Each sentinel as getComputedStyle writes it, from the hidden scratch
+  // element (the uiiNormColor trick): only that one element restyles.
+  const want = vals.map((v) => { s.style.setProperty(prop, v); return getComputedStyle(s).getPropertyValue(prop); });
+  s.style.removeProperty(prop);
+  if (new Set(want).size !== want.length) return null;
+  const iv = el.style.getPropertyValue(prop), ip = el.style.getPropertyPriority(prop);
+  if (iv) el.style.removeProperty(prop);
+  const before = getComputedStyle(el).getPropertyValue(prop);
+  // Put back by whole cssText, for the reason uiiWins gives.
+  const texts = cands.map((r) => r.style.cssText);
+  cands.forEach((r, i) => r.style.setProperty(prop, vals[i], r.style.getPropertyPriority(prop)));
+  const got = getComputedStyle(el).getPropertyValue(prop);
+  cands.forEach((r, i) => { r.style.cssText = texts[i]; });
+  if (iv) el.style.setProperty(prop, iv, ip);
+  const i = want.indexOf(got);
+  return i >= 0 ? cands[i] : got === before ? false : null;
 }
 
 // Would `prop` in this rule decide the element's value? Set a sentinel, see
@@ -132,8 +181,17 @@ function uiiFindEditRule(el, prop) {
   return d && last !== '*' ? { ...d, add: false } : null;
 }
 
+// Does any matched rule write `prop` as a value `test` accepts? Asked before
+// uiiRuleDecl, whose probes restyle the whole page (~10 ms each on a 5,000-
+// element page, two dozen per panel): when no candidate could give the
+// answer, which one wins does not matter.
+function uiiAnyDecl(el, prop, test) {
+  return uiiRulesOf(el).some((r) => r.style && test(uiiDeclValue(r.style, prop)));
+}
+
 // The rule's variable factor for `prop` before any edit, or null.
 function uiiFormula(el, prop) {
+  if (!uiiAnyDecl(el, prop, uiiParseVarFactor)) return null;
   const d = uiiRuleDecl(el, prop);
   return d ? uiiVarFactor(el, d.value, parseFloat(uiiOrig(el, prop))) : null;
 }

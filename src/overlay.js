@@ -123,5 +123,19 @@ function uiiScheduleDraw() {
   const S = uiiState;
   if (S.holding) { S.drawLater = true; return; }
   if (S.raf) return;
-  S.raf = requestAnimationFrame(() => { S.raf = 0; uiiDrawOutlines(); });
+  // A page that changes every frame (a timer, an animation) would rerun the
+  // scan back to back — 45-120 ms each on 60,000 elements — and keys like Esc
+  // would queue behind it. After a scan of d ms, wait 3·d before the next:
+  // a small page still redraws every frame, a big one leaves 75% free.
+  const go = () => {
+    S.raf = requestAnimationFrame(() => {
+      S.raf = 0;
+      const t0 = performance.now();
+      uiiDrawOutlines();
+      S.drawEnd = performance.now();
+      S.drawMs = S.drawEnd - t0;
+    });
+  };
+  const wait = (S.drawEnd || 0) + 3 * (S.drawMs || 0) - performance.now();
+  if (wait > 0) { S.raf = -1; S.drawTimer = setTimeout(go, wait); } else go();
 }

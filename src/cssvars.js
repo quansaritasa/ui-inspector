@@ -27,13 +27,15 @@ function uiiSheetName(href) {
 }
 
 // Every CSSStyleRule in every readable sheet, flattened through @media /
-// @supports / @layer. Each entry: { rule, file }.
+// @supports / @layer. Each entry: { rule, file, cond }; cond = it may not
+// apply as written (inside @media / @layer / any group, or a sheet with a
+// media attribute or disabled), so only a probe can say whether it wins.
 function uiiAllRules() {
   const out = [];
-  const walk = (rules, file) => {
+  const walk = (rules, file, cond) => {
     for (const r of rules) {
-      if (r.style && r.selectorText) out.push({ rule: r, file });
-      else if (r.cssRules) walk(r.cssRules, file);
+      if (r.style && r.selectorText) out.push({ rule: r, file, cond });
+      else if (r.cssRules) walk(r.cssRules, file, true);
     }
   };
   const sheets = document.styleSheets;
@@ -47,7 +49,7 @@ function uiiAllRules() {
     const node = sh.ownerNode;
     const file = sh.href ? uiiSheetName(sh.href)
       : node && node.id ? '<style id="' + node.id + '"> (injected)' : '<style>#' + i;
-    walk(rules, file);
+    walk(rules, file, sh.disabled || !!(sh.media && sh.media.mediaText));
   }
   return out;
 }
@@ -122,14 +124,14 @@ function uiiVarRule(name, el, all) {
 // the reported selector is the one that actually matched.
 function uiiMatchedRules(el, all) {
   const out = [];
-  for (const { rule, file } of all) {
+  for (const { rule, file, cond } of all) {
     const parts = rule.selectorText.split(',');
     for (const sel of parts) {
       const s = sel.trim();
       if (!s) continue;
       let hit = false;
       try { hit = el.matches(s); } catch (e) { hit = false; }
-      if (hit) { out.push({ file, selector: s, props: rule.style.length, style: rule.style }); break; }
+      if (hit) { out.push({ file, selector: s, props: rule.style.length, style: rule.style, cond }); break; }
     }
   }
   return out;

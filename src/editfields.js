@@ -32,7 +32,7 @@ const UII_COLOR_SHORTHAND = { 'background-color': 'background', 'border-color': 
 
 // The variable this colour comes from, '' when it is written out in full.
 function uiiColorVarOf(el, prop) {
-  const d = uiiRuleDecl(el, prop);
+  const d = uiiAnyDecl(el, prop, uiiVarName) && uiiRuleDecl(el, prop);
   const named = uiiVarName(d && d.value);
   if (named || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);

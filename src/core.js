@@ -100,11 +100,14 @@ function uiiOnKey(e) {
   // work after clicking a panel button; only real text entry gets skipped.
   // A page field can still hold focus from before inspect mode opened, and
   // its typing must stay typing — C is a shortcut only outside a text box.
+  // Esc still works from a panel box: there it has no typing job to do.
   if (uiiInEditable(e.target)) return;
-  if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
+  const box = e.target === S.host && uiiInEditable(e.composedPath()[0]) ? e.composedPath()[0] : null;
+  if (box && e.key !== 'Escape') return;
   if (e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
+    if (box) box.blur(); // fires 'change', so a typed value lands before quitting
     if (S.cvList) uiiCloseVarList(); else uiiDisable(); // first Escape closes an open var list
     return;
   }
@@ -129,6 +132,7 @@ function uiiEnable() {
   uiiMount();
   uiiBindEvents();
   uiiDrawOutlines();
+  uiiScriptIndex(); // warm the script scan; never rejects (each fetch catches)
   S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }
@@ -141,6 +145,7 @@ function uiiDisable() {
   uiiCloseVarList();
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
+  clearTimeout(S.drawTimer); // a redraw waiting out uiiScheduleDraw's gap
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;

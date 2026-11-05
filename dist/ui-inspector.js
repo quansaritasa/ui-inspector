@@ -304,13 +304,15 @@ function uiiSheetName(href) {
 }
 
 // Every CSSStyleRule in every readable sheet, flattened through @media /
-// @supports / @layer. Each entry: { rule, file }.
+// @supports / @layer. Each entry: { rule, file, cond }; cond = it may not
+// apply as written (inside @media / @layer / any group, or a sheet with a
+// media attribute or disabled), so only a probe can say whether it wins.
 function uiiAllRules() {
   const out = [];
-  const walk = (rules, file) => {
+  const walk = (rules, file, cond) => {
     for (const r of rules) {
-      if (r.style && r.selectorText) out.push({ rule: r, file });
-      else if (r.cssRules) walk(r.cssRules, file);
+      if (r.style && r.selectorText) out.push({ rule: r, file, cond });
+      else if (r.cssRules) walk(r.cssRules, file, true);
     }
   };
   const sheets = document.styleSheets;
@@ -324,7 +326,7 @@ function uiiAllRules() {
     const node = sh.ownerNode;
     const file = sh.href ? uiiSheetName(sh.href)
       : node && node.id ? '<style id="' + node.id + '"> (injected)' : '<style>#' + i;
-    walk(rules, file);
+    walk(rules, file, sh.disabled || !!(sh.media && sh.media.mediaText));
   }
   return out;
 }
@@ -399,14 +401,14 @@ function uiiVarRule(name, el, all) {
 // the reported selector is the one that actually matched.
 function uiiMatchedRules(el, all) {
   const out = [];
-  for (const { rule, file } of all) {
+  for (const { rule, file, cond } of all) {
     const parts = rule.selectorText.split(',');
     for (const sel of parts) {
       const s = sel.trim();
       if (!s) continue;
       let hit = false;
       try { hit = el.matches(s); } catch (e) { hit = false; }
-      if (hit) { out.push({ file, selector: s, props: rule.style.length, style: rule.style }); break; }
+      if (hit) { out.push({ file, selector: s, props: rule.style.length, style: rule.style, cond }); break; }
     }
   }
   return out;
@@ -424,10 +426,15 @@ function uiiScriptWanted(url) {
   return !/\/(vendor|node_modules|dist)\//.test(url);
 }
 
-// Map basename -> source text, built on first use and kept for the session.
-async function uiiScriptIndex() {
+// Promise of Map basename -> source text, started when inspect mode opens
+// (uiiEnable) so the first pin does not wait on the fetches, and kept for the
+// session. The promise itself is kept, so a pin during the fetch shares it.
+function uiiScriptIndex() {
   const S = uiiState;
-  if (S.sources) return S.sources;
+  return S.sources || (S.sources = uiiFetchScripts());
+}
+
+async function uiiFetchScripts() {
   const map = new Map();
   const jobs = [...document.scripts]
     .filter((s) => s.src && uiiScriptWanted(s.src))
@@ -438,7 +445,6 @@ async function uiiScriptIndex() {
       } catch (e) { /* cross-origin or unreadable: skip */ }
     });
   await Promise.all(jobs);
-  S.sources = map;
   return map;
 }
 
@@ -838,7 +844,21 @@ function uiiScheduleDraw() {
   const S = uiiState;
   if (S.holding) { S.drawLater = true; return; }
   if (S.raf) return;
-  S.raf = requestAnimationFrame(() => { S.raf = 0; uiiDrawOutlines(); });
+  // A page that changes every frame (a timer, an animation) would rerun the
+  // scan back to back — 45-120 ms each on 60,000 elements — and keys like Esc
+  // would queue behind it. After a scan of d ms, wait 3·d before the next:
+  // a small page still redraws every frame, a big one leaves 75% free.
+  const go = () => {
+    S.raf = requestAnimationFrame(() => {
+      S.raf = 0;
+      const t0 = performance.now();
+      uiiDrawOutlines();
+      S.drawEnd = performance.now();
+      S.drawMs = S.drawEnd - t0;
+    });
+  };
+  const wait = (S.drawEnd || 0) + 3 * (S.drawMs || 0) - performance.now();
+  if (wait > 0) { S.raf = -1; S.drawTimer = setTimeout(go, wait); } else go();
 }
 
 /* ================= overlay: padding and margin =================
@@ -1029,7 +1049,17 @@ function uiiApplyEdit(el, prop, value) {
   if (!(prop in e.from)) e.from[prop] = getComputedStyle(el).getPropertyValue(prop).trim();
   e.props[prop] = value;
   el.style.setProperty(prop, value);
-  if (uiiState.similar) e.rule[prop] = uiiRuleApply(el, prop, value);
+  if (uiiState.similar) {
+    // While a value is held or dragged the rule waits for the release:
+    // rewriting it restyles the whole page (~100 ms a step on 60,000
+    // elements), and the inline edit already shows on the pinned element.
+    const S = uiiState;
+    if (!S.holding) e.rule[prop] = uiiRuleApply(el, prop, value);
+    else {
+      if (!S.ruleLater) S.ruleLater = new Map();
+      S.ruleLater.set(el, (S.ruleLater.get(el) || new Set()).add(prop));
+    }
+  }
   if (uiiState.panel) {
     uiiState.panel.reset.hidden = false;
     // Building the log matches CSS rules; once a drag settles is enough.
@@ -1044,6 +1074,15 @@ function uiiApplyEdit(el, prop, value) {
 function uiiHold(on) {
   const S = uiiState;
   S.holding = on;
+  // The rules uiiApplyEdit held back, each written once with its last value.
+  if (!on && S.ruleLater) {
+    for (const [el, props] of S.ruleLater) {
+      const e = uiiEditsFor(el, false);
+      if (!e || !S.similar) continue; // reset, or the box unticked, meanwhile
+      for (const p of props) if (p in e.props) e.rule[p] = uiiRuleApply(el, p, e.props[p]);
+    }
+    S.ruleLater = null;
+  }
   if (!on && S.drawLater) { S.drawLater = false; uiiScheduleDraw(); }
 }
 
@@ -1383,20 +1422,69 @@ function uiiLastSeg(selector) {
 
 function uiiFindDecl(el, prop) {
   const rules = uiiRulesOf(el);
-  for (let i = rules.length - 1; i >= 0; i--) {
-    const r = rules[i];
-    // A universal rule — the `* { margin: 0 }` reset — is never an answer:
-    // uiiFindEditRule() refuses to edit one, so finding it is work thrown
-    // away. Probing it is also the most expensive probe there is: the
-    // sentinel lands on every element in the document, and reading the
-    // result back relayouts all of them (measured: 2 such probes = 82 of the
-    // 389 ms one panel render cost on a 5,000-element page).
-    if (uiiLastSeg(r.selector) === '*') continue;
-    if (r.style && r.style.getPropertyValue(prop) && uiiWins(el, prop, r.style)) {
-      return { file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style };
-    }
-  }
-  return null;
+  const sets = rules.filter((r) => r.style && r.style.getPropertyValue(prop));
+  // One matched rule sets it, unconditionally, with no `*` rule beside it
+  // (an `!important` reset could still beat it): nothing can override it,
+  // so it wins without the probe, which restyles the whole page. Not when
+  // the list may be cut (uiiCollect keeps the last 30): a dropped rule counts.
+  const sure = rules.length < 30 && sets.length === 1 && !sets[0].cond && uiiLastSeg(sets[0].selector) !== '*';
+  // Candidates, last in sheet order first. A universal rule — the
+  // `* { margin: 0 }` reset — is never an answer: uiiFindEditRule() refuses
+  // to edit one, so finding it is work thrown away. Probing it is also the
+  // most expensive probe there is: the sentinel lands on every element in
+  // the document, and reading the result back relayouts all of them
+  // (measured: 2 such probes = 82 of the 389 ms one panel render cost on a
+  // 5,000-element page).
+  const cands = sets.filter((r) => uiiLastSeg(r.selector) !== '*').reverse();
+  const out = (r) => ({ file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style });
+  if (sure) return out(cands[0]);
+  const w = cands.length > 1 ? uiiProbeAll(el, prop, cands) : null;
+  if (w) return out(w);
+  if (w === false) return null;
+  const r = cands.find((c) => uiiWins(el, prop, c.style));
+  return r ? out(r) : null;
+}
+
+// Sentinel number i for `prop`, distinct per i; null where a property has too
+// few values to tell rules apart (text-align).
+function uiiProbeVal(prop, i) {
+  if (prop === 'text-align') return null;
+  if (prop === 'font-weight') return String(137 + i);
+  if (prop === 'font-family') return 'uii-probe-' + i;
+  if (prop === 'border') return '7px dotted rgb(1, 2, ' + (3 + i) + ')';
+  if (/color$/.test(prop)) return 'rgb(1, 2, ' + (3 + i) + ')';
+  return (1234.5 + i) + 'px';
+}
+
+// uiiWins for every candidate in one go: each gets its own sentinel, the
+// element is read once, and the sentinel that shows names the winner — one
+// page restyle instead of one per rule (~110 ms each on 60,000 elements).
+// false when the value did not move at all: the winner is none of them (a
+// rule past the 30 kept, an `!important` `*`), which is what probing rule by
+// rule would also conclude, one restyle per rule later. null when it moved to
+// none of the sentinels (max-width clamping a width, say): the caller falls
+// back to probing rule by rule.
+function uiiProbeAll(el, prop, cands) {
+  const s = uiiState.scratch;
+  if (!s || cands.length > 200) return null;
+  const vals = cands.map((r, i) => uiiProbeVal(prop, i));
+  if (vals.includes(null)) return null;
+  // Each sentinel as getComputedStyle writes it, from the hidden scratch
+  // element (the uiiNormColor trick): only that one element restyles.
+  const want = vals.map((v) => { s.style.setProperty(prop, v); return getComputedStyle(s).getPropertyValue(prop); });
+  s.style.removeProperty(prop);
+  if (new Set(want).size !== want.length) return null;
+  const iv = el.style.getPropertyValue(prop), ip = el.style.getPropertyPriority(prop);
+  if (iv) el.style.removeProperty(prop);
+  const before = getComputedStyle(el).getPropertyValue(prop);
+  // Put back by whole cssText, for the reason uiiWins gives.
+  const texts = cands.map((r) => r.style.cssText);
+  cands.forEach((r, i) => r.style.setProperty(prop, vals[i], r.style.getPropertyPriority(prop)));
+  const got = getComputedStyle(el).getPropertyValue(prop);
+  cands.forEach((r, i) => { r.style.cssText = texts[i]; });
+  if (iv) el.style.setProperty(prop, iv, ip);
+  const i = want.indexOf(got);
+  return i >= 0 ? cands[i] : got === before ? false : null;
 }
 
 // Would `prop` in this rule decide the element's value? Set a sentinel, see
@@ -1447,8 +1535,17 @@ function uiiFindEditRule(el, prop) {
   return d && last !== '*' ? { ...d, add: false } : null;
 }
 
+// Does any matched rule write `prop` as a value `test` accepts? Asked before
+// uiiRuleDecl, whose probes restyle the whole page (~10 ms each on a 5,000-
+// element page, two dozen per panel): when no candidate could give the
+// answer, which one wins does not matter.
+function uiiAnyDecl(el, prop, test) {
+  return uiiRulesOf(el).some((r) => r.style && test(uiiDeclValue(r.style, prop)));
+}
+
 // The rule's variable factor for `prop` before any edit, or null.
 function uiiFormula(el, prop) {
+  if (!uiiAnyDecl(el, prop, uiiParseVarFactor)) return null;
   const d = uiiRuleDecl(el, prop);
   return d ? uiiVarFactor(el, d.value, parseFloat(uiiOrig(el, prop))) : null;
 }
@@ -1700,7 +1797,7 @@ const UII_COLOR_SHORTHAND = { 'background-color': 'background', 'border-color': 
 
 // The variable this colour comes from, '' when it is written out in full.
 function uiiColorVarOf(el, prop) {
-  const d = uiiRuleDecl(el, prop);
+  const d = uiiAnyDecl(el, prop, uiiVarName) && uiiRuleDecl(el, prop);
   const named = uiiVarName(d && d.value);
   if (named || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
@@ -2262,11 +2359,14 @@ function uiiOnKey(e) {
   // work after clicking a panel button; only real text entry gets skipped.
   // A page field can still hold focus from before inspect mode opened, and
   // its typing must stay typing — C is a shortcut only outside a text box.
+  // Esc still works from a panel box: there it has no typing job to do.
   if (uiiInEditable(e.target)) return;
-  if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
+  const box = e.target === S.host && uiiInEditable(e.composedPath()[0]) ? e.composedPath()[0] : null;
+  if (box && e.key !== 'Escape') return;
   if (e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
+    if (box) box.blur(); // fires 'change', so a typed value lands before quitting
     if (S.cvList) uiiCloseVarList(); else uiiDisable(); // first Escape closes an open var list
     return;
   }
@@ -2291,6 +2391,7 @@ function uiiEnable() {
   uiiMount();
   uiiBindEvents();
   uiiDrawOutlines();
+  uiiScriptIndex(); // warm the script scan; never rejects (each fetch catches)
   S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }
@@ -2303,6 +2404,7 @@ function uiiDisable() {
   uiiCloseVarList();
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
+  clearTimeout(S.drawTimer); // a redraw waiting out uiiScheduleDraw's gap
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;

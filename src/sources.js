@@ -10,10 +10,15 @@ function uiiScriptWanted(url) {
   return !/\/(vendor|node_modules|dist)\//.test(url);
 }
 
-// Map basename -> source text, built on first use and kept for the session.
-async function uiiScriptIndex() {
+// Promise of Map basename -> source text, started when inspect mode opens
+// (uiiEnable) so the first pin does not wait on the fetches, and kept for the
+// session. The promise itself is kept, so a pin during the fetch shares it.
+function uiiScriptIndex() {
   const S = uiiState;
-  if (S.sources) return S.sources;
+  return S.sources || (S.sources = uiiFetchScripts());
+}
+
+async function uiiFetchScripts() {
   const map = new Map();
   const jobs = [...document.scripts]
     .filter((s) => s.src && uiiScriptWanted(s.src))
@@ -24,7 +29,6 @@ async function uiiScriptIndex() {
       } catch (e) { /* cross-origin or unreadable: skip */ }
     });
   await Promise.all(jobs);
-  S.sources = map;
   return map;
 }
 

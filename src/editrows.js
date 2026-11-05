@@ -20,7 +20,17 @@ function uiiApplyEdit(el, prop, value) {
   if (!(prop in e.from)) e.from[prop] = getComputedStyle(el).getPropertyValue(prop).trim();
   e.props[prop] = value;
   el.style.setProperty(prop, value);
-  if (uiiState.similar) e.rule[prop] = uiiRuleApply(el, prop, value);
+  if (uiiState.similar) {
+    // While a value is held or dragged the rule waits for the release:
+    // rewriting it restyles the whole page (~100 ms a step on 60,000
+    // elements), and the inline edit already shows on the pinned element.
+    const S = uiiState;
+    if (!S.holding) e.rule[prop] = uiiRuleApply(el, prop, value);
+    else {
+      if (!S.ruleLater) S.ruleLater = new Map();
+      S.ruleLater.set(el, (S.ruleLater.get(el) || new Set()).add(prop));
+    }
+  }
   if (uiiState.panel) {
     uiiState.panel.reset.hidden = false;
     // Building the log matches CSS rules; once a drag settles is enough.
@@ -35,6 +45,15 @@ function uiiApplyEdit(el, prop, value) {
 function uiiHold(on) {
   const S = uiiState;
   S.holding = on;
+  // The rules uiiApplyEdit held back, each written once with its last value.
+  if (!on && S.ruleLater) {
+    for (const [el, props] of S.ruleLater) {
+      const e = uiiEditsFor(el, false);
+      if (!e || !S.similar) continue; // reset, or the box unticked, meanwhile
+      for (const p of props) if (p in e.props) e.rule[p] = uiiRuleApply(el, p, e.props[p]);
+    }
+    S.ruleLater = null;
+  }
   if (!on && S.drawLater) { S.drawLater = false; uiiScheduleDraw(); }
 }
 
