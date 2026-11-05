@@ -1,6 +1,6 @@
 {
   "name": "ui-inspector",
-  "version": "0.7.3",
+  "version": "0.7.7",
   "description": "Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.",
   "license": "MIT",
   "author": "Quan Dao",
@@ -9,6 +9,7 @@
   "main": "dist/ui-inspector.js",
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "demo": "node build.js && python -m http.server 6279 --bind 127.0.0.1"
   }
 }

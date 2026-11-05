@@ -102,7 +102,12 @@ function uiiOnKey(e) {
   // its typing must stay typing — C is a shortcut only outside a text box.
   if (uiiInEditable(e.target)) return;
   if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
-  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); uiiDisable(); return; }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    if (S.cvList) uiiCloseVarList(); else uiiDisable(); // first Escape closes an open var list
+    return;
+  }
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
@@ -133,6 +138,7 @@ function uiiDisable() {
   if (!S.on) return;
   S.on = false;
   clearTimeout(S.badgeTimer);
+  uiiCloseVarList();
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   S.raf = 0;

@@ -30,6 +30,14 @@ Then load it with one script tag:
 
 `UIInspector` is exposed on `window`; the file also works with `require()`.
 
+### Try it
+
+`npm run demo` builds the library and serves the repository at
+[http://127.0.0.1:6279/demo/](http://127.0.0.1:6279/demo/) (Python 3 required).
+The demo page has colour variables, a form, a table and a popup, and opens with
+inspect mode on. It is served over HTTP rather than opened as a file because the
+code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
+
 ## Use
 
 | Action | Result |
@@ -37,6 +45,7 @@ Then load it with one script tag:
 | `Mod+/` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode |
 | Hover | Red dashed box and a tooltip with the element's name and size |
 | Click | Pin the element and open the details panel |
+| `Mod+click` (Cmd on macOS, Ctrl elsewhere) | Pin the element and copy its **📋 Copy ID** line in one go |
 | Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest control |
 | `↑` `↓` `←` `→` | Walk to the parent, first child, previous or next sibling of the pinned element |
 | Drag the panel header | Move the panel |
@@ -141,8 +150,8 @@ the change is live only — it is for trying a label, not a string an AI should
 apply, so the Changes box stays CSS.
 
 The **Style** section groups fields in cards — Colour, Typography (font,
-size, letter spacing, line height, weight, align), Spacing (padding and margin
-as vertical ↕ / horizontal ↔) and Border. Type a value and press Enter, step a
+size, letter spacing, line height, weight, align), Spacing (padding and margin,
+one field per side ↑ ↓ ← →) and Border. Type a value and press Enter, step a
 number with `↑` `↓` or its ▲▼ buttons (hold to repeat; `Shift` for ×10), or
 drag a field's label sideways to scrub it. The unit is the one the stylesheet
 wrote when it is a plain value (`0.9em`), else computed px; click it to switch
@@ -156,7 +165,7 @@ element's inline style, so the page shows it right away.
 Each colour field carries the variable it comes from in a dropdown beside the
 swatch — `--btn-bg` for `background: var(--btn-bg)`, read off a shorthand or a
 fallback chain too. The dropdown lists every custom property that resolves to
-a colour on this element, so picking another one points the colour at it
+a colour on this element, each with its swatch and hex on the right, so picking another one points the colour at it
 (`background-color: var(--accent)`), and picking `— none —` gives the element
 a colour of its own again. While a variable is selected the swatch edits **the
 variable**, not the element: every rule using it moves at once, and the

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ui-inspector demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<header class="topbar" data-ui="topbar">
+  <span class="brand">Demo app</span>
+  <nav class="nav">
+    <a href="#" class="nav-link active">Orders</a>
+    <a href="#" class="nav-link">Customers</a>
+    <a href="#" class="nav-link">Settings</a>
+  </nav>
+</header>
+
+<main class="page">
+  <p class="hint">
+    Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>/</kbd> to toggle inspect mode (on at load).
+    Click to pin, <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+click to pin and copy the ID,
+    <kbd>Alt</kbd> for the exact element, arrows to walk, <kbd>Esc</kbd> to quit.
+  </p>
+
+  <section class="card" id="filters">
+    <h2 class="card-title">Filters</h2>
+    <form class="form">
+      <label class="field">Search <input id="search" class="input" placeholder="Order number"></label>
+      <label class="field">Status
+        <select id="status" class="input">
+          <option>All</option><option>Paid</option><option>Refunded</option>
+        </select>
+      </label>
+      <button type="button" id="apply-btn" class="btn btn-primary"><span class="icon">✓</span> Apply</button>
+      <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
+    </form>
+  </section>
+
+  <section class="card" id="orders">
+    <h2 class="card-title">Orders <span class="badge-count">3</span></h2>
+    <table class="grid" id="orders-grid">
+      <thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1001</td><td>Ann Lee</td><td class="num">$120.00</td><td><span class="pill pill-ok">Paid</span></td></tr>
+        <tr><td>1002</td><td>Bo Chen</td><td class="num">$75.50</td><td><span class="pill pill-warn">Pending</span></td></tr>
+        <tr><td>1003</td><td>Cy Diaz</td><td class="num">$9.99</td><td><span class="pill pill-bad">Refunded</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <button type="button" id="open-dialog" class="btn btn-danger">Delete order…</button>
+</main>
+
+<div class="backdrop" id="dialog" hidden>
+  <div class="dialog" role="dialog" aria-label="Confirm delete">
+    <p class="dialog-text">Delete order 1001? This cannot be undone.</p>
+    <div class="dialog-actions">
+      <button type="button" id="cancel-delete" class="btn btn-ghost">Cancel</button>
+      <button type="button" id="confirm-delete" class="btn btn-danger">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<!-- Under dist/, so the code scan skips it: Copy ID names app.js, not the library. -->
+<script src="../dist/ui-inspector.js"></script>
+<script>UIInspector.init({ shortcut: 'Mod+/' }).enable();</script>
+</body>
+</html>

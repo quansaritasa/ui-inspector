@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.3 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.7 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -28,6 +28,7 @@ const UII_CSS = `
   overflow: hidden; text-overflow: ellipsis; }
 .tip.on { display: block; }
 .tip b { color: #fbbf24; font-weight: 600; }
+.tip i { display: block; color: #93c5fd; font-style: normal; } /* snap hint: second line */
 /* Padding (green, inside the border box) and margin (orange, outside it) of
    the pinned element, each drawn as a border so the hole is the inner box. */
 .sp { position: fixed; pointer-events: none; z-index: 2147483001; display: none; border-style: solid; }
@@ -67,7 +68,7 @@ const UII_CSS = `
 .body > .sec:first-child { margin-top: 0; }
 .grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; }
 .grip:hover { background: rgba(59,130,246,.35); }
-.sec { margin: 6px 0 2px; padding: 3px 10px; background: #e5e7eb; color: #1f2937; font-weight: 700;
+.sec { display: flex; align-items: center; min-height: 30px; margin: 6px 0 2px; padding: 3px 10px; background: #e5e7eb; color: #1f2937; font-weight: 700;
   text-transform: uppercase; font-size: 11px; letter-spacing: .05em; }
 .row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 2px 10px; }
 .row .k { color: #6b7280; }
@@ -76,10 +77,12 @@ const UII_CSS = `
   font: 12px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;
   border: 1px solid #d1d5db; border-radius: 4px; }
 .row .txt:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
-.card { margin: 8px 10px; padding: 8px 10px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;
+.card { margin: 8px 10px; padding: 8px 10px 10px; border: 1px solid #d1d5db; border-radius: 8px; background: #eef0f3;
   display: flex; flex-direction: column; gap: 8px; }
 .card .ct { font-weight: 700; font-size: 12px; }
 .g2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.g4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.g4 .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fld { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .fld .lab { color: #6b7280; font-size: 11px; user-select: none; }
 .fld .lab.scrub { cursor: ew-resize; }
@@ -95,16 +98,31 @@ const UII_CSS = `
 .st button { width: 14px; height: 11px; padding: 0; border: 0; border-radius: 2px; background: none;
   color: #9ca3af; font-size: 7px; line-height: 11px; cursor: pointer; }
 .st button:hover { color: #111827; background: #e5e7eb; }
-.nf select.cv { color: #0f766e; font-size: 10px; max-width: 46%; text-overflow: ellipsis; padding: 0 2px; }
+.nf button.cv { border: 0; background: none; color: #0f766e; font: inherit; font-size: 10px; max-width: 46%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; cursor: pointer; }
+.nf button.cv::after { content: ' ▾'; color: #9ca3af; }
+.cvl { position: fixed; z-index: 2147483004; min-width: 180px; max-width: 320px; max-height: 240px; overflow: auto;
+  background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 3px;
+  pointer-events: auto; font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; } /* outside .panel: own font */
+.cvl button { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; padding: 3px 6px;
+  border-radius: 4px; cursor: pointer; color: #374151; font: inherit; font-size: 11px; text-align: left; }
+.cvl button:hover, .cvl button.on { background: #f3f4f6; }
+.cvl .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cvl i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); flex: none; }
+.cvl .h { color: #9ca3af; font-family: ui-monospace, Menlo, monospace; font-size: 10px; }
 .nf select { font-size: 11px; border: 0; background: none; color: #374151; cursor: pointer; max-width: 55%; }
 .seg { display: flex; overflow: hidden; }
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }
 .seg button + button { border-left: 1px solid #e5e7eb; }
 .seg button.on { background: #111827; color: #fff; }
-.nf input.pick { width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; flex: none; }
-.sec .sim { float: right; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
+.nf input.pick { width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; flex: none; background: none; }
+/* The swatch fills the whole box: browsers pad and border it by default. */
+.nf input.pick::-webkit-color-swatch-wrapper { padding: 0; }
+.nf input.pick::-webkit-color-swatch { border: 0; border-radius: 3px; }
+.nf input.pick::-moz-color-swatch { border: 0; border-radius: 3px; }
+.sec .sim { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .sec .sim input { margin: 0 2px 0 0; vertical-align: -2px; }
-.sec .mini { float: right; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 0 6px;
+.sec .mini { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 4px 10px;
   border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
 .chg { display: block; width: calc(100% - 20px); margin: 4px 10px 8px; padding: 6px; resize: vertical;
   font: 11px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;
@@ -899,7 +917,9 @@ function uiiTargetFrom(e) {
   return c && c !== document.body && c !== document.documentElement ? c : t;
 }
 
-function uiiSetHover(el) {
+// raw: the element under the pointer. When it sits inside el (the snap went
+// up to a parent), the tip says how to reach it.
+function uiiSetHover(el, raw) {
   const S = uiiState;
   S.hovered = el;
   if (!el) { S.hoverBox.classList.remove('on'); S.tip.classList.remove('on'); return; }
@@ -910,7 +930,13 @@ function uiiSetHover(el) {
   S.tip.firstChild.textContent = uiiName(el);
   S.tip.lastChild.textContent = '<' + el.tagName.toLowerCase() + '> ' + Math.round(r.width) + '×' + Math.round(r.height)
     + ' · ' + getComputedStyle(el).fontSize;
-  const top = r.top > 28 ? r.top - 24 : r.bottom + 4;
+  if (raw && raw !== el && raw.nodeType === 1) {
+    const hint = document.createElement('i');
+    hint.textContent = 'Hold Alt to pick the <' + raw.tagName.toLowerCase() + '> inside';
+    S.tip.appendChild(hint);
+  }
+  const h = S.tip.childElementCount > 2 ? 42 : 24;
+  const top = r.top > h + 4 ? r.top - h : r.bottom + 4;
   S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
   S.tip.style.top = top + 'px';
   S.tip.classList.add('on');
@@ -918,7 +944,7 @@ function uiiSetHover(el) {
 
 function uiiOnMove(e) {
   if (uiiFromPanel(e)) { uiiSetHover(null); return; }
-  uiiSetHover(uiiTargetFrom(e));
+  uiiSetHover(uiiTargetFrom(e), e.target);
 }
 
 function uiiOnBlock(e) {
@@ -936,7 +962,12 @@ function uiiOnClick(e) {
   e.stopPropagation();
   if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
   const el = uiiTargetFrom(e);
-  if (el) uiiSelect(el);
+  if (!el) return;
+  const ready = uiiSelect(el);
+  // Cmd/Ctrl+click pins and copies the Copy ID line in one go. It waits for
+  // the script scan so the line names the script files, as the button would.
+  // (Ctrl+click on macOS arrives as contextmenu, which also lands here.)
+  if (e.metaKey || e.ctrlKey) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
 }
 
 function uiiSelect(el) {
@@ -949,8 +980,9 @@ function uiiSelect(el) {
   S.info = info;
   uiiRenderPanel(info);
   // Script scan is async (first call fetches every <script src>); the Copy
-  // buttons read info.code when pressed.
-  uiiCodeFiles(info).then((files) => { info.code = files; });
+  // buttons read info.code when pressed. Resolves to info once it is set;
+  // a failed scan just leaves the line without script files.
+  return uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
 }
 
 const UII_EVENTS = [
@@ -1687,6 +1719,74 @@ function uiiVarHex(info, name, el) {
   return raw ? uiiToHex(uiiNormColor(raw) || raw) : '';
 }
 
+// The variable dropdown as a custom list: a native <select> cannot draw a
+// swatch in an option, and a name alone rarely says which colour it is.
+// Same surface as the <select> it replaces: .value, and a 'change' event.
+// The list lives on the shadow root, not in the panel, so the panel's
+// scrolling body does not clip it.
+function uiiVarPicker(names, target) {
+  const S = uiiState;
+  const btn = uiiEl('button', 'cv');
+  btn.type = 'button';
+  let value = '';
+  Object.defineProperty(btn, 'value', {
+    get: () => value,
+    set: (v) => { value = v; btn.textContent = v || '— none —'; },
+  });
+  // Read live: a variable edited through the swatch has moved since collect.
+  const hexOf = (n) => {
+    const raw = getComputedStyle(target).getPropertyValue(n).trim();
+    return raw ? uiiToHex(uiiNormColor(raw) || raw) : '';
+  };
+  btn.addEventListener('click', () => {
+    const mine = S.cvList && S.cvList.owner === btn;
+    uiiCloseVarList();
+    if (mine) return; // second click on the button closes it
+    const list = uiiEl('div', 'cvl');
+    list.owner = btn;
+    for (const n of ['', ...names]) {
+      const it = list.appendChild(uiiEl('button', n === value ? 'on' : ''));
+      it.type = 'button';
+      it.appendChild(uiiEl('span', 'n', n || '— none —'));
+      const hex = n && hexOf(n);
+      if (hex) {
+        const sw = uiiEl('i');
+        sw.style.background = hex;
+        it.append(sw, uiiEl('span', 'h', hex));
+      }
+      it.addEventListener('click', () => {
+        uiiCloseVarList();
+        if (n === value) return;
+        btn.value = n;
+        btn.dispatchEvent(new Event('change'));
+      });
+    }
+    const r = btn.getBoundingClientRect();
+    list.style.right = Math.max(4, window.innerWidth - r.right) + 'px';
+    list.style.top = (r.bottom + 244 < window.innerHeight ? r.bottom + 2 : Math.max(4, r.top - 244)) + 'px';
+    S.shadow.appendChild(list);
+    // Close on a press anywhere else, or when the panel scrolls under it.
+    const down = (e) => { if (!e.composedPath().some((t) => t === list || t === btn)) uiiCloseVarList(); };
+    const scroll = (e) => { if (e.target !== list) uiiCloseVarList(); };
+    window.addEventListener('pointerdown', down, true);
+    S.shadow.addEventListener('scroll', scroll, true);
+    list.off = () => {
+      window.removeEventListener('pointerdown', down, true);
+      S.shadow.removeEventListener('scroll', scroll, true);
+    };
+    S.cvList = list;
+  });
+  return btn;
+}
+
+function uiiCloseVarList() {
+  const l = uiiState.cvList;
+  if (!l) return;
+  uiiState.cvList = null;
+  l.off();
+  l.remove();
+}
+
 // A colour either sits on the element (#1f2937) or comes from a variable
 // (var(--bg)). The dropdown says which, and the picker edits whatever the
 // dropdown points at: on a variable it moves that palette entry, so every
@@ -1699,15 +1799,14 @@ function uiiColorField(info, label, prop) {
   pick.type = 'color';
   const box = uiiEl('input');
   box.spellcheck = false;
-  const sel = uiiEl('select', 'cv');
+  const named = uiiColorVarOf(target, prop);
+  const names = info.colorVars.map((c) => c.name);
+  // A var the palette list missed (it resolves to something uiiColorVars does
+  // not read as a colour) still belongs in the list: it is the current answer.
+  if (named && !names.includes(named)) names.push(named);
+  const sel = uiiVarPicker(names, target);
   sel.title = 'Which variable this colour comes from. Pick one and the swatch'
     + ' edits the variable itself — every element using it changes.';
-  sel.appendChild(new Option('— none —', ''));
-  for (const c of info.colorVars) sel.appendChild(new Option(c.name + ' ' + c.hex, c.name));
-  const named = uiiColorVarOf(target, prop);
-  // A var the palette list missed (it resolves to something uiiColorVars does
-  // not read as a colour) still belongs in the box: it is the current answer.
-  if (named && ![...sel.options].some((o) => o.value === named)) sel.appendChild(new Option(named, named));
   sel.value = named;
   const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}$/i.test(v)) pick.value = v; };
   show(sel.value ? uiiVarHex(info, sel.value, target) : uiiEditValue(info, prop));
@@ -1772,27 +1871,31 @@ function uiiCard(title, ...rows) {
   return c;
 }
 
-function uiiPair(a, b) {
-  const g = uiiEl('div', 'g2');
-  g.append(a, b);
+// One grid row of fields: two (g2) or four (g4) columns.
+function uiiPair(...fields) {
+  const g = uiiEl('div', 'g' + fields.length);
+  g.append(...fields);
   return g;
 }
 
 function uiiRenderEditRows(body, info) {
+  uiiCloseVarList(); // its fields are about to be replaced
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
     uiiCard('Colour', uiiPair(uiiColorField(info, 'Background', 'background-color'), uiiColorField(info, 'Text', 'color'))),
     uiiCard('Size',
       uiiPair(num('Width', 'width'), num('Height', 'height')),
-      uiiPair(num('Min W', 'min-width'), num('Min H', 'min-height'))),
+      uiiPair(num('Min width', 'min-width'), num('Min height', 'min-height'))),
     uiiCard('Typography',
       uiiTextField(info, 'Font', 'font-family'),
       uiiPair(num('Size', 'font-size'), num('Space', 'letter-spacing')),
       uiiPair(num('Line height', 'line-height'), uiiWeightField(info)),
       uiiAlignField(info)),
     uiiCard('Spacing',
-      uiiPair(num('Padding ↕', ['padding-top', 'padding-bottom']), num('Padding ↔', ['padding-left', 'padding-right'])),
-      uiiPair(num('Margin ↕', ['margin-top', 'margin-bottom']), num('Margin ↔', ['margin-left', 'margin-right']))),
+      uiiPair(num('Padding top ↑', 'padding-top'), num('Padding right →', 'padding-right'),
+        num('Padding bottom ↓', 'padding-bottom'), num('Padding left ←', 'padding-left')),
+      uiiPair(num('Margin top ↑', 'margin-top'), num('Margin right →', 'margin-right'),
+        num('Margin bottom ↓', 'margin-bottom'), num('Margin left ←', 'margin-left'))),
     uiiCard('Border',
       uiiTextField(info, 'Border', 'border'),
       uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
@@ -1878,12 +1981,9 @@ function uiiEl(tag, cls, text, ui) {
   return d;
 }
 
-// "Padding ↕" → "padding-y": a data-ui name from a human label. The two
-// arrows are the only thing telling a pair of fields apart, so they become
-// axes rather than being dropped with the rest of the punctuation.
+// "Padding top ↑" → "padding-top": a data-ui name from a human label.
 function uiiSlug(label) {
-  return String(label).replace(/↕/g, ' y').replace(/↔/g, ' x')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function uiiBuildPanel(sh) {
@@ -1960,11 +2060,14 @@ function uiiResizeLeft(handle, box) {
   });
 }
 
-function uiiCopy(text) {
+// btn: the Copy button pressed, if any. It shows the result in its own
+// place for 2s, then its label comes back.
+function uiiCopy(text, btn) {
   const S = uiiState;
   // Both places: the panel's own line, and the badge for when C was pressed
   // with the panel closed.
   const say = (msg) => {
+    if (btn) { uiiButtonSay(btn, msg); return; }
     uiiFlash(msg);
     if (S.panel) S.panel.ok.textContent = msg;
   };
@@ -1974,6 +2077,20 @@ function uiiCopy(text) {
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
   navigator.clipboard.writeText(text).then(done, () => say('⚠ clipboard blocked'));
+}
+
+function uiiButtonSay(btn, msg) {
+  if (!btn.dataset.label) {
+    btn.dataset.label = btn.textContent;
+    btn.style.minWidth = btn.offsetWidth + 'px'; // no jump when the text is shorter
+  }
+  btn.textContent = msg;
+  clearTimeout(btn.uiiTimer);
+  btn.uiiTimer = setTimeout(() => {
+    btn.textContent = btn.dataset.label;
+    delete btn.dataset.label;
+    btn.style.minWidth = '';
+  }, 2000);
 }
 
 function uiiRow(k, v, swatchHex) {
@@ -2002,7 +2119,7 @@ function uiiRenderPanel(info) {
   const idHead = uiiEl('div', 'sec', 'Identity ', 'section-identity');
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
-  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info)));
+  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info), copyAI));
   idHead.appendChild(copyAI);
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
@@ -2035,7 +2152,7 @@ function uiiRenderPanel(info) {
   const changes = uiiEl('textarea', 'chg', undefined, 'changes');
   changes.spellcheck = false;
   changes.rows = 7;
-  chCopy.addEventListener('click', () => uiiCopy(changes.value));
+  chCopy.addEventListener('click', () => uiiCopy(changes.value, chCopy));
   b.append(chHead, changes);
   P.changes = changes;
   uiiRefreshChanges();
@@ -2147,7 +2264,12 @@ function uiiOnKey(e) {
   // its typing must stay typing — C is a shortcut only outside a text box.
   if (uiiInEditable(e.target)) return;
   if (e.target === S.host && uiiInEditable(e.composedPath()[0])) return;
-  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); uiiDisable(); return; }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    if (S.cvList) uiiCloseVarList(); else uiiDisable(); // first Escape closes an open var list
+    return;
+  }
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
@@ -2178,6 +2300,7 @@ function uiiDisable() {
   if (!S.on) return;
   S.on = false;
   clearTimeout(S.badgeTimer);
+  uiiCloseVarList();
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   S.raf = 0;

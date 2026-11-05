@@ -14,12 +14,9 @@ function uiiEl(tag, cls, text, ui) {
   return d;
 }
 
-// "Padding ↕" → "padding-y": a data-ui name from a human label. The two
-// arrows are the only thing telling a pair of fields apart, so they become
-// axes rather than being dropped with the rest of the punctuation.
+// "Padding top ↑" → "padding-top": a data-ui name from a human label.
 function uiiSlug(label) {
-  return String(label).replace(/↕/g, ' y').replace(/↔/g, ' x')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function uiiBuildPanel(sh) {
@@ -96,11 +93,14 @@ function uiiResizeLeft(handle, box) {
   });
 }
 
-function uiiCopy(text) {
+// btn: the Copy button pressed, if any. It shows the result in its own
+// place for 2s, then its label comes back.
+function uiiCopy(text, btn) {
   const S = uiiState;
   // Both places: the panel's own line, and the badge for when C was pressed
   // with the panel closed.
   const say = (msg) => {
+    if (btn) { uiiButtonSay(btn, msg); return; }
     uiiFlash(msg);
     if (S.panel) S.panel.ok.textContent = msg;
   };
@@ -110,6 +110,20 @@ function uiiCopy(text) {
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
   navigator.clipboard.writeText(text).then(done, () => say('⚠ clipboard blocked'));
+}
+
+function uiiButtonSay(btn, msg) {
+  if (!btn.dataset.label) {
+    btn.dataset.label = btn.textContent;
+    btn.style.minWidth = btn.offsetWidth + 'px'; // no jump when the text is shorter
+  }
+  btn.textContent = msg;
+  clearTimeout(btn.uiiTimer);
+  btn.uiiTimer = setTimeout(() => {
+    btn.textContent = btn.dataset.label;
+    delete btn.dataset.label;
+    btn.style.minWidth = '';
+  }, 2000);
 }
 
 function uiiRow(k, v, swatchHex) {
@@ -138,7 +152,7 @@ function uiiRenderPanel(info) {
   const idHead = uiiEl('div', 'sec', 'Identity ', 'section-identity');
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
-  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info)));
+  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info), copyAI));
   idHead.appendChild(copyAI);
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
@@ -171,7 +185,7 @@ function uiiRenderPanel(info) {
   const changes = uiiEl('textarea', 'chg', undefined, 'changes');
   changes.spellcheck = false;
   changes.rows = 7;
-  chCopy.addEventListener('click', () => uiiCopy(changes.value));
+  chCopy.addEventListener('click', () => uiiCopy(changes.value, chCopy));
   b.append(chHead, changes);
   P.changes = changes;
   uiiRefreshChanges();

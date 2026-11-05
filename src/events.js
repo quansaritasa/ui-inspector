@@ -15,7 +15,9 @@ function uiiTargetFrom(e) {
   return c && c !== document.body && c !== document.documentElement ? c : t;
 }
 
-function uiiSetHover(el) {
+// raw: the element under the pointer. When it sits inside el (the snap went
+// up to a parent), the tip says how to reach it.
+function uiiSetHover(el, raw) {
   const S = uiiState;
   S.hovered = el;
   if (!el) { S.hoverBox.classList.remove('on'); S.tip.classList.remove('on'); return; }
@@ -26,7 +28,13 @@ function uiiSetHover(el) {
   S.tip.firstChild.textContent = uiiName(el);
   S.tip.lastChild.textContent = '<' + el.tagName.toLowerCase() + '> ' + Math.round(r.width) + '×' + Math.round(r.height)
     + ' · ' + getComputedStyle(el).fontSize;
-  const top = r.top > 28 ? r.top - 24 : r.bottom + 4;
+  if (raw && raw !== el && raw.nodeType === 1) {
+    const hint = document.createElement('i');
+    hint.textContent = 'Hold Alt to pick the <' + raw.tagName.toLowerCase() + '> inside';
+    S.tip.appendChild(hint);
+  }
+  const h = S.tip.childElementCount > 2 ? 42 : 24;
+  const top = r.top > h + 4 ? r.top - h : r.bottom + 4;
   S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
   S.tip.style.top = top + 'px';
   S.tip.classList.add('on');
@@ -34,7 +42,7 @@ function uiiSetHover(el) {
 
 function uiiOnMove(e) {
   if (uiiFromPanel(e)) { uiiSetHover(null); return; }
-  uiiSetHover(uiiTargetFrom(e));
+  uiiSetHover(uiiTargetFrom(e), e.target);
 }
 
 function uiiOnBlock(e) {
@@ -52,7 +60,12 @@ function uiiOnClick(e) {
   e.stopPropagation();
   if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
   const el = uiiTargetFrom(e);
-  if (el) uiiSelect(el);
+  if (!el) return;
+  const ready = uiiSelect(el);
+  // Cmd/Ctrl+click pins and copies the Copy ID line in one go. It waits for
+  // the script scan so the line names the script files, as the button would.
+  // (Ctrl+click on macOS arrives as contextmenu, which also lands here.)
+  if (e.metaKey || e.ctrlKey) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
 }
 
 function uiiSelect(el) {
@@ -65,8 +78,9 @@ function uiiSelect(el) {
   S.info = info;
   uiiRenderPanel(info);
   // Script scan is async (first call fetches every <script src>); the Copy
-  // buttons read info.code when pressed.
-  uiiCodeFiles(info).then((files) => { info.code = files; });
+  // buttons read info.code when pressed. Resolves to info once it is set;
+  // a failed scan just leaves the line without script files.
+  return uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
 }
 
 const UII_EVENTS = [
