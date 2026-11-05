@@ -161,7 +161,7 @@ function uiiChangeDecl(el, c) {
   const t = uiiEditRule(el, c.prop);
   return t
     ? { head: t.file + ' ' + t.selector, decl: c.prop + ': ' + value + note + (t.add ? ' /* add */' : '') }
-    : { head: uiiPath(el) + uiiSrcNote(el) + ' /* new rule */', decl: c.prop + ': ' + value + note };
+    : { head: uiiNewRuleSel(el) + uiiSrcNote(el) + ' /* new rule */', decl: c.prop + ': ' + value + note };
 }
 
 // Matched rules whose last part names this element's id or one of its

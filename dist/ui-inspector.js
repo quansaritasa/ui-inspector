@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.2 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.3 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -553,14 +553,23 @@ function uiiAnchor(el) {
 // pays for every one of those characters, and the source stamp beside the path
 // is what actually leads to the line to edit; the path only has to say what to
 // grep for. The "…" is the marker uiiFormatChanges() already writes.
+// ".a.b" from the element's first two classes, or ''.
+function uiiClassSel(el) {
+  const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [];
+  return cls.slice(0, 2).map((c) => '.' + CSS.escape(c)).join('');
+}
+
+// Selector for a rule the AI must create: the classes when there are any —
+// a minted id would tie the new CSS to a name that changes with a label.
+function uiiNewRuleSel(el) {
+  return (el.id && uiiClassSel(el)) || uiiPath(el);
+}
+
 function uiiPath(el) {
   const own = uiiSegment(el);
   // An id is unique but often minted at runtime, so nothing in the source
   // greps for it; the element's own classes do, in the JS and the CSS alike.
-  if (el.id) {
-    const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/).filter(Boolean) : [];
-    return own + cls.slice(0, 2).map((c) => '.' + CSS.escape(c)).join('');
-  }
+  if (el.id) return own + uiiClassSel(el);
   const anchor = uiiAnchor(el);
   if (!anchor) return own;
   return anchor.up > 0 ? anchor.seg + ' > … > ' + own : anchor.seg + ' > ' + own;
@@ -1435,7 +1444,7 @@ function uiiChangeDecl(el, c) {
   const t = uiiEditRule(el, c.prop);
   return t
     ? { head: t.file + ' ' + t.selector, decl: c.prop + ': ' + value + note + (t.add ? ' /* add */' : '') }
-    : { head: uiiPath(el) + uiiSrcNote(el) + ' /* new rule */', decl: c.prop + ': ' + value + note };
+    : { head: uiiNewRuleSel(el) + uiiSrcNote(el) + ' /* new rule */', decl: c.prop + ': ' + value + note };
 }
 
 // Matched rules whose last part names this element's id or one of its
