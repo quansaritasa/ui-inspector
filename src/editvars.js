@@ -21,36 +21,66 @@ function uiiPageVars(all) {
   return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
 }
 
-// One row: the name, the swatch when it is a colour, the value to edit.
-// Edited rows carry .on, the mark the colour list uses for the value in force.
-function uiiVarRow(v) {
+// The hex of a value that is a colour, '' when it is not one.
+function uiiRowHex(value) {
+  const rgb = value && value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
+  return rgb ? uiiToHex(rgb) : '';
+}
+
+// One row of a value list: the name, a picker when the value is a colour, and
+// a box that writes through `set`. Edited rows carry .on, the mark the colour
+// list uses for the value in force. Shared by the palette and by the pinned
+// element's own declarations (editprops.js).
+function uiiValueRow(name, value, set) {
   const row = uiiEl('div', 'vr');
-  row.dataset.name = v.name.toLowerCase();
+  row.dataset.name = name.toLowerCase();
   const wrap = uiiEl('span', 'nf');
   const box = uiiEl('input');
   box.spellcheck = false;
-  box.value = v.value;
+  box.value = value;
   const write = (val) => {
     box.value = val;
-    uiiVarApply(v.name, val, document.documentElement);
+    set(val);
     row.classList.add('on');
   };
-  if (v.hex) {
+  const hex = uiiRowHex(value);
+  if (hex) {
     const pick = uiiEl('input', 'pick');
     pick.type = 'color';
-    // A colour picker takes #rrggbb alone: an alpha var keeps its text box.
-    pick.value = /^#[0-9a-f]{6}$/i.test(v.hex) ? v.hex : '#000000';
+    // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
+    pick.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000';
     pick.addEventListener('input', () => write(pick.value));
     wrap.appendChild(pick);
   }
   box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   wrap.appendChild(box);
+  row.append(uiiEl('span', 'n', name), wrap);
+  return { row, box };
+}
+
+function uiiVarRow(v) {
+  const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement));
   // An edit made here or from a colour field, before this list was built.
   const e = uiiVarEdits.get(v.name);
-  if (e) { box.value = e.to; row.classList.add('on'); }
-  row.append(uiiEl('span', 'n', v.name), wrap);
-  return row;
+  if (e) { r.box.value = e.to; r.row.classList.add('on'); }
+  return r.row;
+}
+
+// A filter box over a list of rows, each named by data-name. A row marked
+// data-keep (the "add a property" row) stays whatever is typed.
+function uiiFindBox(find, list) {
+  find.placeholder = 'Filter';
+  find.spellcheck = false;
+  // Inside a <summary> every click toggles the section: not this one.
+  find.addEventListener('click', (e) => e.stopPropagation());
+  find.addEventListener('keydown', (e) => e.stopPropagation());
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    for (const r of list.children) {
+      if (!r.dataset.keep) r.hidden = !!q && !(r.dataset.name || '').includes(q);
+    }
+  });
 }
 
 // The list, with a filter in its header: an app's palette runs to hundreds of
@@ -59,16 +89,11 @@ function uiiRenderVars(body) {
   const vars = uiiPageVars(uiiState.all);
   const head = uiiEl('div', 'sec', 'Variables — type a value, Enter applies ', 'section-vars');
   const find = uiiEl('input', 'find', undefined, 'filter-vars');
-  find.placeholder = 'Filter';
-  find.spellcheck = false;
   head.appendChild(find);
   const list = uiiEl('div', 'vrs', undefined, 'vars-list');
   for (const v of vars) list.appendChild(uiiVarRow(v));
   if (!vars.length) list.appendChild(uiiEl('div', 'vnone', 'No custom properties in the stylesheets this page lets us read.'));
-  find.addEventListener('input', () => {
-    const q = find.value.trim().toLowerCase();
-    for (const r of list.children) r.hidden = !!q && !(r.dataset.name || '').includes(q);
-  });
+  uiiFindBox(find, list);
   body.append(head, list);
   return vars.length;
 }

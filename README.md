@@ -57,6 +57,7 @@ code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
 | `A` | Copy the same **Changes** text from the keyboard — the badge says `No changes yet` when there is nothing to copy |
+| **Declared** at the foot of the **Style** section | Every property the pinned element's own rules set, and every variable they read, each with its value in a box. The last row adds any other property or variable the rules do not mention yet |
 | `P`, or **🎨** in the panel header | Page variables: the panel lists every custom property the stylesheets declare, with its value in a box — edit the palette with nothing pinned. Press again to go back to the pinned element, or to close the panel when nothing is pinned |
 | `V`, or **👁** in the panel header | Normal view: hide every overlay and give the pointer back to the page, so an edit can be judged on the real screen. The panel, its edits and the pinned element stay; press again to go back to inspecting |
 | **↺ Reset** | Undo every live edit on the pinned element, and every variable edit |
@@ -151,6 +152,17 @@ nested `<b>` beside the text stays where it was; on an `<input>` or
 `<textarea>` it writes `value`. **Reset** puts the original words back, and
 the change is live only — it is for trying a label, not a string an AI should
 apply, so the Changes box stays CSS.
+
+The cards cover the properties worth a dedicated control. **Declared**, folded
+in under them, is the rest: every property the element's matched rules actually
+set — as the stylesheet writes it, so `background: var(--accent)` stays a
+variable and not the colour it resolves to — and above them every variable
+those rules read, editable here as in the palette. A filter narrows a long
+list, and the last row takes any property the rules do not mention yet: a name,
+a value, Enter. A name opening with `--` edits that variable instead. A value
+the browser cannot parse is refused with a message rather than dropped in
+silence. The section opens by itself when the list is short or the element
+already carries an edit.
 
 **Page variables** (`P`, or **🎨**) answers the other half of the question —
 what the page looks like if a design token moves. The panel lists every custom
@@ -252,5 +264,6 @@ The panel's **Where to edit** rows name the files to open:
 Sources live in `src/` in the fixed order `build.js` lists (`styles`,
 `format`, `cssvars`, `sources`, `inspect`, `occlusion`, `overlay`, `spacing`,
 `events`, `editrows`, `editrules`, `edittext`, `editvar`, `editnum`,
-`editcolor`, `editfields`, `content`, `panel`, `keys`, `core`). Run `node build.js` to regenerate
+`editcolor`, `editvars`, `editprops`, `editfields`, `content`, `panel`, `keys`,
+`core`). Run `node build.js` to regenerate
 `dist/ui-inspector.js`. Do not edit the `dist` file by hand.

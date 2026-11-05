@@ -142,6 +142,18 @@ const UII_CSS = `
 .vr .nf { flex: 1; min-width: 0; height: 24px; }
 .vr.on { background: #ecfdf5; box-shadow: inset 2px 0 0 #0f766e; }
 .vnone { padding: 8px 10px; color: #6b7280; }
+/* The pinned element's own declarations (editprops.js), folded away when the
+   list is long. summary.sec keeps the section bar's look; the marker is the
+   only part a <details> adds. */
+.more > summary { cursor: pointer; }
+.more > summary::marker { color: #6b7280; }
+.vr.add { margin-top: 4px; padding-top: 6px; border-top: 1px dashed #d1d5db; border-radius: 0; }
+.vr input.n { height: 24px; padding: 0 6px; border: 1px solid #d1d5db; border-radius: 5px;
+  background: #fff; outline: none; }
+.vr input.n:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
+.vr .go { flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px;
+  background: #fff; color: #374151; font: 11px/1 inherit; cursor: pointer; }
+.vr .go:hover { background: #e5e7eb; }
 .sec .mini { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 4px 10px;
   border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
 .chg { display: block; width: calc(100% - 20px); margin: 4px 10px 8px; padding: 6px; resize: vertical;

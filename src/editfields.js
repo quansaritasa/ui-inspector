@@ -100,4 +100,5 @@ function uiiRenderEditRows(body, info) {
     uiiCard('Border',
       uiiTextField(info, 'Border', 'border'),
       uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
+  uiiPropsSection(body, info); // everything the cards above do not cover
 }

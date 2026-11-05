@@ -1,4 +1,4 @@
-/*! ui-inspector v0.8.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.9.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -148,6 +148,18 @@ const UII_CSS = `
 .vr .nf { flex: 1; min-width: 0; height: 24px; }
 .vr.on { background: #ecfdf5; box-shadow: inset 2px 0 0 #0f766e; }
 .vnone { padding: 8px 10px; color: #6b7280; }
+/* The pinned element's own declarations (editprops.js), folded away when the
+   list is long. summary.sec keeps the section bar's look; the marker is the
+   only part a <details> adds. */
+.more > summary { cursor: pointer; }
+.more > summary::marker { color: #6b7280; }
+.vr.add { margin-top: 4px; padding-top: 6px; border-top: 1px dashed #d1d5db; border-radius: 0; }
+.vr input.n { height: 24px; padding: 0 6px; border: 1px solid #d1d5db; border-radius: 5px;
+  background: #fff; outline: none; }
+.vr input.n:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
+.vr .go { flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px;
+  background: #fff; color: #374151; font: 11px/1 inherit; cursor: pointer; }
+.vr .go:hover { background: #e5e7eb; }
 .sec .mini { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 4px 10px;
   border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
 .chg { display: block; width: calc(100% - 20px); margin: 4px 10px 8px; padding: 6px; resize: vertical;
@@ -2081,36 +2093,66 @@ function uiiPageVars(all) {
   return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
 }
 
-// One row: the name, the swatch when it is a colour, the value to edit.
-// Edited rows carry .on, the mark the colour list uses for the value in force.
-function uiiVarRow(v) {
+// The hex of a value that is a colour, '' when it is not one.
+function uiiRowHex(value) {
+  const rgb = value && value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
+  return rgb ? uiiToHex(rgb) : '';
+}
+
+// One row of a value list: the name, a picker when the value is a colour, and
+// a box that writes through `set`. Edited rows carry .on, the mark the colour
+// list uses for the value in force. Shared by the palette and by the pinned
+// element's own declarations (editprops.js).
+function uiiValueRow(name, value, set) {
   const row = uiiEl('div', 'vr');
-  row.dataset.name = v.name.toLowerCase();
+  row.dataset.name = name.toLowerCase();
   const wrap = uiiEl('span', 'nf');
   const box = uiiEl('input');
   box.spellcheck = false;
-  box.value = v.value;
+  box.value = value;
   const write = (val) => {
     box.value = val;
-    uiiVarApply(v.name, val, document.documentElement);
+    set(val);
     row.classList.add('on');
   };
-  if (v.hex) {
+  const hex = uiiRowHex(value);
+  if (hex) {
     const pick = uiiEl('input', 'pick');
     pick.type = 'color';
-    // A colour picker takes #rrggbb alone: an alpha var keeps its text box.
-    pick.value = /^#[0-9a-f]{6}$/i.test(v.hex) ? v.hex : '#000000';
+    // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
+    pick.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000';
     pick.addEventListener('input', () => write(pick.value));
     wrap.appendChild(pick);
   }
   box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   wrap.appendChild(box);
+  row.append(uiiEl('span', 'n', name), wrap);
+  return { row, box };
+}
+
+function uiiVarRow(v) {
+  const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement));
   // An edit made here or from a colour field, before this list was built.
   const e = uiiVarEdits.get(v.name);
-  if (e) { box.value = e.to; row.classList.add('on'); }
-  row.append(uiiEl('span', 'n', v.name), wrap);
-  return row;
+  if (e) { r.box.value = e.to; r.row.classList.add('on'); }
+  return r.row;
+}
+
+// A filter box over a list of rows, each named by data-name. A row marked
+// data-keep (the "add a property" row) stays whatever is typed.
+function uiiFindBox(find, list) {
+  find.placeholder = 'Filter';
+  find.spellcheck = false;
+  // Inside a <summary> every click toggles the section: not this one.
+  find.addEventListener('click', (e) => e.stopPropagation());
+  find.addEventListener('keydown', (e) => e.stopPropagation());
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    for (const r of list.children) {
+      if (!r.dataset.keep) r.hidden = !!q && !(r.dataset.name || '').includes(q);
+    }
+  });
 }
 
 // The list, with a filter in its header: an app's palette runs to hundreds of
@@ -2119,16 +2161,11 @@ function uiiRenderVars(body) {
   const vars = uiiPageVars(uiiState.all);
   const head = uiiEl('div', 'sec', 'Variables — type a value, Enter applies ', 'section-vars');
   const find = uiiEl('input', 'find', undefined, 'filter-vars');
-  find.placeholder = 'Filter';
-  find.spellcheck = false;
   head.appendChild(find);
   const list = uiiEl('div', 'vrs', undefined, 'vars-list');
   for (const v of vars) list.appendChild(uiiVarRow(v));
   if (!vars.length) list.appendChild(uiiEl('div', 'vnone', 'No custom properties in the stylesheets this page lets us read.'));
-  find.addEventListener('input', () => {
-    const q = find.value.trim().toLowerCase();
-    for (const r of list.children) r.hidden = !!q && !(r.dataset.name || '').includes(q);
-  });
+  uiiFindBox(find, list);
   body.append(head, list);
   return vars.length;
 }
@@ -2160,6 +2197,128 @@ function uiiToggleVars() {
   if (S.varsMode) uiiVarsPanel();
   else if (S.info) uiiRenderPanel(S.info);
   else S.panel.root.classList.remove('on');
+}
+
+/* ================= the pinned element's own declarations =================
+   The cards above cover the properties worth a dedicated control. This is the
+   rest: every property the element's matched rules actually set, every
+   variable those rules read, and a box for anything they do not mention yet.
+   Values are written through uiiSet and uiiVarApply, so the Changes box and
+   Reset treat them like any other edit. */
+
+// The declarations a rule writes, as authored: [{name, value}]. Not the
+// CSSOM property list — that expands `font:` into eighteen longhands and
+// leaves `background-color` empty when the shorthand carries the var(), which
+// is both noise and a lost variable. The text of a rule the inspector has
+// rewritten is its text before that (uiiRuleText), so the list says what the
+// stylesheet says.
+function uiiDeclList(style) {
+  const text = uiiRuleText.get(style) || style.cssText || '';
+  const out = [];
+  for (const part of text.split(';')) {
+    const i = part.indexOf(':');
+    const name = i < 0 ? '' : part.slice(0, i).trim();
+    const value = i < 0 ? '' : part.slice(i + 1).trim();
+    // A ';' inside a value (a data: URI) splits a declaration in two; the
+    // halves have no property name and drop out here.
+    if (/^-{0,2}[a-z][\w-]*$/i.test(name) && value) out.push({ name, value });
+  }
+  return out;
+}
+
+// Every --name a value mentions: "1px solid var(--line)" -> ["--line"], and a
+// fallback chain "var(--a, var(--b))" -> both.
+function uiiVarsIn(value) {
+  return [...String(value || '').matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]);
+}
+
+// The variables this element reads or sets, sorted, deduped, and only those
+// that resolve here: a var() naming nothing has no value to show or edit.
+function uiiElementVars(info) {
+  const names = new Set();
+  for (const r of info.rules) {
+    if (!r.style) continue;
+    for (const d of uiiDeclList(r.style)) {
+      if (d.name.startsWith('--')) names.add(d.name);
+      for (const n of uiiVarsIn(d.value)) names.add(n);
+    }
+  }
+  const cs = getComputedStyle(info.el);
+  return [...names].sort().map((name) => ({ name, value: cs.getPropertyValue(name).trim() })).filter((v) => v.value);
+}
+
+// Every property the element's matched rules set, with the value to edit:
+// the live edit standing on it, else the last rule's own words (`var(--accent)`
+// is worth more in the box than the colour it resolves to), else computed.
+// Custom properties are left to uiiElementVars.
+function uiiDeclaredProps(info) {
+  const seen = new Map();
+  for (const r of info.rules) {
+    if (!r.style) continue;
+    for (const d of uiiDeclList(r.style)) if (!d.name.startsWith('--')) seen.set(d.name, d.value);
+  }
+  const e = uiiEditsFor(info.el, false);
+  const cs = getComputedStyle(info.el);
+  return [...seen.keys()].sort()
+    .map((prop) => ({ prop, value: (e && e.props[prop]) || seen.get(prop) || cs.getPropertyValue(prop).trim() }))
+    .filter((p) => p.value);
+}
+
+// Anything the rules do not set yet: a name, a value, Enter or ↵ applies. A
+// name opening with -- edits that variable, like the rows above.
+function uiiAddPropRow(info) {
+  const row = uiiEl('div', 'vr add');
+  row.dataset.keep = '1'; // the filter never hides it
+  const name = uiiEl('input', 'n', undefined, 'add-prop-name');
+  name.placeholder = 'box-shadow, --accent…';
+  name.spellcheck = false;
+  const wrap = uiiEl('span', 'nf');
+  const val = uiiEl('input', undefined, undefined, 'add-prop-value');
+  val.placeholder = 'value';
+  val.spellcheck = false;
+  const go = uiiEl('button', 'go', '↵', 'add-prop-apply');
+  go.type = 'button';
+  go.title = 'Apply to the pinned element';
+  const set = () => {
+    const p = name.value.trim(), v = val.value.trim();
+    if (!p || !v) return;
+    if (p.startsWith('--')) uiiVarApply(p, v, info.el);
+    // CSS.supports keeps a typo from landing as a silent no-op: setProperty
+    // drops a value the browser cannot parse and says nothing.
+    else if (!CSS.supports(p, v)) { uiiFlash('Not a CSS value: ' + p + ': ' + v); return; }
+    else uiiSet(info, p, v);
+    row.classList.add('on');
+  };
+  for (const i of [name, val]) {
+    i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); set(); } });
+  }
+  go.addEventListener('click', set);
+  wrap.append(val, go);
+  row.append(name, wrap);
+  return row;
+}
+
+// The section itself, folded into a <details> so a long list does not push
+// the Changes box off the panel. Open when it is short enough to read at a
+// glance, and whenever one of its rows has been edited.
+function uiiPropsSection(body, info) {
+  const vars = uiiElementVars(info);
+  const props = uiiDeclaredProps(info);
+  const wrap = uiiEl('details', 'more');
+  const n = (c, word) => c + ' ' + word + (c === 1 ? '' : 's');
+  const sum = uiiEl('summary', 'sec', 'Declared — ' + n(props.length, 'property').replace('propertys', 'properties')
+    + ', ' + n(vars.length, 'variable') + ' ', 'section-declared');
+  const find = uiiEl('input', 'find', undefined, 'filter-declared');
+  sum.appendChild(find);
+  const list = uiiEl('div', 'vrs', undefined, 'declared-list');
+  for (const v of vars) list.appendChild(uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, info.el)).row);
+  for (const p of props) list.appendChild(uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val)).row);
+  list.appendChild(uiiAddPropRow(info));
+  uiiFindBox(find, list);
+  // Short enough to read at a glance, or an element already being worked on.
+  wrap.open = vars.length + props.length <= 8 || !!uiiEditsFor(info.el, false);
+  wrap.append(sum, list);
+  body.appendChild(wrap);
 }
 
 /* ================= live editing: fields =================
@@ -2264,6 +2423,7 @@ function uiiRenderEditRows(body, info) {
     uiiCard('Border',
       uiiTextField(info, 'Border', 'border'),
       uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
+  uiiPropsSection(body, info); // everything the cards above do not cover
 }
 
 /* ================= live editing: the words on screen =================
