@@ -2359,8 +2359,9 @@ function uiiOnKey(e) {
   // work after clicking a panel button; only real text entry gets skipped.
   // A page field can still hold focus from before inspect mode opened, and
   // its typing must stay typing — C is a shortcut only outside a text box.
-  // Esc still works from a panel box: there it has no typing job to do.
-  if (uiiInEditable(e.target)) return;
+  // Esc still works from a panel box or a page field: while inspecting it
+  // means "quit", so the page's own Esc (clear a search) must not take it.
+  if (uiiInEditable(e.target) && e.key !== 'Escape') return;
   const box = e.target === S.host && uiiInEditable(e.composedPath()[0]) ? e.composedPath()[0] : null;
   if (box && e.key !== 'Escape') return;
   if (e.key === 'Escape') {
