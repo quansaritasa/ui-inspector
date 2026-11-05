@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.11 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.7.12 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -112,11 +112,21 @@ const UII_CSS = `
   pointer-events: auto; font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; } /* outside .panel: own font */
 .cvl button { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; padding: 3px 6px;
   border-radius: 4px; cursor: pointer; color: #374151; font: inherit; font-size: 11px; text-align: left; }
-.cvl button:hover, .cvl button.on { background: #f3f4f6; }
+.cvl button:hover { background: #f3f4f6; }
+/* The value in force, told apart from whatever the pointer happens to be over:
+   the teal the .cv button already uses for a variable, and a bar down the side
+   that costs no layout (a ::before would push the row's flex items along). */
+.cvl button.on { background: #ecfdf5; color: #0f766e; font-weight: 600; box-shadow: inset 2px 0 0 #0f766e; }
+.cvl button.on:hover { background: #d1fae5; }
 .cvl .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cvl i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); flex: none; }
 .cvl .h { color: #9ca3af; font-family: ui-monospace, Menlo, monospace; font-size: 10px; }
 .nf select { font-size: 11px; border: 0; background: none; color: #374151; cursor: pointer; max-width: 55%; }
+/* The open list is the browser's, not ours: Chrome on Windows and Linux and
+   Firefox paint the options with this, macOS draws its own menu and marks the
+   current value with a checkmark instead. */
+.nf select option { background: #fff; color: #374151; font-weight: 400; text-transform: none; }
+.nf select option:checked { background: #ecfdf5; color: #0f766e; font-weight: 600; }
 .seg { display: flex; overflow: hidden; }
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }
 .seg button + button { border-left: 1px solid #e5e7eb; }
@@ -1875,33 +1885,11 @@ function uiiScrub(handle, read, apply) {
   });
 }
 
-/* ================= live editing: fields =================
-   Design-tool style controls grouped in cards: number boxes (editnum.js), a
-   weight dropdown, a text-align toggle, colour pickers. All of them go through uiiSet. */
-
-const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 'Regular'],
-  [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extra Bold'], [900, 'Black']];
-
-// Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
-// also names the pair for scripts: the field is "field-size", the control
-// inside it "size" (see uiiEl — each name is written as id and data-ui).
-function uiiFld(label, control) {
-  const name = uiiSlug(label);
-  const f = uiiEl('div', 'fld', undefined, 'field-' + name);
-  const lab = uiiEl('span', 'lab', label);
-  if (!control.id) { control.setAttribute('data-ui', name); control.id = name; }
-  f.append(lab, control);
-  return { f, lab };
-}
-
-function uiiTextField(info, label, prop) {
-  const box = uiiEl('input', 'tf');
-  box.spellcheck = false;
-  box.value = uiiEditValue(info, prop);
-  box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  return uiiFld(label, box).f;
-}
+/* ================= live editing: colour fields =================
+   A colour either sits on the element or comes from a variable. The picker
+   below edits whichever the dropdown points at, so moving a palette entry
+   moves every rule that reads it. Split out of editfields.js to keep each
+   file short. */
 
 // Shorthands that can carry a colour: CSSOM leaves the longhand empty when
 // the shorthand holds a var(), so the var has to be read off the shorthand.
@@ -1974,6 +1962,9 @@ function uiiVarPicker(names, target) {
     list.style.right = Math.max(4, window.innerWidth - r.right) + 'px';
     list.style.top = (r.bottom + 244 < window.innerHeight ? r.bottom + 2 : Math.max(4, r.top - 244)) + 'px';
     S.shadow.appendChild(list);
+    // A long palette scrolls: the value in force opens in view, not below it.
+    const on = list.querySelector('.on');
+    if (on) on.scrollIntoView({ block: 'nearest' });
     // Close on a press anywhere else, or when the panel scrolls under it.
     const down = (e) => { if (!e.composedPath().some((t) => t === list || t === btn)) uiiCloseVarList(); };
     const scroll = (e) => { if (e.target !== list) uiiCloseVarList(); };
@@ -2033,6 +2024,35 @@ function uiiColorField(info, label, prop) {
   });
   wrap.append(pick, box, sel);
   return uiiFld(label, wrap).f;
+}
+
+/* ================= live editing: fields =================
+   Design-tool style controls grouped in cards: number boxes (editnum.js), a
+   weight dropdown, a text-align toggle, colour pickers (editcolor.js). All of
+   them go through uiiSet. */
+
+const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 'Regular'],
+  [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extra Bold'], [900, 'Black']];
+
+// Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
+// also names the pair for scripts: the field is "field-size", the control
+// inside it "size" (see uiiEl — each name is written as id and data-ui).
+function uiiFld(label, control) {
+  const name = uiiSlug(label);
+  const f = uiiEl('div', 'fld', undefined, 'field-' + name);
+  const lab = uiiEl('span', 'lab', label);
+  if (!control.id) { control.setAttribute('data-ui', name); control.id = name; }
+  f.append(lab, control);
+  return { f, lab };
+}
+
+function uiiTextField(info, label, prop) {
+  const box = uiiEl('input', 'tf');
+  box.spellcheck = false;
+  box.value = uiiEditValue(info, prop);
+  box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+  return uiiFld(label, box).f;
 }
 
 function uiiWeightField(info) {

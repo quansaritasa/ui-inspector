@@ -237,7 +237,7 @@ The panel's **Where to edit** rows name the files to open:
 ## Development
 
 Sources live in `src/` in the fixed order `build.js` lists (`styles`,
-`format`, `cssvars`, `sources`, `inspect`, `occlusion`, `overlay`, `editrows`,
-`editrules`, `edittext`, `editvar`, `editnum`, `editfields`, `content`,
-`panel`, `keys`, `core`). Run `node build.js` to regenerate
+`format`, `cssvars`, `sources`, `inspect`, `occlusion`, `overlay`, `spacing`,
+`events`, `editrows`, `editrules`, `edittext`, `editvar`, `editnum`,
+`editcolor`, `editfields`, `content`, `panel`, `keys`, `core`). Run `node build.js` to regenerate
 `dist/ui-inspector.js`. Do not edit the `dist` file by hand.

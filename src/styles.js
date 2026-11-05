@@ -106,11 +106,21 @@ const UII_CSS = `
   pointer-events: auto; font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; } /* outside .panel: own font */
 .cvl button { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; padding: 3px 6px;
   border-radius: 4px; cursor: pointer; color: #374151; font: inherit; font-size: 11px; text-align: left; }
-.cvl button:hover, .cvl button.on { background: #f3f4f6; }
+.cvl button:hover { background: #f3f4f6; }
+/* The value in force, told apart from whatever the pointer happens to be over:
+   the teal the .cv button already uses for a variable, and a bar down the side
+   that costs no layout (a ::before would push the row's flex items along). */
+.cvl button.on { background: #ecfdf5; color: #0f766e; font-weight: 600; box-shadow: inset 2px 0 0 #0f766e; }
+.cvl button.on:hover { background: #d1fae5; }
 .cvl .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cvl i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); flex: none; }
 .cvl .h { color: #9ca3af; font-family: ui-monospace, Menlo, monospace; font-size: 10px; }
 .nf select { font-size: 11px; border: 0; background: none; color: #374151; cursor: pointer; max-width: 55%; }
+/* The open list is the browser's, not ours: Chrome on Windows and Linux and
+   Firefox paint the options with this, macOS draws its own menu and marks the
+   current value with a checkmark instead. */
+.nf select option { background: #fff; color: #374151; font-weight: 400; text-transform: none; }
+.nf select option:checked { background: #ecfdf5; color: #0f766e; font-weight: 600; }
 .seg { display: flex; overflow: hidden; }
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }
 .seg button + button { border-left: 1px solid #e5e7eb; }
