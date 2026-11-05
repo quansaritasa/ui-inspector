@@ -1,4 +1,4 @@
-/*! ui-inspector v0.9.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.9.1 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -62,13 +62,17 @@ const UII_CSS = `
 .panel.on { display: flex; }
 .panel.min .body { display: none; }
 .panel.min .head { border-bottom: 0; border-radius: 8px; }
-.head { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; cursor: move;
+.head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; cursor: move;
   background: #f3f4f6; border-bottom: 1px solid #e5e7eb; border-radius: 8px 8px 0 0; user-select: none; }
 .head .name { flex: 1; min-width: 0; font-weight: 700; font-size: 13px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .head .tag { color: #6b7280; font-family: ui-monospace, Menlo, monospace; }
-.head button { font: inherit; padding: 0 6px; border: 1px solid #d1d5db;
+/* Square icon buttons: one glyph each, so a fixed box reads as a row of
+   equal keys. Reset carries a word and keeps its own width. */
+.head button { width: 26px; height: 26px; flex: none; display: grid; place-items: center;
+  font: inherit; padding: 0; border: 1px solid #d1d5db;
   border-radius: 4px; background: #fff; color: #111827; cursor: pointer; }
+.head button.reset { width: auto; padding: 0 8px; }
 .head button:hover { background: #e5e7eb; }
 .body { overflow: auto; padding: 0 0 6px; }
 .body > .sec:first-child { margin-top: 0; }
