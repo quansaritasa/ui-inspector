@@ -176,9 +176,9 @@ sets (`.dark { --bg }` while the light theme is on) resolves to nothing here
 and is left out: there would be no value to show and editing it would change
 nothing on screen.
 
-The **Style** section groups fields in cards — Colour, Typography (font,
-size, letter spacing, line height, weight, align), Spacing (padding and margin,
-one field per side ↑ ↓ ← →) and Border. Type a value and press Enter, step a
+The **Style** section groups fields in cards — Colour, Size, Spacing (padding
+and margin, one field per side ↑ ↓ ← →), Typography (font, size, letter
+spacing, line height, weight, align) and Border. Type a value and press Enter, step a
 number with `↑` `↓` or its ▲▼ buttons (hold to repeat; `Shift` for ×10), or
 drag a field's label sideways to scrub it. The unit is the one the stylesheet
 wrote when it is a plain value (`0.9em`), else computed px; click it to switch
