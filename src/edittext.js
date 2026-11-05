@@ -18,6 +18,30 @@ function uiiTargetEl(info, prop) {
   return UII_TEXT_PROPS.includes(prop) ? uiiTextEls(info)[0] : info.el;
 }
 
+// Does `t` set `prop` in a rule of its own? Text properties inherit: a child
+// with no rule of its own gets the value from the pinned element, so only
+// children that set it themselves need their own edit (and their own line in
+// the log). A relative font-size (0.9em, 90%) already follows its parent —
+// scaling it too would double up.
+function uiiOwnsProp(info, t, prop) {
+  if (t === info.el) return true;
+  const d = uiiRuleDecl(t, prop);
+  return !!d && !(prop === 'font-size' && /(^|[^r])em\b|%/.test(d.value));
+}
+
+// The element an edit to `prop` really lands on. Not always the one the field
+// reads (uiiTargetEl): the main text is the one that shows the value, but with
+// no rule of its own it is the pinned element that gets the declaration. A
+// relative unit is measured against that element's parent, so a conversion
+// asks here, not there — otherwise 20px on a <div> whose text sits in a plain
+// <span> converts to 1em against the span's parent (the div itself) and the
+// text jumps the moment the unit changes.
+function uiiWriteEl(info, prop) {
+  if (!UII_TEXT_PROPS.includes(prop)) return info.el;
+  const main = uiiTextEls(info)[0];
+  return uiiOwnsProp(info, main, prop) ? main : info.el;
+}
+
 function uiiFindTextEls(el) {
   const len = new Map();
   const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -47,13 +71,8 @@ function uiiSet(info, prop, value) {
   const base = uiiOrig(main, prop);
   const host = uiiEditsFor(info.el, true);
   if (!host.kids) host.kids = new Set();
-  // Text properties inherit: a child with no rule of its own gets the value
-  // from the pinned element, so only children that set it themselves need
-  // their own edit (and their own line in the log). A relative font-size
-  // (0.9em, 90%) already follows its parent — scaling it too would double up.
-  const own = (t) => t === info.el || (uiiRuleDecl(t, prop)
-    && !(prop === 'font-size' && /(^|[^r])em\b|%/.test(uiiRuleDecl(t, prop).value)));
-  const first = own(main) ? main : info.el;
+  const own = (t) => uiiOwnsProp(info, t, prop);
+  const first = uiiWriteEl(info, prop);
   uiiApplyEdit(first, prop, value);
   if (first !== info.el) host.kids.add(first);
   // Ratio from computed px, so a value typed in em or rem scales too.

@@ -7,9 +7,14 @@
 // Nearest control ancestor of the pointer target, or the raw element while
 // Alt is held (to reach a <span> inside a button, say).
 function uiiTargetFrom(e) {
-  const t = e.target;
+  return uiiSnap(e.target, e.altKey);
+}
+
+// The snap itself, without an event: the pointer tracker has coordinates
+// only, so uiiOpenAtPointer calls this one directly.
+function uiiSnap(t, alt) {
   if (!t || t.nodeType !== 1 || t === uiiState.host) return null;
-  if (e.altKey) return t;
+  if (alt) return t;
   let c = null;
   try { c = t.closest(uiiState.selList); } catch (err) { c = null; }
   return c && c !== document.body && c !== document.documentElement ? c : t;
@@ -38,6 +43,14 @@ function uiiSetHover(el, raw) {
   S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
   S.tip.style.top = top + 'px';
   S.tip.classList.add('on');
+}
+
+// Where the pointer is, kept up to date from init, not from enable: the
+// shortcut carries no coordinates, and the panel has to know which half of
+// the screen to avoid the moment the mode opens. Two assignments per move.
+function uiiTrackPointer(e) {
+  const S = uiiState;
+  S.mx = e.clientX; S.my = e.clientY; S.pos = true;
 }
 
 function uiiOnMove(e) {

@@ -40,6 +40,24 @@ function uiiUnmount() {
   S.boxes = [];
 }
 
+// The panel opens with inspect mode, already filled: the element under the
+// pointer is pinned, so there is no empty panel to look at and no click to
+// make first. It is parked on the half of the screen the pointer is NOT on,
+// because the pointer is sitting on what is about to be inspected and a
+// 500px panel over it would be the first thing to drag out of the way.
+// Without a pointer position (the shortcut pressed on a freshly loaded page)
+// nothing is pinned and the panel stays closed until the first click.
+function uiiOpenAtPointer() {
+  const S = uiiState;
+  if (!S.pos) return;
+  const p = S.panel.root;
+  if (S.mx > window.innerWidth / 2) { p.style.left = '16px'; p.style.right = 'auto'; }
+  else { p.style.left = 'auto'; p.style.right = '16px'; }
+  const el = uiiSnap(document.elementFromPoint(S.mx, S.my), false);
+  if (!el || el === document.body || el === document.documentElement || S.host.contains(el)) return;
+  uiiSelect(el);
+}
+
 // Say something in the badge for a moment, then let it fade back out. The
 // badge is the one piece of chrome on screen whether the panel is open,
 // minimised or closed, so it is where a keyboard action reports itself.

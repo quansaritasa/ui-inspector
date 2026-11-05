@@ -33,102 +33,12 @@ const uiiState = {
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
   mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
+  mx: 0, my: 0, pos: false,  // last pointer position, tracked while bound (see uiiTrackPointer)
 };
 
 // How long the hint at the top stays before it fades. It says what the keys
 // do; once it has been read it is a strip across whatever sits under it.
 const UII_BADGE_MS = 2000;
-
-// "Mod+Shift+/" -> { mod, ctrl, meta, alt, shift, key }
-function uiiParseShortcut(s) {
-  if (!s) return null;
-  const k = { mod: false, ctrl: false, meta: false, alt: false, shift: false, key: '' };
-  for (const part of String(s).split('+')) {
-    const p = part.trim().toLowerCase();
-    if (p === 'mod') k.mod = true;
-    else if (p === 'ctrl' || p === 'control') k.ctrl = true;
-    else if (p === 'cmd' || p === 'meta' || p === 'command') k.meta = true;
-    else if (p === 'alt' || p === 'option') k.alt = true;
-    else if (p === 'shift') k.shift = true;
-    else k.key = p;
-  }
-  return k;
-}
-
-function uiiKeyMatches(e, k) {
-  if (!k) return false;
-  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-  const wantMeta = k.meta || (k.mod && mac);
-  const wantCtrl = k.ctrl || (k.mod && !mac);
-  if (e.metaKey !== wantMeta || e.ctrlKey !== wantCtrl) return false;
-  if (e.altKey !== k.alt || e.shiftKey !== k.shift) return false;
-  const key = (e.key || '').toLowerCase();
-  const code = (e.code || '').toLowerCase();
-  return key === k.key || code === k.key || code === 'key' + k.key || code === 'digit' + k.key;
-}
-
-function uiiInEditable(t) {
-  return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-}
-
-// Arrow keys walk the DOM from the pinned element, DevTools style.
-function uiiWalk(dir) {
-  const S = uiiState;
-  const cur = S.selected;
-  if (!cur) return;
-  let next = null;
-  if (dir === 'ArrowUp') next = cur.parentElement;
-  else if (dir === 'ArrowDown') next = cur.firstElementChild;
-  else if (dir === 'ArrowLeft') next = cur.previousElementSibling;
-  else if (dir === 'ArrowRight') next = cur.nextElementSibling;
-  if (next && next !== document.documentElement && next !== S.host) uiiSelect(next);
-}
-
-function uiiOnKey(e) {
-  const S = uiiState;
-  if (uiiKeyMatches(e, S.key)) {
-    if (!S.on && uiiInEditable(e.target)) return; // leave the editor's own binding alone
-    e.preventDefault();
-    e.stopPropagation();
-    uiiToggle();
-    return;
-  }
-  if (!S.on) return;
-  // Shadow DOM retargets e.target to S.host for anything inside the panel —
-  // a focused button reports the same target as a focused text input. Use
-  // composedPath() to find what was actually focused, so Escape/arrows still
-  // work after clicking a panel button; only real text entry gets skipped.
-  // A page field can still hold focus from before inspect mode opened, and
-  // its typing must stay typing — C is a shortcut only outside a text box.
-  // Esc still works from a panel box or a page field: while inspecting it
-  // means "quit", so the page's own Esc (clear a search) must not take it.
-  if (uiiInEditable(e.target) && e.key !== 'Escape') return;
-  const box = e.target === S.host && uiiInEditable(e.composedPath()[0]) ? e.composedPath()[0] : null;
-  if (box && e.key !== 'Escape') return;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    e.stopPropagation();
-    if (box) box.blur(); // fires 'change', so a typed value lands before quitting
-    if (S.cvList) uiiCloseVarList(); else uiiDisable(); // first Escape closes an open var list
-    return;
-  }
-  if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
-    e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
-    return;
-  }
-  // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
-  // panel or on the page. Each is a panel button without the reach — C the
-  // Copy ID line, A the Changes box, V the Normal view toggle.
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const k = e.key.toLowerCase();
-  if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
-  else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
-  else if (k === 'v') uiiKeyAction(e, uiiPeek);
-}
-
-// A single-letter shortcut swallows its key, so the app underneath never
-// sees it while inspect mode is on.
-function uiiKeyAction(e, run) { e.preventDefault(); e.stopPropagation(); run(); }
 
 function uiiEnable() {
   const S = uiiState;
@@ -138,6 +48,7 @@ function uiiEnable() {
   uiiBindEvents();
   uiiDrawOutlines();
   uiiScriptIndex(); // warm the script scan; never rejects (each fetch catches)
+  uiiOpenAtPointer();
   S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }
@@ -169,6 +80,7 @@ function uiiInit(opts) {
   S.key = uiiParseShortcut(S.opts.shortcut);
   if (!S.bound) {
     window.addEventListener('keydown', uiiOnKey, true);
+    window.addEventListener('mousemove', uiiTrackPointer, { capture: true, passive: true });
     S.bound = true;
   }
   return uiiApi;
@@ -176,7 +88,10 @@ function uiiInit(opts) {
 
 function uiiDestroy() {
   uiiDisable();
-  if (uiiState.bound) window.removeEventListener('keydown', uiiOnKey, true);
+  if (uiiState.bound) {
+    window.removeEventListener('keydown', uiiOnKey, true);
+    window.removeEventListener('mousemove', uiiTrackPointer, true);
+  }
   uiiState.bound = false;
 }
 

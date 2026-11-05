@@ -44,10 +44,10 @@ function uiiUnitSelect(units, fx) {
 }
 
 // write / nudge / cur for a number field, wired to its box. c: {info, props,
-// opt, fx, target, box, unit, show, pxNote}; pxNote is read at call time, as
-// the field sets it once its label exists.
+// opt, fx, target, conv, box, unit, show, pxNote}; pxNote is read at call
+// time, as the field sets it once its label exists.
 function uiiNumWriter(c) {
-  const { info, props, opt, fx, target, box, unit } = c;
+  const { info, props, opt, fx, conv, box, unit } = c;
   const write = (raw) => {
     const t = String(raw).trim();
     // A bare number takes the selected unit; anything else ("auto", "1.5em",
@@ -63,7 +63,7 @@ function uiiNumWriter(c) {
   // Number now; for "normal" / "auto" / Mixed the computed value in the shown unit.
   const cur = () => {
     const n = parseFloat(box.value);
-    return isNaN(n) ? parseFloat(uiiConvertUnit(target, props[0], unit())) : n;
+    return isNaN(n) ? parseFloat(conv(unit())) : n;
   };
   // Sizes, padding and radius below 0 are invalid CSS — the text would vanish.
   const min = /^(margin|letter-spacing)/.test(props[0]) ? -Infinity : 0;
@@ -109,11 +109,15 @@ function uiiNumField(info, label, props, opt) {
   // A ↕ / ↔ pair whose sides differ shows no number: either one would lie.
   // The first write sets both sides; show() clears the placeholder.
   if (new Set(props.map((p) => uiiEditValue(info, p))).size > 1) { box.value = ''; box.placeholder = 'Mixed'; }
-  const c = { info, props, opt, fx, target, box, unit, show };
+  // em and % are read off the element the edit lands on, which is not always
+  // the one the field shows (see uiiWriteEl). Asked at conversion time: the
+  // answer costs a rule probe, and only switching a unit needs it.
+  const conv = (u) => uiiConvertUnit(uiiWriteEl(info, props[0]), props[0], u);
+  const c = { info, props, opt, fx, target, conv, box, unit, show };
   const { write, nudge, cur } = uiiNumWriter(c);
   if (sel) sel.addEventListener('change', () => write(sel.value === 'var'
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
-    : uiiConvertUnit(target, props[0], sel.value)));
+    : conv(sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
   const fld = uiiFld(label, wrap);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".

@@ -42,7 +42,7 @@ code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
 
 | Action | Result |
 |---|---|
-| `Mod+/` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode |
+| `Mod+/` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode. Opening it pins whatever the pointer is already on and opens the panel with it, on the half of the screen the pointer is not on, so the panel never lands on the element being looked at |
 | Hover | Red dashed box and a tooltip with the element's name and size |
 | Click | Pin the element and open the details panel |
 | `Mod+click` (Cmd on macOS, Ctrl elsewhere) | Pin the element and copy its **📋 Copy ID** line in one go |
@@ -239,5 +239,5 @@ The panel's **Where to edit** rows name the files to open:
 Sources live in `src/` in the fixed order `build.js` lists (`styles`,
 `format`, `cssvars`, `sources`, `inspect`, `occlusion`, `overlay`, `editrows`,
 `editrules`, `edittext`, `editvar`, `editnum`, `editfields`, `content`,
-`panel`, `core`). Run `node build.js` to regenerate
+`panel`, `keys`, `core`). Run `node build.js` to regenerate
 `dist/ui-inspector.js`. Do not edit the `dist` file by hand.

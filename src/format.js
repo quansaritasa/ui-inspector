@@ -66,11 +66,16 @@ function uiiFormatForAI(info) {
 // still shows it. Otherwise the edit left the screen with the element.
 function uiiChangeLines() {
   const byRule = new Map();
+  // Two elements sharing one rule write the same property twice. A rule holds
+  // one value per property — the last one written, which is what the page
+  // shows — so the later edit replaces the earlier instead of adding a second,
+  // contradicting line ("font-size: 1.5em; font-size: 2.25em").
+  const put = (head, decl) => {
+    if (!byRule.has(head)) byRule.set(head, new Map());
+    byRule.get(head).set(decl.slice(0, decl.indexOf(':')), decl);
+  };
   // Variable edits first: they move the whole page, not one element.
-  for (const [head, decl] of uiiVarLines()) {
-    if (!byRule.has(head)) byRule.set(head, []);
-    byRule.get(head).push(decl);
-  }
+  for (const [head, decl] of uiiVarLines()) put(head, decl);
   const edits = uiiState.edits || new Map();
   for (const [el, e] of edits) {
     let lines = e.last;
@@ -80,16 +85,15 @@ function uiiChangeLines() {
       edits.delete(el);
       continue;
     }
-    for (const { head, decl } of lines) {
-      if (!byRule.has(head)) byRule.set(head, []);
-      byRule.get(head).push(decl);
-    }
+    for (const { head, decl } of lines) put(head, decl);
   }
-  return byRule;
+  return new Map([...byRule].map(([head, decls]) => [head, [...decls.values()]]));
 }
 
-// How many lines the Changes box lists. Counted without naming rules, so it
-// works after inspect mode closed (no pinned info to cache rule lookups on).
+// How many edits stand — zero means the Changes box has nothing to copy.
+// Counted without naming rules, so it works after inspect mode closed (no
+// pinned info to cache rule lookups on); two elements sharing a rule
+// therefore count twice where the box collapses them to one line.
 function uiiEditCount() {
   let n = uiiVarEdits.size;
   for (const [el, e] of uiiState.edits || []) {

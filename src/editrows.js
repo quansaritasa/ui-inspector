@@ -109,6 +109,11 @@ function uiiEditValue(info, prop) {
   const el = uiiTargetEl(info, prop);
   const e = uiiEditsFor(el, false);
   if (e && prop in e.props) return e.props[prop];
+  // A text edit on a child with no rule of its own lands on the pinned
+  // element and reaches the text by inheritance (uiiWriteEl): the field shows
+  // the value that was written, not the px it computes to.
+  const h = el !== info.el && uiiEditsFor(info.el, false);
+  if (h && prop in h.props) return h.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
   // One picker sets all four sides; it shows the top one.
