@@ -65,7 +65,9 @@ const uiiVarEdits = new Map();
 function uiiVarApply(name, value, el) {
   let e = uiiVarEdits.get(name);
   if (!e) {
-    const r = uiiVarRule(name, el, uiiState.info.all);
+    // The palette edits variables with nothing pinned: no info to carry the
+    // rule list, so the one it collected on open stands in.
+    const r = uiiVarRule(name, el, (uiiState.info && uiiState.info.all) || uiiState.all || []);
     // Nothing readable declares it (an inline style, a cross-origin sheet):
     // own it on :root, where a palette belongs, and say so in the log.
     const style = r ? r.style : document.documentElement.style;

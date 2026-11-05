@@ -132,6 +132,16 @@ const UII_CSS = `
 .nf input.pick::-moz-color-swatch { border: 0; border-radius: 3px; }
 .sec .sim { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .sec .sim input { margin: 0 2px 0 0; vertical-align: -2px; }
+.sec input.find { margin-left: auto; width: 120px; height: 20px; padding: 0 6px; border: 1px solid #9ca3af; border-radius: 4px;
+  background: #fff; color: #111827; font: 11px/1 inherit; font-weight: 400; text-transform: none; letter-spacing: 0; outline: none; }
+/* The palette (editvars.js): one row per custom property the page declares. */
+.vrs { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
+.vr { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 5px; }
+.vr .n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #0f766e; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.vr .nf { flex: 1; min-width: 0; height: 24px; }
+.vr.on { background: #ecfdf5; box-shadow: inset 2px 0 0 #0f766e; }
+.vnone { padding: 8px 10px; color: #6b7280; }
 .sec .mini { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 4px 10px;
   border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
 .chg { display: block; width: calc(100% - 20px); margin: 4px 10px 8px; padding: 6px; resize: vertical;

@@ -68,8 +68,10 @@ function uiiResetOne(el) {
 // The pinned element plus every text child an edit reached (see uiiSet), and
 // every variable edited from the colour fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.
+// `el` is null in the palette, which has no element: the variables are then
+// all there is to put back.
 function uiiResetEdits(el) {
-  const e = uiiEditsFor(el, false);
+  const e = el && uiiEditsFor(el, false);
   if (!e && !uiiVarEdits.size) return;
   uiiVarReset();
   if (e) {
@@ -77,7 +79,7 @@ function uiiResetEdits(el) {
     uiiResetOne(el);
   }
   uiiSyncRules();
-  uiiSelect(el);
+  if (el) uiiSelect(el); else uiiVarsPanel();
 }
 
 // "font-size: 14px; color: #fff" or '' when the element is untouched.
@@ -124,8 +126,10 @@ function uiiEditValue(info, prop) {
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
 }
 
-// Refill the Changes box from the pinned element's edits.
+// Refill the Changes box from the pinned element's edits, and from the
+// variable edits, which belong to no element: the palette has a box of its
+// own and nothing need be pinned to fill it.
 function uiiRefreshChanges() {
   const P = uiiState.panel;
-  if (P && P.changes && uiiState.info) P.changes.value = uiiFormatChanges();
+  if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
 }

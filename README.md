@@ -57,8 +57,9 @@ code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
 | `A` | Copy the same **Changes** text from the keyboard — the badge says `No changes yet` when there is nothing to copy |
+| `P`, or **🎨** in the panel header | Page variables: the panel lists every custom property the stylesheets declare, with its value in a box — edit the palette with nothing pinned. Press again to go back to the pinned element, or to close the panel when nothing is pinned |
 | `V`, or **👁** in the panel header | Normal view: hide every overlay and give the pointer back to the page, so an edit can be judged on the real screen. The panel, its edits and the pinned element stay; press again to go back to inspecting |
-| **↺ Reset** | Undo every live edit on the pinned element |
+| **↺ Reset** | Undo every live edit on the pinned element, and every variable edit |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
 
 The pinned element also gets its box model drawn the way DevTools draws it:
@@ -150,6 +151,18 @@ nested `<b>` beside the text stays where it was; on an `<input>` or
 `<textarea>` it writes `value`. **Reset** puts the original words back, and
 the change is live only — it is for trying a label, not a string an AI should
 apply, so the Changes box stays CSS.
+
+**Page variables** (`P`, or **🎨**) answers the other half of the question —
+what the page looks like if a design token moves. The panel lists every custom
+property the readable stylesheets declare, resolved on `:root`: colours first,
+each with a swatch and a picker, then sizes, fonts and everything else, with a
+filter box for a palette that runs long. Type a value and the whole page
+follows at once, the row is marked as edited, and the change joins the Changes
+box as `style.css :root { --accent: #123456; }`. Nothing need be pinned, and
+**↺ Reset** puts every variable back. A variable only an inactive theme block
+sets (`.dark { --bg }` while the light theme is on) resolves to nothing here
+and is left out: there would be no value to show and editing it would change
+nothing on screen.
 
 The **Style** section groups fields in cards — Colour, Typography (font,
 size, letter spacing, line height, weight, align), Spacing (padding and margin,

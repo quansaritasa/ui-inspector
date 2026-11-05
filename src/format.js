@@ -124,6 +124,22 @@ function uiiCopyChanges() {
   uiiCopy(P && P.changes ? P.changes.value : uiiFormatChanges());
 }
 
+// The Changes box at the foot of the panel, in both of its modes. Rebuilt
+// with the rest of the body, so typing in it lasts until the next edit or
+// selection refills it.
+function uiiChangesBox(body) {
+  const head = uiiEl('div', 'sec', 'All changes ', 'section-changes');
+  const copy = uiiEl('button', 'mini', '📋 Copy for AI', 'copy-for-ai');
+  head.appendChild(copy);
+  const changes = uiiEl('textarea', 'chg', undefined, 'changes');
+  changes.spellcheck = false;
+  changes.rows = 7;
+  copy.addEventListener('click', () => uiiCopy(changes.value, copy));
+  body.append(head, changes);
+  uiiState.panel.changes = changes;
+  uiiRefreshChanges();
+}
+
 // Multi-line block with the computed look, for when the AI must match or
 // change colours and type rather than just locate the element.
 function uiiFormatDetails(info) {

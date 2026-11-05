@@ -33,13 +33,16 @@ function uiiBuildPanel(sh) {
   // Changes box and the pinned element all survive the look.
   const peek = uiiEl('button', '', '👁', 'normal-view');
   peek.title = 'Normal view — hide the overlay and use the page (V)';
+  // The palette: the page's variables, editable with nothing pinned.
+  const vars = uiiEl('button', '', '🎨', 'vars-mode');
+  vars.title = 'Page variables — edit the palette without pinning anything (P)';
   const close = uiiEl('button', '', '✕', 'close-panel');
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
   reset.title = 'Undo every live edit on this element, and every variable edit';
   const ok = uiiEl('span', 'ok', '', 'copy-status');
-  head.append(name, tag, ok, reset, peek, fold, close);
+  head.append(name, tag, ok, reset, vars, peek, fold, close);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
   const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
@@ -48,12 +51,13 @@ function uiiBuildPanel(sh) {
   S.panel = { root: p, name, tag, body, ok, reset, peek };
   close.addEventListener('click', () => p.classList.remove('on'));
   peek.addEventListener('click', () => uiiPeek());
+  vars.addEventListener('click', () => uiiToggleVars());
   fold.addEventListener('click', () => {
     const min = p.classList.toggle('min');
     fold.textContent = min ? '▢' : '—';
     fold.title = min ? 'Maximize' : 'Minimize';
   });
-  reset.addEventListener('click', () => uiiResetEdits(S.info.el));
+  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info.el));
   uiiDrag(head, p);
   uiiResizeLeft(grip, p);
 }
@@ -150,6 +154,7 @@ function uiiRow(k, v, swatchHex) {
 function uiiRenderPanel(info) {
   const P = uiiState.panel;
   if (!P) return;
+  uiiState.varsMode = false; // a selection is an element view, whatever was open
   P.name.textContent = info.name;
   P.tag.textContent = '<' + info.tag + '>';
   const b = P.body;
@@ -182,18 +187,7 @@ function uiiRenderPanel(info) {
   b.appendChild(stHead);
   uiiRenderEditRows(b, info);
 
-  // Rebuilt with the rest of the body, so typing in it lasts until the next
-  // edit or selection refills it.
-  const chHead = uiiEl('div', 'sec', 'All changes ', 'section-changes');
-  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI', 'copy-for-ai');
-  chHead.appendChild(chCopy);
-  const changes = uiiEl('textarea', 'chg', undefined, 'changes');
-  changes.spellcheck = false;
-  changes.rows = 7;
-  chCopy.addEventListener('click', () => uiiCopy(changes.value, chCopy));
-  b.append(chHead, changes);
-  P.changes = changes;
-  uiiRefreshChanges();
+  uiiChangesBox(b);
   P.reset.hidden = !uiiEditsFor(info.el, false) && !uiiVarEdits.size;
   P.root.classList.add('on');
 }

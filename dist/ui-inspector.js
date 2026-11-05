@@ -1,4 +1,4 @@
-/*! ui-inspector v0.7.12 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.8.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -138,6 +138,16 @@ const UII_CSS = `
 .nf input.pick::-moz-color-swatch { border: 0; border-radius: 3px; }
 .sec .sim { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .sec .sim input { margin: 0 2px 0 0; vertical-align: -2px; }
+.sec input.find { margin-left: auto; width: 120px; height: 20px; padding: 0 6px; border: 1px solid #9ca3af; border-radius: 4px;
+  background: #fff; color: #111827; font: 11px/1 inherit; font-weight: 400; text-transform: none; letter-spacing: 0; outline: none; }
+/* The palette (editvars.js): one row per custom property the page declares. */
+.vrs { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
+.vr { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 5px; }
+.vr .n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #0f766e; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.vr .nf { flex: 1; min-width: 0; height: 24px; }
+.vr.on { background: #ecfdf5; box-shadow: inset 2px 0 0 #0f766e; }
+.vnone { padding: 8px 10px; color: #6b7280; }
 .sec .mini { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 4px 10px;
   border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
 .chg { display: block; width: calc(100% - 20px); margin: 4px 10px 8px; padding: 6px; resize: vertical;
@@ -278,6 +288,22 @@ function uiiCopyChanges() {
   const P = uiiState.panel;
   if (!uiiEditCount()) { uiiFlash('No changes yet'); return; }
   uiiCopy(P && P.changes ? P.changes.value : uiiFormatChanges());
+}
+
+// The Changes box at the foot of the panel, in both of its modes. Rebuilt
+// with the rest of the body, so typing in it lasts until the next edit or
+// selection refills it.
+function uiiChangesBox(body) {
+  const head = uiiEl('div', 'sec', 'All changes ', 'section-changes');
+  const copy = uiiEl('button', 'mini', '📋 Copy for AI', 'copy-for-ai');
+  head.appendChild(copy);
+  const changes = uiiEl('textarea', 'chg', undefined, 'changes');
+  changes.spellcheck = false;
+  changes.rows = 7;
+  copy.addEventListener('click', () => uiiCopy(changes.value, copy));
+  body.append(head, changes);
+  uiiState.panel.changes = changes;
+  uiiRefreshChanges();
 }
 
 // Multi-line block with the computed look, for when the AI must match or
@@ -773,7 +799,7 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
@@ -1191,8 +1217,10 @@ function uiiResetOne(el) {
 // The pinned element plus every text child an edit reached (see uiiSet), and
 // every variable edited from the colour fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.
+// `el` is null in the palette, which has no element: the variables are then
+// all there is to put back.
 function uiiResetEdits(el) {
-  const e = uiiEditsFor(el, false);
+  const e = el && uiiEditsFor(el, false);
   if (!e && !uiiVarEdits.size) return;
   uiiVarReset();
   if (e) {
@@ -1200,7 +1228,7 @@ function uiiResetEdits(el) {
     uiiResetOne(el);
   }
   uiiSyncRules();
-  uiiSelect(el);
+  if (el) uiiSelect(el); else uiiVarsPanel();
 }
 
 // "font-size: 14px; color: #fff" or '' when the element is untouched.
@@ -1247,10 +1275,12 @@ function uiiEditValue(info, prop) {
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
 }
 
-// Refill the Changes box from the pinned element's edits.
+// Refill the Changes box from the pinned element's edits, and from the
+// variable edits, which belong to no element: the palette has a box of its
+// own and nothing need be pinned to fill it.
 function uiiRefreshChanges() {
   const P = uiiState.panel;
-  if (P && P.changes && uiiState.info) P.changes.value = uiiFormatChanges();
+  if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
 }
 
 /* ================= live editing: apply to similar =================
@@ -1320,7 +1350,9 @@ const uiiVarEdits = new Map();
 function uiiVarApply(name, value, el) {
   let e = uiiVarEdits.get(name);
   if (!e) {
-    const r = uiiVarRule(name, el, uiiState.info.all);
+    // The palette edits variables with nothing pinned: no info to carry the
+    // rule list, so the one it collected on open stands in.
+    const r = uiiVarRule(name, el, (uiiState.info && uiiState.info.all) || uiiState.all || []);
     // Nothing readable declares it (an inline style, a cross-origin sheet):
     // own it on :root, where a palette belongs, and say so in the log.
     const style = r ? r.style : document.documentElement.style;
@@ -2026,6 +2058,110 @@ function uiiColorField(info, label, prop) {
   return uiiFld(label, wrap).f;
 }
 
+/* ================= the page's variables =================
+   The palette without an element. Every custom property the sheets declare,
+   the value it resolves to, and a box to try another one — for the question
+   "what happens to the page if this token moves", which has no one element to
+   click. Edits go through uiiVarApply, the same path the colour fields use,
+   so they show at once, land in the Changes box and come back with Reset. */
+
+// [{name, value, hex}] — colours first, a swatch says more than a name; each
+// group by name. A var only an inactive theme block sets (`.dark { --bg }`
+// under the light theme) resolves to nothing here and is left out: there is
+// no value to show and editing it would change nothing on screen.
+function uiiPageVars(all) {
+  const cs = getComputedStyle(document.documentElement);
+  const out = [];
+  for (const name of uiiVarNames(all)) {
+    const value = cs.getPropertyValue(name).trim();
+    if (!value) continue;
+    const rgb = value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
+    out.push({ name, value, hex: rgb ? uiiToHex(rgb) : '' });
+  }
+  return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
+}
+
+// One row: the name, the swatch when it is a colour, the value to edit.
+// Edited rows carry .on, the mark the colour list uses for the value in force.
+function uiiVarRow(v) {
+  const row = uiiEl('div', 'vr');
+  row.dataset.name = v.name.toLowerCase();
+  const wrap = uiiEl('span', 'nf');
+  const box = uiiEl('input');
+  box.spellcheck = false;
+  box.value = v.value;
+  const write = (val) => {
+    box.value = val;
+    uiiVarApply(v.name, val, document.documentElement);
+    row.classList.add('on');
+  };
+  if (v.hex) {
+    const pick = uiiEl('input', 'pick');
+    pick.type = 'color';
+    // A colour picker takes #rrggbb alone: an alpha var keeps its text box.
+    pick.value = /^#[0-9a-f]{6}$/i.test(v.hex) ? v.hex : '#000000';
+    pick.addEventListener('input', () => write(pick.value));
+    wrap.appendChild(pick);
+  }
+  box.addEventListener('change', () => write(box.value.trim()));
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+  wrap.appendChild(box);
+  // An edit made here or from a colour field, before this list was built.
+  const e = uiiVarEdits.get(v.name);
+  if (e) { box.value = e.to; row.classList.add('on'); }
+  row.append(uiiEl('span', 'n', v.name), wrap);
+  return row;
+}
+
+// The list, with a filter in its header: an app's palette runs to hundreds of
+// names, and the one being tried is usually known by part of it.
+function uiiRenderVars(body) {
+  const vars = uiiPageVars(uiiState.all);
+  const head = uiiEl('div', 'sec', 'Variables — type a value, Enter applies ', 'section-vars');
+  const find = uiiEl('input', 'find', undefined, 'filter-vars');
+  find.placeholder = 'Filter';
+  find.spellcheck = false;
+  head.appendChild(find);
+  const list = uiiEl('div', 'vrs', undefined, 'vars-list');
+  for (const v of vars) list.appendChild(uiiVarRow(v));
+  if (!vars.length) list.appendChild(uiiEl('div', 'vnone', 'No custom properties in the stylesheets this page lets us read.'));
+  find.addEventListener('input', () => {
+    const q = find.value.trim().toLowerCase();
+    for (const r of list.children) r.hidden = !!q && !(r.dataset.name || '').includes(q);
+  });
+  body.append(head, list);
+  return vars.length;
+}
+
+// The palette as a panel mode: it needs no element, so it opens the panel on
+// its own. The rule list is collected here — uiiVarApply reads it to find the
+// rule that declares a variable, and with nothing pinned there is no info to
+// carry it.
+function uiiVarsPanel() {
+  const S = uiiState, P = S.panel;
+  if (!P) return;
+  S.all = uiiAllRules();
+  P.name.textContent = 'Variables';
+  P.body.textContent = '';
+  const n = uiiRenderVars(P.body);
+  P.tag.textContent = n + (n === 1 ? ' var' : ' vars');
+  uiiChangesBox(P.body);
+  P.reset.hidden = !uiiVarEdits.size;
+  P.root.classList.add('on');
+}
+
+// P, and the header button. Leaving the mode goes back to the pinned element
+// when there is one, and closes the panel when there is not.
+function uiiToggleVars() {
+  const S = uiiState;
+  if (!S.panel) return;
+  uiiCloseVarList();
+  S.varsMode = !S.varsMode;
+  if (S.varsMode) uiiVarsPanel();
+  else if (S.info) uiiRenderPanel(S.info);
+  else S.panel.root.classList.remove('on');
+}
+
 /* ================= live editing: fields =================
    Design-tool style controls grouped in cards: number boxes (editnum.js), a
    weight dropdown, a text-align toggle, colour pickers (editcolor.js). All of
@@ -2229,13 +2365,16 @@ function uiiBuildPanel(sh) {
   // Changes box and the pinned element all survive the look.
   const peek = uiiEl('button', '', '👁', 'normal-view');
   peek.title = 'Normal view — hide the overlay and use the page (V)';
+  // The palette: the page's variables, editable with nothing pinned.
+  const vars = uiiEl('button', '', '🎨', 'vars-mode');
+  vars.title = 'Page variables — edit the palette without pinning anything (P)';
   const close = uiiEl('button', '', '✕', 'close-panel');
   close.title = 'Close panel (selection stays)';
   // Reset shows only once the element has an edit; ok flashes "copied".
   const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
   reset.title = 'Undo every live edit on this element, and every variable edit';
   const ok = uiiEl('span', 'ok', '', 'copy-status');
-  head.append(name, tag, ok, reset, peek, fold, close);
+  head.append(name, tag, ok, reset, vars, peek, fold, close);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
   const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
@@ -2244,12 +2383,13 @@ function uiiBuildPanel(sh) {
   S.panel = { root: p, name, tag, body, ok, reset, peek };
   close.addEventListener('click', () => p.classList.remove('on'));
   peek.addEventListener('click', () => uiiPeek());
+  vars.addEventListener('click', () => uiiToggleVars());
   fold.addEventListener('click', () => {
     const min = p.classList.toggle('min');
     fold.textContent = min ? '▢' : '—';
     fold.title = min ? 'Maximize' : 'Minimize';
   });
-  reset.addEventListener('click', () => uiiResetEdits(S.info.el));
+  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info.el));
   uiiDrag(head, p);
   uiiResizeLeft(grip, p);
 }
@@ -2346,6 +2486,7 @@ function uiiRow(k, v, swatchHex) {
 function uiiRenderPanel(info) {
   const P = uiiState.panel;
   if (!P) return;
+  uiiState.varsMode = false; // a selection is an element view, whatever was open
   P.name.textContent = info.name;
   P.tag.textContent = '<' + info.tag + '>';
   const b = P.body;
@@ -2378,18 +2519,7 @@ function uiiRenderPanel(info) {
   b.appendChild(stHead);
   uiiRenderEditRows(b, info);
 
-  // Rebuilt with the rest of the body, so typing in it lasts until the next
-  // edit or selection refills it.
-  const chHead = uiiEl('div', 'sec', 'All changes ', 'section-changes');
-  const chCopy = uiiEl('button', 'mini', '📋 Copy for AI', 'copy-for-ai');
-  chHead.appendChild(chCopy);
-  const changes = uiiEl('textarea', 'chg', undefined, 'changes');
-  changes.spellcheck = false;
-  changes.rows = 7;
-  chCopy.addEventListener('click', () => uiiCopy(changes.value, chCopy));
-  b.append(chHead, changes);
-  P.changes = changes;
-  uiiRefreshChanges();
+  uiiChangesBox(b);
   P.reset.hidden = !uiiEditsFor(info.el, false) && !uiiVarEdits.size;
   P.root.classList.add('on');
 }
@@ -2479,12 +2609,14 @@ function uiiOnKey(e) {
   }
   // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
   // panel or on the page. Each is a panel button without the reach — C the
-  // Copy ID line, A the Changes box, V the Normal view toggle.
+  // Copy ID line, A the Changes box, V the Normal view toggle, P the page
+  // variables.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
   else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
+  else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
 }
 
 // A single-letter shortcut swallows its key, so the app underneath never
