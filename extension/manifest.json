@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UI Inspector",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Outline controls, pin one, copy its selector, colours and CSS rules for an AI.",
   "permissions": ["scripting", "activeTab"],
   "background": { "service_worker": "background.js" },
