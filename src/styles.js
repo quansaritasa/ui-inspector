@@ -45,6 +45,10 @@ const UII_CSS = `
   font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; pointer-events: none;
   transition: opacity .4s ease; }
 .badge.off { opacity: 0; }
+.ptrtoast { position: fixed; z-index: 2147483003; padding: 3px 10px; border-radius: 999px;
+  background: #111827; color: #f9fafb; white-space: nowrap; pointer-events: none;
+  font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; transition: opacity .3s ease; }
+.ptrtoast.off { opacity: 0; }
 .badge kbd { background: #374151; padding: 0 4px; border-radius: 3px; font: inherit; }
 /* Normal view (V): the panel stays, everything the inspector draws goes, so
    an edit is judged against the real screen. !important, because the pieces

@@ -32,7 +32,7 @@ const uiiState = {
   host: null, shadow: null, layer: null, hoverBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
-  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
+  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, ptrToast: null, ptrTimer: 0, badgeHtml: '', peek: false,
   picks: [], pickBoxes: [], pickSeq: 0,  // Shift+click list: [{el, ready}] and its numbered boxes
   mx: 0, my: 0, pos: false,  // last pointer position, tracked while bound (see uiiTrackPointer)
 };

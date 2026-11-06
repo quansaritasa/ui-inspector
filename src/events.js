@@ -4,19 +4,23 @@
    came from inside the panel) pass through untouched. Pinning an element is
    what builds the panel: see uiiCollect in inspect.js. */
 
-// Nearest control ancestor of the pointer target, or the raw element while
+// Nearest interactive ancestor of the pointer target, or the raw element while
 // Alt is held (to reach a <span> inside a button, say).
 function uiiTargetFrom(e) {
   return uiiSnap(e.target, e.altKey);
 }
+
+// Only interactive controls pull a click up to themselves. Containers that
+// merely get outlined ([id], section, [role]) do not: a click on a <mark>
+// inside <pre id="raw"> pins the <mark>, not the whole <pre>.
+const UII_SNAP = 'button,a,label,input,select,textarea,summary,[contenteditable]';
 
 // The snap itself, without an event: the pointer tracker has coordinates
 // only, so uiiOpenAtPointer calls this one directly.
 function uiiSnap(t, alt) {
   if (!t || t.nodeType !== 1 || t === uiiState.host) return null;
   if (alt) return t;
-  let c = null;
-  try { c = t.closest(uiiState.selList); } catch (err) { c = null; }
+  const c = t.closest(UII_SNAP);
   return c && c !== document.body && c !== document.documentElement ? c : t;
 }
 
@@ -38,7 +42,15 @@ function uiiSetHover(el, raw) {
     hint.textContent = 'Hold Alt to pick the <' + raw.tagName.toLowerCase() + '> inside';
     S.tip.appendChild(hint);
   }
-  const h = S.tip.childElementCount > 2 ? 42 : 24;
+  // A parent its children cover edge to edge (a row of cells) has no spot to
+  // hover; ↑ after the click is the way up, so name it.
+  const up = el.parentElement;
+  if (up && up !== document.body && up !== document.documentElement) {
+    const hint = document.createElement('i');
+    hint.textContent = 'Click, then ↑ for the <' + up.tagName.toLowerCase() + '> around it';
+    S.tip.appendChild(hint);
+  }
+  const h = 24 + 18 * (S.tip.childElementCount - 2);
   const top = r.top > h + 4 ? r.top - h : r.bottom + 4;
   S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
   S.tip.style.top = top + 'px';
@@ -51,6 +63,7 @@ function uiiSetHover(el, raw) {
 function uiiTrackPointer(e) {
   const S = uiiState;
   S.mx = e.clientX; S.my = e.clientY; S.pos = true;
+  if (S.ptrToast && !S.ptrToast.classList.contains('off')) uiiPlacePtrToast();
 }
 
 function uiiOnMove(e) {

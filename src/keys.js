@@ -87,16 +87,21 @@ function uiiOnKey(e) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
-  // The one shortcut with a modifier: Cmd/Ctrl+Z takes back the last edit.
-  // Guarded above, so inside a text box it stays the browser's own undo.
+  // The shortcuts with a modifier: Cmd/Ctrl+Z takes back the last edit,
+  // Cmd/Ctrl+I copies the hovered colour with no click. Guarded above, so
+  // inside a text box they stay the browser's own undo and italic.
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
     uiiKeyAction(e, uiiUndo);
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'i') {
+    uiiKeyAction(e, uiiCopyHoverColor);
     return;
   }
   // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
   // panel or on the page. Each is a panel button without the reach — C the
   // Copy ID line, A the Changes box, V the Normal view toggle, P the page
-  // variables, T the DOM tree.
+  // variables, T the DOM tree, I the colour picker.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
@@ -104,6 +109,7 @@ function uiiOnKey(e) {
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
   else if (k === 't') uiiKeyAction(e, uiiToggleTree);
+  else if (k === 'i' && window.EyeDropper) uiiKeyAction(e, uiiPickColor);
 }
 
 // A single-letter shortcut swallows its key, so the app underneath never
@@ -117,6 +123,7 @@ const UII_HINTS = [
   ['dom-tree-toggle', 'T', 'DOM tree'],
   ['vars-mode', 'P', 'page variables'],
   ['normal-view', 'V', 'normal view'],
+  ['color-picker', 'I', 'colour picker'],
   ['copy-id', 'C', 'copy ID'],
   ['copy-for-ai', 'A', 'copy all changes'],
 ];

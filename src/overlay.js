@@ -21,8 +21,9 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>Shift</kbd>+click to pick several, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>I</kbd> colour picker, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
+  S.ptrToast = mk('ptrtoast off');
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
   uiiBuildPanel(sh);
@@ -35,7 +36,7 @@ function uiiUnmount() {
   const S = uiiState;
   if (S.host) S.host.remove();
   S.host = S.shadow = S.layer = S.hoverBox = S.tip = S.badge = S.scratch = S.panel = null;
-  S.mgBox = S.pdBox = S.spv = null;
+  S.mgBox = S.pdBox = S.spv = S.ptrToast = null;
   S.boxes = [];
   S.pickBoxes = [];
 }
@@ -84,6 +85,33 @@ function uiiFlash(text) {
     S.badge.innerHTML = S.badgeHtml;
     S.badge.classList.add('off');
   }, 1200);
+}
+
+// The same kind of message beside the pointer, where the eye already is —
+// a button or the badge can sit far from the click or key press.
+function uiiPointerSay(text) {
+  const S = uiiState;
+  const t = S.ptrToast;
+  if (!t || !S.pos) return;
+  t.textContent = text;
+  t.classList.remove('off');
+  uiiPlacePtrToast();
+  clearTimeout(S.ptrTimer);
+  S.ptrTimer = setTimeout(() => { if (S.ptrToast) S.ptrToast.classList.add('off'); }, 1200);
+}
+
+// Below-right of the cursor, flipped to the other side near an edge. Called
+// on every pointer move while the toast shows, so it follows the cursor. The
+// colour picker may hold back pointer moves while open; then the toast would
+// otherwise stay where the pick started (the 💧 key) instead of the click.
+function uiiPlacePtrToast() {
+  const S = uiiState;
+  const t = S.ptrToast;
+  t.style.left = S.mx + 14 + 'px';
+  t.style.top = S.my + 18 + 'px';
+  const r = t.getBoundingClientRect();
+  if (r.right > innerWidth) t.style.left = Math.max(0, S.mx - 8 - r.width) + 'px';
+  if (r.bottom > innerHeight) t.style.top = Math.max(0, S.my - 8 - r.height) + 'px';
 }
 
 // Normal view: hide every outline and band, and hand the pointer back to the

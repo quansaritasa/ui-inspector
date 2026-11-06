@@ -48,7 +48,7 @@ files, and browsers block that fetch from `file://`.
 | Click | Pin the element (a blue box numbered `1`) and open the details panel |
 | `Mod+click` (Cmd on macOS, Ctrl elsewhere) | Pin the element and copy its **📋 Copy ID** line in one go |
 | `Shift+click` | Add the element to the list started by the last pin, as the next numbered blue box, or take it out if already picked, and copy every picked element's **📋 Copy ID** line as one prompt opener, `Update these elements [a], [b] and [c]: ` — paste it and type what to change. Any other pin (click, arrows, tree row) starts the list again at `1`; `Esc` clears it |
-| Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest control |
+| Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest button, link, label or input |
 | `↑` `↓` `←` `→` | Walk to the parent, first child, previous or next sibling of the pinned element |
 | Drag the panel header | Move the panel |
 | Drag any panel edge or corner | Resize it, like a desktop window |
@@ -61,6 +61,8 @@ files, and browsers block that fetch from `file://`.
 | `A` | Copy the same **Changes** text from the keyboard — the badge says `No changes yet` when there is nothing to copy |
 | **Declared** at the foot of the **Style** section | Every property the pinned element's own rules set, and every variable they read, each with its value in a box. The last row adds any other property or variable the rules do not mention yet |
 | `T`, or **🌳** in the panel header | DOM tree: a column down the left of the panel listing every element on the page. Hover a row to outline that element, click it to pin it, click a twisty to open a branch. Only open branches are built, so the cost is what you opened, not what the page holds |
+| `I`, or **💧** in the panel header | Colour picker: the browser's eyedropper opens with a magnifier at the pointer. Click any pixel to copy its hex code; `Esc` cancels. Chrome and Edge only |
+| `Ctrl/Cmd + I` | Copy the hovered colour with no click: the text colour when the pointer is on a letter, otherwise the first non-transparent background behind it. Read from CSS, so a gradient or image is skipped |
 | `P`, or **🎨** in the panel header | Page variables: the panel lists every custom property the stylesheets declare, with its value in a box — edit the palette with nothing pinned. Press again to go back to the pinned element, or to close the panel when nothing is pinned |
 | `V`, or **👁** in the panel header | Normal view: hide every overlay and give the pointer back to the page, so an edit can be judged on the real screen. The panel, its edits and the pinned element stay; press again to go back to inspecting |
 | **↶**, or `Ctrl/Cmd+Z` | Take back the last edit and leave the rest standing. One press is one thing you did: a whole drag of a label, a retyped label, a size that scaled three nested spans |

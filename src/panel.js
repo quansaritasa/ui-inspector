@@ -99,18 +99,20 @@ function uiiHoldPanelSize(p) {
 }
 
 // btn: the Copy button pressed, if any. It shows the result in its own
-// place for 2s, then its label comes back.
-function uiiCopy(text, btn) {
+// place for 2s, then its label comes back. label: the success message, when
+// the copied text is worth echoing.
+function uiiCopy(text, btn, label) {
   const S = uiiState;
   // Both places: the panel's own line, and the badge for when C was pressed
   // with the panel closed.
   const say = (msg) => {
+    uiiPointerSay(msg);
     if (btn) { uiiButtonSay(btn, msg); return; }
     uiiFlash(msg);
     if (S.panel) S.panel.ok.textContent = msg;
   };
   const done = () => {
-    say('✅ copied');
+    say(label || '✅ copied');
     setTimeout(() => { if (S.panel) S.panel.ok.textContent = ''; }, 1200);
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }

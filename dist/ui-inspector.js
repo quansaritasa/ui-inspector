@@ -51,6 +51,10 @@ const UII_CSS = `
   font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; pointer-events: none;
   transition: opacity .4s ease; }
 .badge.off { opacity: 0; }
+.ptrtoast { position: fixed; z-index: 2147483003; padding: 3px 10px; border-radius: 999px;
+  background: #111827; color: #f9fafb; white-space: nowrap; pointer-events: none;
+  font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; transition: opacity .3s ease; }
+.ptrtoast.off { opacity: 0; }
 .badge kbd { background: #374151; padding: 0 4px; border-radius: 3px; font: inherit; }
 /* Normal view (V): the panel stays, everything the inspector draws goes, so
    an edit is judged against the real screen. !important, because the pieces
@@ -866,8 +870,9 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>Shift</kbd>+click to pick several, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>I</kbd> colour picker, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
+  S.ptrToast = mk('ptrtoast off');
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
   uiiBuildPanel(sh);
@@ -880,7 +885,7 @@ function uiiUnmount() {
   const S = uiiState;
   if (S.host) S.host.remove();
   S.host = S.shadow = S.layer = S.hoverBox = S.tip = S.badge = S.scratch = S.panel = null;
-  S.mgBox = S.pdBox = S.spv = null;
+  S.mgBox = S.pdBox = S.spv = S.ptrToast = null;
   S.boxes = [];
   S.pickBoxes = [];
 }
@@ -929,6 +934,33 @@ function uiiFlash(text) {
     S.badge.innerHTML = S.badgeHtml;
     S.badge.classList.add('off');
   }, 1200);
+}
+
+// The same kind of message beside the pointer, where the eye already is —
+// a button or the badge can sit far from the click or key press.
+function uiiPointerSay(text) {
+  const S = uiiState;
+  const t = S.ptrToast;
+  if (!t || !S.pos) return;
+  t.textContent = text;
+  t.classList.remove('off');
+  uiiPlacePtrToast();
+  clearTimeout(S.ptrTimer);
+  S.ptrTimer = setTimeout(() => { if (S.ptrToast) S.ptrToast.classList.add('off'); }, 1200);
+}
+
+// Below-right of the cursor, flipped to the other side near an edge. Called
+// on every pointer move while the toast shows, so it follows the cursor. The
+// colour picker may hold back pointer moves while open; then the toast would
+// otherwise stay where the pick started (the 💧 key) instead of the click.
+function uiiPlacePtrToast() {
+  const S = uiiState;
+  const t = S.ptrToast;
+  t.style.left = S.mx + 14 + 'px';
+  t.style.top = S.my + 18 + 'px';
+  const r = t.getBoundingClientRect();
+  if (r.right > innerWidth) t.style.left = Math.max(0, S.mx - 8 - r.width) + 'px';
+  if (r.bottom > innerHeight) t.style.top = Math.max(0, S.my - 8 - r.height) + 'px';
 }
 
 // Normal view: hide every outline and band, and hand the pointer back to the
@@ -1144,19 +1176,23 @@ function uiiDrawSpacing(el) {
    came from inside the panel) pass through untouched. Pinning an element is
    what builds the panel: see uiiCollect in inspect.js. */
 
-// Nearest control ancestor of the pointer target, or the raw element while
+// Nearest interactive ancestor of the pointer target, or the raw element while
 // Alt is held (to reach a <span> inside a button, say).
 function uiiTargetFrom(e) {
   return uiiSnap(e.target, e.altKey);
 }
+
+// Only interactive controls pull a click up to themselves. Containers that
+// merely get outlined ([id], section, [role]) do not: a click on a <mark>
+// inside <pre id="raw"> pins the <mark>, not the whole <pre>.
+const UII_SNAP = 'button,a,label,input,select,textarea,summary,[contenteditable]';
 
 // The snap itself, without an event: the pointer tracker has coordinates
 // only, so uiiOpenAtPointer calls this one directly.
 function uiiSnap(t, alt) {
   if (!t || t.nodeType !== 1 || t === uiiState.host) return null;
   if (alt) return t;
-  let c = null;
-  try { c = t.closest(uiiState.selList); } catch (err) { c = null; }
+  const c = t.closest(UII_SNAP);
   return c && c !== document.body && c !== document.documentElement ? c : t;
 }
 
@@ -1178,7 +1214,15 @@ function uiiSetHover(el, raw) {
     hint.textContent = 'Hold Alt to pick the <' + raw.tagName.toLowerCase() + '> inside';
     S.tip.appendChild(hint);
   }
-  const h = S.tip.childElementCount > 2 ? 42 : 24;
+  // A parent its children cover edge to edge (a row of cells) has no spot to
+  // hover; ↑ after the click is the way up, so name it.
+  const up = el.parentElement;
+  if (up && up !== document.body && up !== document.documentElement) {
+    const hint = document.createElement('i');
+    hint.textContent = 'Click, then ↑ for the <' + up.tagName.toLowerCase() + '> around it';
+    S.tip.appendChild(hint);
+  }
+  const h = 24 + 18 * (S.tip.childElementCount - 2);
   const top = r.top > h + 4 ? r.top - h : r.bottom + 4;
   S.tip.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 370)) + 'px';
   S.tip.style.top = top + 'px';
@@ -1191,6 +1235,7 @@ function uiiSetHover(el, raw) {
 function uiiTrackPointer(e) {
   const S = uiiState;
   S.mx = e.clientX; S.my = e.clientY; S.pos = true;
+  if (S.ptrToast && !S.ptrToast.classList.contains('off')) uiiPlacePtrToast();
 }
 
 function uiiOnMove(e) {
@@ -3049,7 +3094,7 @@ function uiiTreeBind(tree) {
 /* ================= the panel header =================
    The title line and the row of keys at its right, in three groups read
    left to right: what you did to the element (↶ ↺), what you are looking at
-   (🎨 👁), and the window itself (— ✕). A thin rule separates the groups.
+   (🌳 🎨 👁 💧), and the window itself (— ✕). A thin rule separates the groups.
 
    Every key is the same square, one glyph, no word — a label on one of them
    would break the rhythm and move its neighbours. The contextual pair stays
@@ -3090,6 +3135,11 @@ function uiiBuildHead(p) {
     'Page variables — edit the palette without pinning anything (P)');
   const peek = uiiHeadBtn('👁', 'normal-view',
     'Normal view — hide the overlay and use the page (V)');
+  const drop = uiiHeadBtn('💧', 'color-picker',
+    window.EyeDropper ? 'Color picker — click any pixel on screen to copy its colour (I).'
+      + ' Ctrl/Cmd+I copies the hovered colour with no click'
+      : 'Color picker — not supported in this browser (Chrome/Edge only)');
+  drop.disabled = !window.EyeDropper;
 
   // Group 3 — the window. Minimize folds the panel to its header so the page
   // underneath shows; the class lives on the panel, so a new selection stays
@@ -3098,12 +3148,13 @@ function uiiBuildHead(p) {
   const close = uiiHeadBtn('✕', 'close-panel', 'Close panel (selection stays)');
 
   const sep = () => uiiEl('span', 'sep');
-  head.append(name, tag, ok, undo, reset, sep(), treeBtn, vars, peek, sep(), fold, close);
+  head.append(name, tag, ok, undo, reset, sep(), treeBtn, vars, peek, drop, sep(), fold, close);
 
   close.addEventListener('click', () => p.classList.remove('on'));
   peek.addEventListener('click', () => uiiPeek());
   treeBtn.addEventListener('click', () => uiiToggleTree());
   vars.addEventListener('click', () => uiiToggleVars());
+  drop.addEventListener('click', () => uiiPickColor());
   fold.addEventListener('click', () => {
     const min = p.classList.toggle('min');
     fold.textContent = min ? '▢' : '—';
@@ -3112,6 +3163,63 @@ function uiiBuildHead(p) {
   });
   reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info && S.info.el));
   return { head, name, tag, ok, undo, reset, treeBtn, vars, peek };
+}
+
+// The browser's own eyedropper: it samples any pixel on screen, the page's
+// own colours included. The outlines go while it is open so a sample never
+// lands on the inspector's drawing instead of the page. Esc cancels it.
+function uiiPickColor() {
+  const S = uiiState;
+  const hid = S.host && !S.host.classList.contains('peek');
+  if (hid) S.host.classList.add('peek');
+  new EyeDropper().open()
+    // No btn: the key is a one-glyph square, a message would stretch it.
+    .then((r) => uiiCopy(r.sRGBHex, null, `✅ ${r.sRGBHex} copied`), () => {}) // rejected = cancelled
+    .finally(() => { if (hid && S.host) S.host.classList.remove('peek'); });
+}
+
+// Ctrl/Cmd+I: the colour under the pointer, read from CSS, no click. Over a
+// glyph it is the text colour; anywhere else the first background that is
+// not transparent, walking up — what shows behind the pointer. A background
+// image or gradient is not a colour and is walked past.
+function uiiCopyHoverColor() {
+  const S = uiiState;
+  if (!S.pos) return;
+  const x = S.mx, y = S.my;
+  const el = document.elementFromPoint(x, y);
+  if (!el || (S.host && S.host.contains(el))) return; // over the panel
+  let hex, what;
+  const node = uiiTextNodeAt(x, y);
+  if (node) { hex = uiiToHex(getComputedStyle(node.parentElement).color); what = 'text'; }
+  else {
+    let bg = el;
+    while (bg && uiiIsTransparent(getComputedStyle(bg).backgroundColor)) bg = bg.parentElement;
+    hex = bg ? uiiToHex(getComputedStyle(bg).backgroundColor) : '#ffffff'; // nothing set: the canvas default
+    what = 'background';
+  }
+  uiiCopy(hex, null, `✅ ${hex} copied (${what})`);
+}
+
+// The text node whose glyph sits under (x, y), or null. The caret APIs snap
+// to the nearest character even from blank space, so the glyph's own box
+// has to contain the point.
+function uiiTextNodeAt(x, y) {
+  let node, off;
+  if (document.caretPositionFromPoint) {
+    const p = document.caretPositionFromPoint(x, y);
+    if (p) { node = p.offsetNode; off = p.offset; }
+  } else if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(x, y);
+    if (r) { node = r.startContainer; off = r.startOffset; }
+  }
+  if (!node || node.nodeType !== 3) return null;
+  const hit = (a, b) => {
+    if (a < 0 || b > node.length) return false;
+    const r = document.createRange();
+    r.setStart(node, a); r.setEnd(node, b);
+    return [...r.getClientRects()].some((q) => x >= q.left && x <= q.right && y >= q.top && y <= q.bottom);
+  };
+  return hit(off, off + 1) || hit(off - 1, off) ? node : null;
 }
 
 /* ================= details panel =================
@@ -3215,18 +3323,20 @@ function uiiHoldPanelSize(p) {
 }
 
 // btn: the Copy button pressed, if any. It shows the result in its own
-// place for 2s, then its label comes back.
-function uiiCopy(text, btn) {
+// place for 2s, then its label comes back. label: the success message, when
+// the copied text is worth echoing.
+function uiiCopy(text, btn, label) {
   const S = uiiState;
   // Both places: the panel's own line, and the badge for when C was pressed
   // with the panel closed.
   const say = (msg) => {
+    uiiPointerSay(msg);
     if (btn) { uiiButtonSay(btn, msg); return; }
     uiiFlash(msg);
     if (S.panel) S.panel.ok.textContent = msg;
   };
   const done = () => {
-    say('✅ copied');
+    say(label || '✅ copied');
     setTimeout(() => { if (S.panel) S.panel.ok.textContent = ''; }, 1200);
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
@@ -3396,16 +3506,21 @@ function uiiOnKey(e) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
-  // The one shortcut with a modifier: Cmd/Ctrl+Z takes back the last edit.
-  // Guarded above, so inside a text box it stays the browser's own undo.
+  // The shortcuts with a modifier: Cmd/Ctrl+Z takes back the last edit,
+  // Cmd/Ctrl+I copies the hovered colour with no click. Guarded above, so
+  // inside a text box they stay the browser's own undo and italic.
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
     uiiKeyAction(e, uiiUndo);
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'i') {
+    uiiKeyAction(e, uiiCopyHoverColor);
     return;
   }
   // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
   // panel or on the page. Each is a panel button without the reach — C the
   // Copy ID line, A the Changes box, V the Normal view toggle, P the page
-  // variables, T the DOM tree.
+  // variables, T the DOM tree, I the colour picker.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
@@ -3413,6 +3528,7 @@ function uiiOnKey(e) {
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
   else if (k === 't') uiiKeyAction(e, uiiToggleTree);
+  else if (k === 'i' && window.EyeDropper) uiiKeyAction(e, uiiPickColor);
 }
 
 // A single-letter shortcut swallows its key, so the app underneath never
@@ -3426,6 +3542,7 @@ const UII_HINTS = [
   ['dom-tree-toggle', 'T', 'DOM tree'],
   ['vars-mode', 'P', 'page variables'],
   ['normal-view', 'V', 'normal view'],
+  ['color-picker', 'I', 'colour picker'],
   ['copy-id', 'C', 'copy ID'],
   ['copy-for-ai', 'A', 'copy all changes'],
 ];
@@ -3502,7 +3619,7 @@ const uiiState = {
   host: null, shadow: null, layer: null, hoverBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
-  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
+  mgBox: null, pdBox: null, spv: null, badgeTimer: 0, ptrToast: null, ptrTimer: 0, badgeHtml: '', peek: false,
   picks: [], pickBoxes: [], pickSeq: 0,  // Shift+click list: [{el, ready}] and its numbered boxes
   mx: 0, my: 0, pos: false,  // last pointer position, tracked while bound (see uiiTrackPointer)
 };
