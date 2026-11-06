@@ -22,7 +22,7 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';

@@ -62,6 +62,7 @@ function uiiDisable() {
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   clearTimeout(S.drawTimer); // a redraw waiting out uiiScheduleDraw's gap
+  clearTimeout(S.treeTimer); clearTimeout(S.chgTimer); // their targets go with the panel
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;

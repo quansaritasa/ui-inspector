@@ -145,8 +145,14 @@ function uiiStepper(bump) {
       uiiHold(true);
       bump(k);
       let timer = setTimeout(function rep() { bump(k); timer = setTimeout(rep, 60); }, 400);
-      const stop = () => { clearTimeout(timer); uiiHold(false); window.removeEventListener('mouseup', stop, true); };
+      // blur too: a mouseup outside the window (alt-tab) never arrives.
+      const stop = () => {
+        clearTimeout(timer); uiiHold(false);
+        window.removeEventListener('mouseup', stop, true);
+        window.removeEventListener('blur', stop);
+      };
       window.addEventListener('mouseup', stop, true);
+      window.addEventListener('blur', stop);
     });
     st.appendChild(b);
   }
@@ -169,6 +175,7 @@ function uiiScrub(handle, read, apply) {
     const up = () => {
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
+      window.removeEventListener('blur', up);
       if (raf) cancelAnimationFrame(raf);
       flush();
       uiiHold(false);
@@ -176,6 +183,7 @@ function uiiScrub(handle, read, apply) {
     uiiHold(true);
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
+    window.addEventListener('blur', up); // a mouseup outside the window never arrives
     e.preventDefault();
   });
 }

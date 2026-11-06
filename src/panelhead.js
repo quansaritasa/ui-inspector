@@ -30,6 +30,7 @@ function uiiBuildHead(p) {
   const undo = uiiUndoButton();
   const reset = uiiHeadBtn('↺', 'reset-edits',
     'Reset — put every live edit on this element back, and every variable edit', 'reset');
+  reset.disabled = true; // nothing to put back until an edit lands
 
   // Group 2 — what you are looking at. Each lights up while its mode is on.
   // The palette is the page's variables, editable with nothing pinned;
@@ -61,6 +62,6 @@ function uiiBuildHead(p) {
     fold.title = min ? 'Maximize' : 'Minimize';
     fold.setAttribute('aria-label', fold.title);
   });
-  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info.el));
+  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info && S.info.el));
   return { head, name, tag, ok, undo, reset, treeBtn, vars, peek };
 }

@@ -128,6 +128,7 @@ function uiiColorField(info, label, prop) {
     if (sel.value) uiiVarApply(sel.value, v, target); else uiiSet(info, prop, v);
     show(v);
   };
+  uiiPickHold(pick);
   pick.addEventListener('input', () => write(pick.value));
   box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });

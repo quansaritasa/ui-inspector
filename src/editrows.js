@@ -60,6 +60,15 @@ function uiiHold(on) {
   if (!on && S.drawLater) { S.drawLater = false; uiiScheduleDraw(); }
 }
 
+// A colour picker fires `input` on every move of its thumb: hold for the
+// whole pick, so it is one undo step and one rule rewrite, like a drag.
+function uiiPickHold(pick) {
+  const end = () => { if (pick.uiiHeld) { pick.uiiHeld = false; uiiHold(false); } };
+  pick.addEventListener('input', () => { if (!pick.uiiHeld) { pick.uiiHeld = true; uiiHold(true); } });
+  pick.addEventListener('change', end);
+  pick.addEventListener('blur', end); // a cancelled picker may never fire change
+}
+
 function uiiResetOne(el) {
   const e = uiiEditsFor(el, false);
   if (!e) return;

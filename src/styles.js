@@ -2,6 +2,8 @@
    Everything the inspector draws lives inside one shadow root, so host CSS
    cannot restyle the panel and this sheet cannot leak into the host. */
 
+const UII_PANEL_W = 500; // the .panel width; tree.js widens the panel from it
+
 const UII_CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; }
@@ -48,7 +50,7 @@ const UII_CSS = `
 :host(.peek) .sp, :host(.peek) .spv, :host(.peek) .badge { display: none !important; }
 .head button.on { background: #1f2937; border-color: #1f2937; color: #fff; }
 
-.panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: 500px; max-height: calc(100vh - 64px);
+.panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: ${UII_PANEL_W}px; max-height: calc(100vh - 64px);
   display: none; flex-direction: column; pointer-events: auto;
   background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,.25);

@@ -15,8 +15,7 @@ function uiiPageVars(all) {
   for (const name of uiiVarNames(all)) {
     const value = cs.getPropertyValue(name).trim();
     if (!value) continue;
-    const rgb = value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
-    out.push({ name, value, hex: rgb ? uiiToHex(rgb) : '' });
+    out.push({ name, value, hex: uiiRowHex(value) });
   }
   return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
 }
@@ -49,6 +48,7 @@ function uiiValueRow(name, value, set) {
     pick.type = 'color';
     // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
     pick.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000';
+    uiiPickHold(pick);
     pick.addEventListener('input', () => write(pick.value));
     wrap.appendChild(pick);
   }

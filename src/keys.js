@@ -22,7 +22,8 @@ function uiiParseShortcut(s) {
 
 function uiiKeyMatches(e, k) {
   if (!k) return false;
-  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  const mac = /mac|iphone|ipad/i.test(plat);
   const wantMeta = k.meta || (k.mod && mac);
   const wantCtrl = k.ctrl || (k.mod && !mac);
   if (e.metaKey !== wantMeta || e.ctrlKey !== wantCtrl) return false;
@@ -32,8 +33,12 @@ function uiiKeyMatches(e, k) {
   return key === k.key || code === k.key || code === 'key' + k.key || code === 'digit' + k.key;
 }
 
+// Only boxes that take typing: a focused checkbox or colour swatch must not
+// swallow the shortcuts.
+const UII_TEXT_INPUT = /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week)$/;
+
 function uiiInEditable(t) {
-  return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  return !!t && ((t.tagName === 'INPUT' && UII_TEXT_INPUT.test(t.type)) || t.tagName === 'TEXTAREA' || t.isContentEditable);
 }
 
 // Arrow keys walk the DOM from the pinned element, DevTools style.

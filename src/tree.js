@@ -10,12 +10,11 @@
    you have actually opened, never more. */
 
 const UII_TREE_W = 260;    // the column's width, added to the panel's own
-const UII_PANEL_W = 500;   // the .panel width in styles.js; keep the two equal
 const UII_TREE_KIDS = 300; // children drawn per node before "… N more"
 
-// Which nodes show their children. A Set keyed by element, so the shape
-// survives a rebuild after the page mutates.
-const uiiTreeOpen = new Set();
+// Which nodes show their children. Keyed by element, so the shape survives
+// a rebuild after the page mutates; weak, so a removed node is not kept alive.
+const uiiTreeOpen = new WeakSet();
 
 // Children worth a row: the inspector's own host and anything the host page
 // asked it to ignore are not part of the page you are styling, and <script>
@@ -116,8 +115,11 @@ function uiiToggleTree() {
   P.tree.hidden = !on;
   P.treeBtn.classList.toggle('on', on);
   const w = uiiPanelW(P.root);
-  P.root.style.width = Math.max(320, Math.min(window.innerWidth - 16,
-    on ? w + UII_TREE_W : w - UII_TREE_W)) + 'px';
+  // Closing takes off what opening added: a clamped open added less.
+  const nw = Math.max(320, Math.min(window.innerWidth - 16,
+    on ? w + UII_TREE_W : w - (P.treeAdd ?? UII_TREE_W)));
+  if (on) P.treeAdd = nw - w;
+  P.root.style.width = nw + 'px';
   if (on) {
     uiiTreeOpen.add(document.body);
     for (const c of uiiTreeKids(document.body)) uiiTreeOpen.add(c);

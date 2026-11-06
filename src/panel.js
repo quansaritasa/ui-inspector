@@ -95,6 +95,7 @@ function uiiCopy(text, btn) {
     setTimeout(() => { if (S.panel) S.panel.ok.textContent = ''; }, 1200);
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
+  if (!navigator.clipboard) { say('⚠ clipboard blocked'); return; } // plain http: no clipboard API
   navigator.clipboard.writeText(text).then(done, () => say('⚠ clipboard blocked'));
 }
 

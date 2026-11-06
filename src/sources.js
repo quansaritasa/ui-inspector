@@ -10,7 +10,7 @@ function uiiScriptWanted(url) {
   return !/\/(vendor|node_modules|dist)\//.test(url);
 }
 
-// Promise of Map basename -> source text, started when inspect mode opens
+// Promise of Map url -> source text, started when inspect mode opens
 // (uiiEnable) so the first pin does not wait on the fetches, and kept for the
 // session. The promise itself is kept, so a pin during the fetch shares it.
 function uiiScriptIndex() {
@@ -18,14 +18,17 @@ function uiiScriptIndex() {
   return S.sources || (S.sources = uiiFetchScripts());
 }
 
+// A script that never answers must not hold the Copy ID line forever.
+const UII_FETCH_MS = 3000;
+
 async function uiiFetchScripts() {
   const map = new Map();
   const jobs = [...document.scripts]
     .filter((s) => s.src && uiiScriptWanted(s.src))
     .map(async (s) => {
       try {
-        const res = await fetch(s.src);
-        if (res.ok) map.set(s.src.split('/').pop().split('?')[0], await res.text());
+        const res = await fetch(s.src, AbortSignal.timeout ? { signal: AbortSignal.timeout(UII_FETCH_MS) } : undefined);
+        if (res.ok) map.set(s.src, await res.text()); // full URL: two index.js must not collide
       } catch (e) { /* cross-origin or unreadable: skip */ }
     });
   await Promise.all(jobs);
@@ -62,7 +65,8 @@ async function uiiCodeFiles(info) {
     if (score) scored.push({ file, score });
   }
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, 3).map((s) => s.file);
+  const names = scored.map((s) => s.file.split('/').pop().split('?')[0]);
+  return [...new Set(names)].slice(0, 3);
 }
 
 // Stylesheet files behind the matched rules, most specific last in sheet

@@ -8,6 +8,8 @@
    Everything the inspector draws lives inside one shadow root, so host CSS
    cannot restyle the panel and this sheet cannot leak into the host. */
 
+const UII_PANEL_W = 500; // the .panel width; tree.js widens the panel from it
+
 const UII_CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; }
@@ -54,7 +56,7 @@ const UII_CSS = `
 :host(.peek) .sp, :host(.peek) .spv, :host(.peek) .badge { display: none !important; }
 .head button.on { background: #1f2937; border-color: #1f2937; color: #fff; }
 
-.panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: 500px; max-height: calc(100vh - 64px);
+.panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: ${UII_PANEL_W}px; max-height: calc(100vh - 64px);
   display: none; flex-direction: column; pointer-events: auto;
   background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,.25);
@@ -523,7 +525,7 @@ function uiiScriptWanted(url) {
   return !/\/(vendor|node_modules|dist)\//.test(url);
 }
 
-// Promise of Map basename -> source text, started when inspect mode opens
+// Promise of Map url -> source text, started when inspect mode opens
 // (uiiEnable) so the first pin does not wait on the fetches, and kept for the
 // session. The promise itself is kept, so a pin during the fetch shares it.
 function uiiScriptIndex() {
@@ -531,14 +533,17 @@ function uiiScriptIndex() {
   return S.sources || (S.sources = uiiFetchScripts());
 }
 
+// A script that never answers must not hold the Copy ID line forever.
+const UII_FETCH_MS = 3000;
+
 async function uiiFetchScripts() {
   const map = new Map();
   const jobs = [...document.scripts]
     .filter((s) => s.src && uiiScriptWanted(s.src))
     .map(async (s) => {
       try {
-        const res = await fetch(s.src);
-        if (res.ok) map.set(s.src.split('/').pop().split('?')[0], await res.text());
+        const res = await fetch(s.src, AbortSignal.timeout ? { signal: AbortSignal.timeout(UII_FETCH_MS) } : undefined);
+        if (res.ok) map.set(s.src, await res.text()); // full URL: two index.js must not collide
       } catch (e) { /* cross-origin or unreadable: skip */ }
     });
   await Promise.all(jobs);
@@ -575,7 +580,8 @@ async function uiiCodeFiles(info) {
     if (score) scored.push({ file, score });
   }
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, 3).map((s) => s.file);
+  const names = scored.map((s) => s.file.split('/').pop().split('?')[0]);
+  return [...new Set(names)].slice(0, 3);
 }
 
 // Stylesheet files behind the matched rules, most specific last in sheet
@@ -840,7 +846,7 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
@@ -1250,6 +1256,15 @@ function uiiHold(on) {
     S.ruleLater = null;
   }
   if (!on && S.drawLater) { S.drawLater = false; uiiScheduleDraw(); }
+}
+
+// A colour picker fires `input` on every move of its thumb: hold for the
+// whole pick, so it is one undo step and one rule rewrite, like a drag.
+function uiiPickHold(pick) {
+  const end = () => { if (pick.uiiHeld) { pick.uiiHeld = false; uiiHold(false); } };
+  pick.addEventListener('input', () => { if (!pick.uiiHeld) { pick.uiiHeld = true; uiiHold(true); } });
+  pick.addEventListener('change', end);
+  pick.addEventListener('blur', end); // a cancelled picker may never fire change
 }
 
 function uiiResetOne(el) {
@@ -1935,8 +1950,14 @@ function uiiStepper(bump) {
       uiiHold(true);
       bump(k);
       let timer = setTimeout(function rep() { bump(k); timer = setTimeout(rep, 60); }, 400);
-      const stop = () => { clearTimeout(timer); uiiHold(false); window.removeEventListener('mouseup', stop, true); };
+      // blur too: a mouseup outside the window (alt-tab) never arrives.
+      const stop = () => {
+        clearTimeout(timer); uiiHold(false);
+        window.removeEventListener('mouseup', stop, true);
+        window.removeEventListener('blur', stop);
+      };
       window.addEventListener('mouseup', stop, true);
+      window.addEventListener('blur', stop);
     });
     st.appendChild(b);
   }
@@ -1959,6 +1980,7 @@ function uiiScrub(handle, read, apply) {
     const up = () => {
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
+      window.removeEventListener('blur', up);
       if (raf) cancelAnimationFrame(raf);
       flush();
       uiiHold(false);
@@ -1966,6 +1988,7 @@ function uiiScrub(handle, read, apply) {
     uiiHold(true);
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
+    window.addEventListener('blur', up); // a mouseup outside the window never arrives
     e.preventDefault();
   });
 }
@@ -2100,6 +2123,7 @@ function uiiColorField(info, label, prop) {
     if (sel.value) uiiVarApply(sel.value, v, target); else uiiSet(info, prop, v);
     show(v);
   };
+  uiiPickHold(pick);
   pick.addEventListener('input', () => write(pick.value));
   box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
@@ -2128,8 +2152,7 @@ function uiiPageVars(all) {
   for (const name of uiiVarNames(all)) {
     const value = cs.getPropertyValue(name).trim();
     if (!value) continue;
-    const rgb = value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
-    out.push({ name, value, hex: rgb ? uiiToHex(rgb) : '' });
+    out.push({ name, value, hex: uiiRowHex(value) });
   }
   return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
 }
@@ -2162,6 +2185,7 @@ function uiiValueRow(name, value, set) {
     pick.type = 'color';
     // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
     pick.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000';
+    uiiPickHold(pick);
     pick.addEventListener('input', () => write(pick.value));
     wrap.appendChild(pick);
   }
@@ -2663,12 +2687,11 @@ function uiiUndoButton() {
    you have actually opened, never more. */
 
 const UII_TREE_W = 260;    // the column's width, added to the panel's own
-const UII_PANEL_W = 500;   // the .panel width in styles.js; keep the two equal
 const UII_TREE_KIDS = 300; // children drawn per node before "… N more"
 
-// Which nodes show their children. A Set keyed by element, so the shape
-// survives a rebuild after the page mutates.
-const uiiTreeOpen = new Set();
+// Which nodes show their children. Keyed by element, so the shape survives
+// a rebuild after the page mutates; weak, so a removed node is not kept alive.
+const uiiTreeOpen = new WeakSet();
 
 // Children worth a row: the inspector's own host and anything the host page
 // asked it to ignore are not part of the page you are styling, and <script>
@@ -2769,8 +2792,11 @@ function uiiToggleTree() {
   P.tree.hidden = !on;
   P.treeBtn.classList.toggle('on', on);
   const w = uiiPanelW(P.root);
-  P.root.style.width = Math.max(320, Math.min(window.innerWidth - 16,
-    on ? w + UII_TREE_W : w - UII_TREE_W)) + 'px';
+  // Closing takes off what opening added: a clamped open added less.
+  const nw = Math.max(320, Math.min(window.innerWidth - 16,
+    on ? w + UII_TREE_W : w - (P.treeAdd ?? UII_TREE_W)));
+  if (on) P.treeAdd = nw - w;
+  P.root.style.width = nw + 'px';
   if (on) {
     uiiTreeOpen.add(document.body);
     for (const c of uiiTreeKids(document.body)) uiiTreeOpen.add(c);
@@ -2839,6 +2865,7 @@ function uiiBuildHead(p) {
   const undo = uiiUndoButton();
   const reset = uiiHeadBtn('↺', 'reset-edits',
     'Reset — put every live edit on this element back, and every variable edit', 'reset');
+  reset.disabled = true; // nothing to put back until an edit lands
 
   // Group 2 — what you are looking at. Each lights up while its mode is on.
   // The palette is the page's variables, editable with nothing pinned;
@@ -2870,7 +2897,7 @@ function uiiBuildHead(p) {
     fold.title = min ? 'Maximize' : 'Minimize';
     fold.setAttribute('aria-label', fold.title);
   });
-  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info.el));
+  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info && S.info.el));
   return { head, name, tag, ok, undo, reset, treeBtn, vars, peek };
 }
 
@@ -2971,6 +2998,7 @@ function uiiCopy(text, btn) {
     setTimeout(() => { if (S.panel) S.panel.ok.textContent = ''; }, 1200);
   };
   if (typeof S.opts.onCopy === 'function') { S.opts.onCopy(text); done(); return; }
+  if (!navigator.clipboard) { say('⚠ clipboard blocked'); return; } // plain http: no clipboard API
   navigator.clipboard.writeText(text).then(done, () => say('⚠ clipboard blocked'));
 }
 
@@ -3071,7 +3099,8 @@ function uiiParseShortcut(s) {
 
 function uiiKeyMatches(e, k) {
   if (!k) return false;
-  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  const mac = /mac|iphone|ipad/i.test(plat);
   const wantMeta = k.meta || (k.mod && mac);
   const wantCtrl = k.ctrl || (k.mod && !mac);
   if (e.metaKey !== wantMeta || e.ctrlKey !== wantCtrl) return false;
@@ -3081,8 +3110,12 @@ function uiiKeyMatches(e, k) {
   return key === k.key || code === k.key || code === 'key' + k.key || code === 'digit' + k.key;
 }
 
+// Only boxes that take typing: a focused checkbox or colour swatch must not
+// swallow the shortcuts.
+const UII_TEXT_INPUT = /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week)$/;
+
 function uiiInEditable(t) {
-  return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  return !!t && ((t.tagName === 'INPUT' && UII_TEXT_INPUT.test(t.type)) || t.tagName === 'TEXTAREA' || t.isContentEditable);
 }
 
 // Arrow keys walk the DOM from the pinned element, DevTools style.
@@ -3217,6 +3250,7 @@ function uiiDisable() {
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   clearTimeout(S.drawTimer); // a redraw waiting out uiiScheduleDraw's gap
+  clearTimeout(S.treeTimer); clearTimeout(S.chgTimer); // their targets go with the panel
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;
