@@ -26,7 +26,12 @@ function uiiSetText(info, value) {
   const el = info.el;
   const e = uiiEditsFor(el, true);
   const ve = uiiValueEl(el);
-  if (!e.text) e.text = ve ? { el: ve, from: ve.value } : { node: info.textNode, from: info.textNode.data };
+  // One step for the whole retype: the first keystroke records the words as
+  // they were, and every keystroke after lands inside that same step.
+  if (!e.text) {
+    uiiUndoAdd({ k: 'text', el });
+    e.text = ve ? { el: ve, from: ve.value } : { node: info.textNode, from: info.textNode.data };
+  }
   // The node's own indentation is not part of the words: a <span> written
   // across two lines keeps the spaces that separate it from its neighbours.
   if (ve) ve.value = value;
@@ -34,7 +39,7 @@ function uiiSetText(info, value) {
     const pad = /^(\s*)[\s\S]*?(\s*)$/.exec(e.text.from);
     e.text.node.data = pad[1] + value + pad[2];
   }
-  if (uiiState.panel) uiiState.panel.reset.hidden = false;
+  if (uiiState.panel) uiiState.panel.reset.disabled = false;
   uiiScheduleDraw();
 }
 

@@ -54,7 +54,7 @@ const UII_CSS = `
   box-shadow: 0 12px 32px rgba(0,0,0,.25);
   font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
 .panel.on { display: flex; }
-.panel.min .body { display: none; }
+.panel.min .split { display: none; }
 .panel.min .head { border-bottom: 0; border-radius: 8px; }
 .head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; cursor: move;
   background: #f3f4f6; border-bottom: 1px solid #e5e7eb; border-radius: 8px 8px 0 0; user-select: none; }
@@ -62,13 +62,38 @@ const UII_CSS = `
   text-overflow: ellipsis; white-space: nowrap; }
 .head .tag { color: #6b7280; font-family: ui-monospace, Menlo, monospace; }
 /* Square icon buttons: one glyph each, so a fixed box reads as a row of
-   equal keys. Reset carries a word and keeps its own width. */
+   equal keys — no word breaks the rhythm. */
 .head button { width: 26px; height: 26px; flex: none; display: grid; place-items: center;
   font: inherit; padding: 0; border: 1px solid #d1d5db;
   border-radius: 4px; background: #fff; color: #111827; cursor: pointer; }
-.head button.reset { width: auto; padding: 0 8px; }
 .head button:hover { background: #e5e7eb; }
-.body { overflow: auto; padding: 0 0 6px; }
+/* Nothing to undo, nothing to reset: the key stays where it is and goes
+   quiet, so the row never shifts under the pointer mid-edit. */
+.head button:disabled { opacity: .3; cursor: default; }
+.head button:disabled:hover { background: #fff; }
+/* Three groups, left to right: what you did to the element, what you are
+   looking at, and the window itself. */
+.head .sep { width: 1px; height: 16px; flex: none; background: #d1d5db; margin: 0 1px; }
+/* The body and the tree share the row below the header; each scrolls on its
+   own, so a deep tree never pushes the style fields out of reach. */
+.split { display: flex; min-height: 0; flex: 1; }
+.body { flex: 1; min-width: 0; overflow: auto; padding: 0 0 6px; }
+.tree { width: 260px; flex: none; overflow: auto; padding: 4px 0 6px;
+  border-right: 1px solid #e5e7eb; background: #fafafa;
+  font: 11px/1.5 ui-monospace, Menlo, monospace; }
+.tree[hidden] { display: none; }
+.tree .tr { display: flex; align-items: center; gap: 2px; white-space: nowrap;
+  cursor: pointer; border-radius: 3px; }
+.tree .tr:hover { background: #e5e7eb; }
+.tree .tr.on { background: #1f2937; color: #fff; }
+.tree .tr.on .tg, .tree .tr.on .tw { color: #d1d5db; }
+/* A fixed box whether or not the node has children, so the names line up. */
+.tree .tw { width: 11px; flex: none; color: #6b7280; text-align: center; }
+/* A control reads as the panel would name it; a plain wrapper as its tag. */
+.tree .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.tree .tg { color: #6b7280; overflow: hidden; text-overflow: ellipsis; }
+.tree .more { color: #9ca3af; cursor: default; }
+.tree .more:hover { background: none; }
 .body > .sec:first-child { margin-top: 0; }
 .grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; }
 .grip:hover { background: rgba(59,130,246,.35); }
@@ -169,7 +194,7 @@ const UII_CSS = `
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
   background-size: 6px 6px; background-position: 0 0, 3px 3px; }
 .sw i { display: block; width: 100%; height: 100%; }
-.head .reset { color: #b91c1c; }
-.head .reset[hidden] { display: none; }
+.head .undo { color: #1d4ed8; font-size: 15px; }
+.head .reset { color: #b91c1c; font-size: 15px; }
 .head .ok { color: #16a34a; white-space: nowrap; }
 `;

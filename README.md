@@ -58,10 +58,19 @@ code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
 | `A` | Copy the same **Changes** text from the keyboard — the badge says `No changes yet` when there is nothing to copy |
 | **Declared** at the foot of the **Style** section | Every property the pinned element's own rules set, and every variable they read, each with its value in a box. The last row adds any other property or variable the rules do not mention yet |
+| `T`, or **🌳** in the panel header | DOM tree: a column down the left of the panel listing every element on the page. Hover a row to outline that element, click it to pin it, click a twisty to open a branch. Only open branches are built, so the cost is what you opened, not what the page holds |
 | `P`, or **🎨** in the panel header | Page variables: the panel lists every custom property the stylesheets declare, with its value in a box — edit the palette with nothing pinned. Press again to go back to the pinned element, or to close the panel when nothing is pinned |
 | `V`, or **👁** in the panel header | Normal view: hide every overlay and give the pointer back to the page, so an edit can be judged on the real screen. The panel, its edits and the pinned element stay; press again to go back to inspecting |
-| **↺ Reset** | Undo every live edit on the pinned element, and every variable edit |
+| **↶**, or `Ctrl/Cmd+Z` | Take back the last edit and leave the rest standing. One press is one thing you did: a whole drag of a label, a retyped label, a size that scaled three nested spans |
+| **↺** | Reset: put every live edit on the pinned element back, and every variable edit, in one go |
 | `Esc` or the shortcut again | Leave inspect mode and remove every overlay node |
+
+The header's keys are grouped left to right: what you did to the element
+(**↶ ↺**), what you are looking at (**🌳 🎨 👁**), and the window itself
+(**— ✕**). Each is one glyph in a square, with its name in the tooltip, and
+the two mode keys stay lit while their mode is on. **↶** and **↺** keep their
+place and go dim when there is nothing to take back, so no key ever moves out
+from under the pointer halfway through an edit.
 
 The pinned element also gets its box model drawn the way DevTools draws it:
 a green band for padding inside the border box, an orange band for margin
@@ -171,7 +180,7 @@ each with a swatch and a picker, then sizes, fonts and everything else, with a
 filter box for a palette that runs long. Type a value and the whole page
 follows at once, the row is marked as edited, and the change joins the Changes
 box as `style.css :root { --accent: #123456; }`. Nothing need be pinned, and
-**↺ Reset** puts every variable back. A variable only an inactive theme block
+**↺** Reset puts every variable back. A variable only an inactive theme block
 sets (`.dark { --bg }` while the light theme is on) resolves to nothing here
 and is left out: there would be no value to show and editing it would change
 nothing on screen.
@@ -221,10 +230,32 @@ change its size, and the title span inside it changes too — the field shows
 the main text's value, other text scales in proportion, and the log lists a
 line per element so an AI edits each rule. It is plain text you can
 trim before **📋 Copy for AI** — it refills on the next edit. Edits are also listed in
-**📋 Copy ID** as `apply: font-size: 14px; …`. **Reset**
-restores the element's original `style` attribute. Edits survive leaving
+**📋 Copy ID** as `apply: font-size: 14px; …`. **↶ Undo** (`Ctrl/Cmd+Z`)
+takes back the last edit alone, including the rule "Apply to similar" rewrote;
+**Reset** restores the element's original `style` attribute and empties the
+undo history with it. Edits survive leaving
 inspect mode; reload the page to clear them all. `editCount()` lets the host
 say so when inspect mode closes.
+
+## The DOM tree
+
+**🌳**, or `T`, opens a column down the left of the panel. It lists the page
+as it really is, from `<body>` down, and the panel widens so the style fields
+keep the room they had. Elements the inspector would outline — buttons,
+fields, links, anything carrying `data-ui`, an id or a role — are shown by the
+name the panel gives them; everything else reads as `<div.wrapper>`, so the
+rows worth aiming at stand out from the scaffolding around them.
+
+Hover a row and that element is outlined on the page, which is the fastest way
+to find out what a wrapper actually covers. Click a row to pin it: the fields
+beside it fill in at once, with no mode to leave. Pinning from the page works
+the other way too — the branch opens and the row scrolls into view.
+
+Only open branches are built. A branch you never opened costs nothing, and a
+node with thousands of children draws the first 300 and says how many are
+left, so the column stays responsive on a page the outline scan itself has to
+budget for. A page that rewrites itself under the tree refreshes it a moment
+later, keeping your scroll position.
 
 ## Where to edit
 
@@ -253,7 +284,7 @@ The panel's **Where to edit** rows name the files to open:
 - The shortcut is ignored while an input, textarea or editable element has
   focus, unless inspect mode is already on.
 - Every control in the panel carries a name of its own, written as both `id`
-  and `data-ui` — `inspector-panel`, `reset-edits`, `text-content`,
+  and `data-ui` — `inspector-panel`, `reset-edits`, `undo-edit`, `dom-tree`, `text-content`,
   `field-line-height`, `changes` — so a test or a script can aim at one without
   depending on a class that moves with the layout:
   `document.querySelector('[data-uii]').shadowRoot.getElementById('text-content')`.

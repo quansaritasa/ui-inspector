@@ -20,45 +20,22 @@ function uiiSlug(label) {
 }
 
 function uiiBuildPanel(sh) {
-  const S = uiiState;
   const p = uiiEl('div', 'panel', undefined, 'inspector-panel');
-  const head = uiiEl('div', 'head', undefined, 'panel-head');
-  const name = uiiEl('span', 'name', undefined, 'panel-name');
-  const tag = uiiEl('span', 'tag', undefined, 'panel-tag');
-  // Minimize folds the panel to its header so the page underneath shows;
-  // the class lives on the panel, so a new selection stays folded.
-  const fold = uiiEl('button', '', '—', 'minimize');
-  fold.title = 'Minimize';
-  // Normal view hides the overlay without closing the panel: the edits, the
-  // Changes box and the pinned element all survive the look.
-  const peek = uiiEl('button', '', '👁', 'normal-view');
-  peek.title = 'Normal view — hide the overlay and use the page (V)';
-  // The palette: the page's variables, editable with nothing pinned.
-  const vars = uiiEl('button', '', '🎨', 'vars-mode');
-  vars.title = 'Page variables — edit the palette without pinning anything (P)';
-  const close = uiiEl('button', '', '✕', 'close-panel');
-  close.title = 'Close panel (selection stays)';
-  // Reset shows only once the element has an edit; ok flashes "copied".
-  const reset = uiiEl('button', 'reset', '↺ Reset', 'reset-edits');
-  reset.title = 'Undo every live edit on this element, and every variable edit';
-  const ok = uiiEl('span', 'ok', '', 'copy-status');
-  head.append(name, tag, ok, reset, vars, peek, fold, close);
+  const parts = uiiBuildHead(p);
   const body = uiiEl('div', 'body', undefined, 'panel-body');
+  // The tree sits beside the body, not in it, so pinning from the tree
+  // re-renders the fields and leaves the list where it was.
+  const tree = uiiEl('div', 'tree', undefined, 'dom-tree');
+  tree.hidden = true;
+  const split = uiiEl('div', 'split');
+  split.append(tree, body);
   const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
   grip.title = 'Drag to resize';
-  p.append(grip, head, body);
+  p.append(grip, parts.head, split);
   sh.appendChild(p);
-  S.panel = { root: p, name, tag, body, ok, reset, peek };
-  close.addEventListener('click', () => p.classList.remove('on'));
-  peek.addEventListener('click', () => uiiPeek());
-  vars.addEventListener('click', () => uiiToggleVars());
-  fold.addEventListener('click', () => {
-    const min = p.classList.toggle('min');
-    fold.textContent = min ? '▢' : '—';
-    fold.title = min ? 'Maximize' : 'Minimize';
-  });
-  reset.addEventListener('click', () => uiiResetEdits(S.varsMode ? null : S.info.el));
-  uiiDrag(head, p);
+  uiiState.panel = Object.assign({ root: p, body, tree }, parts);
+  uiiTreeBind(tree);
+  uiiDrag(parts.head, p);
   uiiResizeLeft(grip, p);
 }
 
@@ -188,6 +165,8 @@ function uiiRenderPanel(info) {
   uiiRenderEditRows(b, info);
 
   uiiChangesBox(b);
-  P.reset.hidden = !uiiEditsFor(info.el, false) && !uiiVarEdits.size;
+  P.vars.classList.remove('on');
+  uiiTreeReveal(info.el); // however the element was picked, the tree follows
+  P.reset.disabled = !uiiEditsFor(info.el, false) && !uiiVarEdits.size;
   P.root.classList.add('on');
 }

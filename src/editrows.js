@@ -17,6 +17,8 @@ function uiiEditsFor(el, create) {
 
 function uiiApplyEdit(el, prop, value) {
   const e = uiiEditsFor(el, true);
+  uiiUndoAdd({ k: 'prop', el, prop, had: prop in e.props, to: e.props[prop],
+    inline: el.style.getPropertyValue(prop), pri: el.style.getPropertyPriority(prop) });
   if (!(prop in e.from)) e.from[prop] = getComputedStyle(el).getPropertyValue(prop).trim();
   e.props[prop] = value;
   el.style.setProperty(prop, value);
@@ -32,7 +34,7 @@ function uiiApplyEdit(el, prop, value) {
     }
   }
   if (uiiState.panel) {
-    uiiState.panel.reset.hidden = false;
+    uiiState.panel.reset.disabled = false;
     // Building the log matches CSS rules; once a drag settles is enough.
     clearTimeout(uiiState.chgTimer);
     uiiState.chgTimer = setTimeout(uiiRefreshChanges, 150);
@@ -45,6 +47,7 @@ function uiiApplyEdit(el, prop, value) {
 function uiiHold(on) {
   const S = uiiState;
   S.holding = on;
+  if (on) uiiUndoBegin(); else uiiUndoEnd();
   // The rules uiiApplyEdit held back, each written once with its last value.
   if (!on && S.ruleLater) {
     for (const [el, props] of S.ruleLater) {
@@ -78,6 +81,7 @@ function uiiResetEdits(el) {
     for (const k of e.kids || []) uiiResetOne(k);
     uiiResetOne(el);
   }
+  uiiUndoClear();
   uiiSyncRules();
   if (el) uiiSelect(el); else uiiVarsPanel();
 }

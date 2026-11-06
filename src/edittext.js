@@ -65,6 +65,11 @@ function uiiOrig(el, prop) {
 // icon beside a title stays in proportion), any other text property goes to
 // the text that shared the main text's value.
 function uiiSet(info, prop, value) {
+  uiiUndoBegin();
+  try { uiiSetInner(info, prop, value); } finally { uiiUndoEnd(); }
+}
+
+function uiiSetInner(info, prop, value) {
   if (!UII_TEXT_PROPS.includes(prop)) { uiiApplyEdit(info.el, prop, value); return; }
   const els = uiiTextEls(info);
   const main = els[0];

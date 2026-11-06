@@ -111,7 +111,7 @@ function uiiVarsPanel() {
   const n = uiiRenderVars(P.body);
   P.tag.textContent = n + (n === 1 ? ' var' : ' vars');
   uiiChangesBox(P.body);
-  P.reset.hidden = !uiiVarEdits.size;
+  P.reset.disabled = !uiiVarEdits.size;
   P.root.classList.add('on');
 }
 
@@ -122,6 +122,7 @@ function uiiToggleVars() {
   if (!S.panel) return;
   uiiCloseVarList();
   S.varsMode = !S.varsMode;
+  S.panel.vars.classList.toggle('on', S.varsMode);
   if (S.varsMode) uiiVarsPanel();
   else if (S.info) uiiRenderPanel(S.info);
   else S.panel.root.classList.remove('on');

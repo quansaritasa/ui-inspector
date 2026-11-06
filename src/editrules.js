@@ -64,6 +64,7 @@ const uiiVarEdits = new Map();
 
 function uiiVarApply(name, value, el) {
   let e = uiiVarEdits.get(name);
+  uiiUndoAdd({ k: 'var', name, el, had: !!e, to: e && e.to });
   if (!e) {
     // The palette edits variables with nothing pinned: no info to carry the
     // rule list, so the one it collected on open stands in.
@@ -78,7 +79,7 @@ function uiiVarApply(name, value, el) {
   e.to = value;
   e.style.setProperty(name, value);
   if (uiiState.panel) {
-    uiiState.panel.reset.hidden = false;
+    uiiState.panel.reset.disabled = false;
     uiiRefreshChanges();
   }
   uiiScheduleDraw();

@@ -81,16 +81,23 @@ function uiiOnKey(e) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
+  // The one shortcut with a modifier: Cmd/Ctrl+Z takes back the last edit.
+  // Guarded above, so inside a text box it stays the browser's own undo.
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    uiiKeyAction(e, uiiUndo);
+    return;
+  }
   // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
   // panel or on the page. Each is a panel button without the reach — C the
   // Copy ID line, A the Changes box, V the Normal view toggle, P the page
-  // variables.
+  // variables, T the DOM tree.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
   else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
+  else if (k === 't') uiiKeyAction(e, uiiToggleTree);
 }
 
 // A single-letter shortcut swallows its key, so the app underneath never

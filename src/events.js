@@ -54,7 +54,9 @@ function uiiTrackPointer(e) {
 }
 
 function uiiOnMove(e) {
-  if (uiiFromPanel(e)) { uiiSetHover(null); return; }
+  // A pointer over the panel clears the hover — except over a tree row,
+  // which has just asked for the outline on the element it names.
+  if (uiiFromPanel(e)) { if (!uiiState.treeHover) uiiSetHover(null); return; }
   uiiSetHover(uiiTargetFrom(e), e.target);
 }
 
@@ -106,7 +108,7 @@ function uiiBindEvents() {
   for (const [n, fn] of UII_EVENTS) window.addEventListener(n, fn, true);
   window.addEventListener('scroll', uiiScheduleDraw, true);
   window.addEventListener('resize', uiiScheduleDraw);
-  uiiState.mo = new MutationObserver(uiiScheduleDraw);
+  uiiState.mo = new MutationObserver(() => { uiiScheduleDraw(); uiiTreeTouch(); });
   uiiState.mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
 }
 
