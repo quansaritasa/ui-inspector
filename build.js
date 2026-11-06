@@ -24,4 +24,5 @@ if (typeof module !== 'undefined' && module.exports) module.exports = uiiApi;
 `;
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, out);
+fs.copyFileSync(OUT, path.join(__dirname, 'extension', 'ui-inspector.js')); // the extension can only load files inside its own folder
 console.log(`[ui-inspector] built ${path.relative(process.cwd(), OUT)} (${out.split('\n').length} lines)`);

@@ -111,6 +111,7 @@ function uiiPanelW(p) {
 function uiiToggleTree() {
   const S = uiiState, P = S.panel;
   if (!P || !P.tree) return;
+  uiiHoldPanelSize(P.root); // the height stays; the width changes below
   const on = P.tree.hidden;
   P.tree.hidden = !on;
   P.treeBtn.classList.toggle('on', on);
@@ -120,6 +121,21 @@ function uiiToggleTree() {
     on ? w + UII_TREE_W : w - (P.treeAdd ?? UII_TREE_W)));
   if (on) P.treeAdd = nw - w;
   P.root.style.width = nw + 'px';
+  // A panel placed by its left edge (dragged, resized, or parked on the left)
+  // grows to the right; slide it back so its right edge stays on screen, and
+  // put it back where it was when the tree closes — unless it was moved since.
+  const st = P.root.style;
+  if (on) {
+    P.treeSlide = null;
+    const left = parseFloat(st.left);
+    if (left + nw > window.innerWidth - 8) {
+      st.left = Math.max(8, window.innerWidth - 8 - nw) + 'px';
+      P.treeSlide = { from: left + 'px', to: st.left };
+    }
+  } else if (P.treeSlide) {
+    if (st.left === P.treeSlide.to) st.left = P.treeSlide.from;
+    P.treeSlide = null;
+  }
   if (on) {
     uiiTreeOpen.add(document.body);
     for (const c of uiiTreeKids(document.body)) uiiTreeOpen.add(c);

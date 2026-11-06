@@ -34,22 +34,24 @@ Then load it with one script tag:
 
 `npm run demo` builds the library and serves the repository at
 [http://127.0.0.1:6279/demo/](http://127.0.0.1:6279/demo/) (Python 3 required).
-The demo page has colour variables, a form, a table and a popup, and opens with
-inspect mode on. It is served over HTTP rather than opened as a file because the
-code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
+The demo page is a UI mock with design-token variables, inputs, and icon and
+symbol galleries, and opens with inspect mode on. It is served over HTTP rather
+than opened as a file because the code scan fetches the page's `<script src>`
+files, and browsers block that fetch from `file://`.
 
 ## Use
 
 | Action | Result |
 |---|---|
-| `Mod+\` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode. Opening it pins whatever the pointer is already on and opens the panel with it, on the half of the screen the pointer is not on, so the panel never lands on the element being looked at |
+| `Mod+\` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode. Opening it pins whatever the pointer is already on and opens the panel with it, on the right side of the screen, or on the left when the pointer is in the right 30%, so the panel stays off the element being looked at |
 | Hover | Red dashed box and a tooltip with the element's name and size |
-| Click | Pin the element and open the details panel |
+| Click | Pin the element (a blue box numbered `1`) and open the details panel |
 | `Mod+click` (Cmd on macOS, Ctrl elsewhere) | Pin the element and copy its **📋 Copy ID** line in one go |
+| `Shift+click` | Add the element to the list started by the last pin, as the next numbered blue box, or take it out if already picked, and copy every picked element's **📋 Copy ID** line as one prompt opener, `Update these elements [a], [b] and [c]: ` — paste it and type what to change. Any other pin (click, arrows, tree row) starts the list again at `1`; `Esc` clears it |
 | Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest control |
 | `↑` `↓` `←` `→` | Walk to the parent, first child, previous or next sibling of the pinned element |
 | Drag the panel header | Move the panel |
-| Drag the panel's left edge | Resize its width |
+| Drag any panel edge or corner | Resize it, like a desktop window |
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
 | `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
 | **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet files)]`, e.g. `[#edit-btn.btn (edit.js:12 · style.css)]` — an element with an id also carries its classes, the part that greps in the source |
@@ -75,7 +77,8 @@ from under the pointer halfway through an edit.
 The pinned element also gets its box model drawn the way DevTools draws it:
 a green band for padding inside the border box, an orange band for margin
 outside it, and a chip under it with both as CSS shorthand (`padding 5 8 · margin 10 10
-0 10`, in px) for the bands too thin to read.
+0 10`, in px) for the bands too thin to read. Every other Shift+click pick gets the
+same two bands without the chip, so a row of picks does not pile up labels.
 
 The hint at the top fades out two seconds after inspect mode opens — long
 enough to read, short enough not to sit over the page. It comes back for a

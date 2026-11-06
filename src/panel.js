@@ -29,14 +29,12 @@ function uiiBuildPanel(sh) {
   tree.hidden = true;
   const split = uiiEl('div', 'split');
   split.append(tree, body);
-  const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
-  grip.title = 'Drag to resize';
-  p.append(grip, parts.head, split);
+  p.append(parts.head, split);
   sh.appendChild(p);
   uiiState.panel = Object.assign({ root: p, body, tree }, parts);
   uiiTreeBind(tree);
   uiiDrag(parts.head, p);
-  uiiResizeLeft(grip, p);
+  uiiResize(p);
 }
 
 function uiiDrag(handle, box) {
@@ -59,24 +57,45 @@ function uiiDrag(handle, box) {
   });
 }
 
-// Drag the left edge to resize; the right edge stays put, as the panel sits
-// at the right of the window. Same capture-listener pattern as uiiDrag.
-function uiiResizeLeft(handle, box) {
-  let sx = 0, sw = 0, right = 0;
+// Drag any edge or corner to resize, as in a desktop window: the opposite
+// edge stays put, and the panel stays inside the window. Same capture-listener
+// pattern as uiiDrag.
+const UII_EDGES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+const UII_MIN_W = 320, UII_MIN_H = 120;
+
+function uiiResize(box) {
+  let dir = '', sx = 0, sy = 0, r0 = null;
   const move = (e) => {
-    const w = Math.max(320, Math.min(window.innerWidth - 16, sw + sx - e.clientX));
-    box.style.width = w + 'px';
-    box.style.left = Math.max(0, right - w) + 'px';
-    box.style.right = 'auto';
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    let { left, top, right, bottom } = r0;
+    if (dir.includes('w')) left = Math.max(0, Math.min(right - UII_MIN_W, left + dx));
+    if (dir.includes('e')) right = Math.min(window.innerWidth, Math.max(left + UII_MIN_W, right + dx));
+    if (dir.includes('n')) top = Math.max(0, Math.min(bottom - UII_MIN_H, top + dy));
+    if (dir.includes('s')) bottom = Math.min(window.innerHeight, Math.max(top + UII_MIN_H, bottom + dy));
+    Object.assign(box.style, { left: left + 'px', top: top + 'px', right: 'auto', width: right - left + 'px' });
+    // A height set by hand replaces the fit-to-content one (CSS max-height).
+    if (/[ns]/.test(dir)) Object.assign(box.style, { height: bottom - top + 'px', maxHeight: 'none' });
   };
   const up = () => { window.removeEventListener('mousemove', move, true); window.removeEventListener('mouseup', up, true); };
-  handle.addEventListener('mousedown', (e) => {
-    const r = box.getBoundingClientRect();
-    sx = e.clientX; sw = r.width; right = r.right;
-    window.addEventListener('mousemove', move, true);
-    window.addEventListener('mouseup', up, true);
-    e.preventDefault();
-  });
+  for (const d of UII_EDGES) {
+    const g = uiiEl('div', 'grip ' + d, undefined, 'resize-' + d);
+    g.addEventListener('mousedown', (e) => {
+      dir = d; sx = e.clientX; sy = e.clientY; r0 = box.getBoundingClientRect();
+      window.addEventListener('mousemove', move, true);
+      window.addEventListener('mouseup', up, true);
+      e.preventDefault();
+    });
+    box.appendChild(g);
+  }
+}
+
+// Switching views (P, T) swaps what the panel holds, and a fit-to-content
+// panel would jump to the new content's height. An open panel keeps the size it has, as if the
+// user had resized it by hand (see uiiResize).
+function uiiHoldPanelSize(p) {
+  if (!p.classList.contains('on') || p.classList.contains('min')) return;
+  const r = p.getBoundingClientRect();
+  Object.assign(p.style, { width: r.width + 'px', height: r.height + 'px', maxHeight: 'none' });
 }
 
 // btn: the Copy button pressed, if any. It shows the result in its own

@@ -3,7 +3,8 @@
    space actually sits. The pinned element gets DevTools' two bands — green
    padding inside the border box, orange margin outside it — plus one chip
    carrying the numbers, because a 1px band is visible and still unreadable.
-   Pinned only: on hover the bands would chase the pointer. */
+   Pinned and picked only: on hover the bands would chase the pointer. The
+   chip goes on the pinned element alone; every other pick gets bare bands. */
 
 const UII_SIDES = ['top', 'right', 'bottom', 'left'];
 
@@ -28,13 +29,8 @@ function uiiBand(box, out, w) {
   box.classList.add('on');
 }
 
-function uiiDrawSpacing(el) {
-  const S = uiiState;
-  if (!S.mgBox) return;
-  if (!el || !el.isConnected) {
-    for (const b of [S.mgBox, S.pdBox, S.spv]) b.classList.remove('on');
-    return;
-  }
+// Margin band into mg, padding band into pd, for el; returns what the chip needs.
+function uiiDrawBands(mg, pd, el) {
   const cs = getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const m = uiiBoxSides(cs, 'margin');
@@ -42,10 +38,21 @@ function uiiDrawSpacing(el) {
   const bw = uiiBoxSides(cs, 'border');
   // A negative margin pulls the element over its neighbour; the band cannot
   // be drawn inside-out, so only the chip reports it.
-  uiiBand(S.mgBox, { left: r.left - Math.max(0, m[3]), top: r.top - Math.max(0, m[0]),
+  uiiBand(mg, { left: r.left - Math.max(0, m[3]), top: r.top - Math.max(0, m[0]),
     width: r.width + Math.max(0, m[1]) + Math.max(0, m[3]), height: r.height + Math.max(0, m[0]) + Math.max(0, m[2]) }, m);
-  uiiBand(S.pdBox, { left: r.left + bw[3], top: r.top + bw[0],
+  uiiBand(pd, { left: r.left + bw[3], top: r.top + bw[0],
     width: r.width - bw[1] - bw[3], height: r.height - bw[0] - bw[2] }, p);
+  return { r, m, p };
+}
+
+function uiiDrawSpacing(el) {
+  const S = uiiState;
+  if (!S.mgBox) return;
+  if (!el || !el.isConnected) {
+    for (const b of [S.mgBox, S.pdBox, S.spv]) b.classList.remove('on');
+    return;
+  }
+  const { r, m, p } = uiiDrawBands(S.mgBox, S.pdBox, el);
   S.spv.title = 'padding · margin, in px';
   S.spv.innerHTML = 'padding <b></b> · margin <i></i>';
   S.spv.querySelector('b').textContent = uiiShortSides(p);

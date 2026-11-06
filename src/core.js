@@ -29,10 +29,11 @@ const UII_DEFAULTS = {
 const uiiState = {
   similar: true,  // edits also rewrite the CSS rule (see editrules.js)
   opts: null, selList: '', on: false, bound: false,
-  host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
+  host: null, shadow: null, layer: null, hoverBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
   mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
+  picks: [], pickBoxes: [], pickSeq: 0,  // Shift+click list: [{el, ready}] and its numbered boxes
   mx: 0, my: 0, pos: false,  // last pointer position, tracked while bound (see uiiTrackPointer)
 };
 
@@ -66,6 +67,7 @@ function uiiDisable() {
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;
+  S.picks = [];
   S.peek = false;
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(false);
 }
@@ -81,6 +83,8 @@ function uiiInit(opts) {
   S.key = uiiParseShortcut(S.opts.shortcut);
   if (!S.bound) {
     window.addEventListener('keydown', uiiOnKey, true);
+    window.addEventListener('keyup', uiiOnKeyUp, true);
+    window.addEventListener('blur', uiiHintsOff);
     window.addEventListener('mousemove', uiiTrackPointer, { capture: true, passive: true });
     S.bound = true;
   }
@@ -91,6 +95,8 @@ function uiiDestroy() {
   uiiDisable();
   if (uiiState.bound) {
     window.removeEventListener('keydown', uiiOnKey, true);
+    window.removeEventListener('keyup', uiiOnKeyUp, true);
+    window.removeEventListener('blur', uiiHintsOff);
     window.removeEventListener('mousemove', uiiTrackPointer, true);
   }
   uiiState.bound = false;

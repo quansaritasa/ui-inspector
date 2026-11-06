@@ -64,6 +64,7 @@ function uiiOnKey(e) {
     return;
   }
   if (!S.on) return;
+  if (e.key === 'Alt') { if (!e.repeat) uiiHintsSoon(); return; }
   // Shadow DOM retargets e.target to S.host for anything inside the panel —
   // a focused button reports the same target as a focused text input. Use
   // composedPath() to find what was actually focused, so Escape/arrows still
@@ -108,3 +109,52 @@ function uiiOnKey(e) {
 // A single-letter shortcut swallows its key, so the app underneath never
 // sees it while inspect mode is on.
 function uiiKeyAction(e, run) { e.preventDefault(); e.stopPropagation(); run(); }
+
+// Hold Alt: the panel dims and every control with a key shows it. A short
+// wait first, so a quick Alt+click (pick the exact element) does not flash.
+const UII_HINTS = [
+  ['undo-edit', 'Ctrl/Cmd+Z', 'undo last edit'],
+  ['dom-tree-toggle', 'T', 'DOM tree'],
+  ['vars-mode', 'P', 'page variables'],
+  ['normal-view', 'V', 'normal view'],
+  ['copy-id', 'C', 'copy ID'],
+  ['copy-for-ai', 'A', 'copy all changes'],
+];
+
+function uiiHintsSoon() {
+  clearTimeout(uiiState.hintTimer);
+  uiiState.hintTimer = setTimeout(() => uiiHints(true), 300);
+}
+
+function uiiHints(on) {
+  const S = uiiState;
+  clearTimeout(S.hintTimer);
+  const P = S.panel;
+  if (!P) return;
+  const p = P.root;
+  p.querySelectorAll('.hk').forEach((t) => t.remove());
+  p.classList.toggle('hints', on && p.classList.contains('on'));
+  if (!p.classList.contains('hints')) return;
+  const pr = p.getBoundingClientRect();
+  const placed = [];
+  const hit = (a) => placed.some((b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom);
+  // Right to left, so neighbouring header keys step down like stairs instead of overlapping.
+  for (const [id, key, what] of UII_HINTS.slice().reverse()) {
+    const el = p.querySelector('#' + id);
+    if (!el || !el.offsetParent) continue; // folded away or not on this view
+    const r = el.getBoundingClientRect();
+    if (r.bottom <= pr.top || r.top >= pr.bottom) continue; // scrolled out of the body
+    const tip = uiiEl('div', 'hk');
+    tip.append(uiiEl('b', '', key), document.createTextNode(' - ' + what));
+    // Right edges line up: the buttons sit at the panel's right side.
+    let top = r.bottom - pr.top + 4;
+    Object.assign(tip.style, { top: top + 'px', right: pr.right - r.right + 'px' });
+    p.appendChild(tip);
+    let tr = tip.getBoundingClientRect();
+    while (hit(tr)) { top += tr.height + 2; tip.style.top = top + 'px'; tr = tip.getBoundingClientRect(); }
+    placed.push(tr);
+  }
+}
+
+function uiiOnKeyUp(e) { if (e.key === 'Alt') uiiHints(false); }
+function uiiHintsOff() { uiiHints(false); } // the window lost focus: Alt's keyup may never come

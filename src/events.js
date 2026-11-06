@@ -76,18 +76,20 @@ function uiiOnClick(e) {
   if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
   const el = uiiTargetFrom(e);
   if (!el) return;
-  const ready = uiiSelect(el);
+  uiiPanelAway(e.clientX);
+  const ready = uiiSelect(el, e.shiftKey);
+  if (e.shiftKey) { uiiTogglePick(el, ready); return; }
   // Cmd/Ctrl+click pins and copies the Copy ID line in one go. It waits for
   // the script scan so the line names the script files, as the button would.
   // (Ctrl+click on macOS arrives as contextmenu, which also lands here.)
   if (e.metaKey || e.ctrlKey) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
 }
 
-function uiiSelect(el) {
+// Every pin (click, arrow walk, tree row, the shortcut) makes el pick 1 and
+// drops the rest of the list; keep (Shift+click) leaves the list to the caller.
+function uiiSelect(el, keep) {
   const S = uiiState;
   S.selected = el;
-  uiiPlace(S.selBox, el.getBoundingClientRect());
-  S.selBox.classList.add('on');
   uiiDrawSpacing(el); // the bands belong to the click, not to the next frame
   const info = uiiCollect(el);
   S.info = info;
@@ -95,7 +97,29 @@ function uiiSelect(el) {
   // Script scan is async (first call fetches every <script src>); the Copy
   // buttons read info.code when pressed. Resolves to info once it is set;
   // a failed scan just leaves the line without script files.
-  return uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
+  const ready = uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
+  if (!keep) { S.picks = [{ el, ready }]; S.pickSeq++; uiiDrawPicks(); } // seq++: a pending Shift copy is stale now
+  return ready;
+}
+
+// Shift+click: add el to the pick list, or take it out when already there,
+// then copy every picked element's Copy ID line as one prompt opener. ready is
+// uiiSelect's promise, kept so each line names its script files. The seq
+// guard stops a slow, older copy from landing over a newer list.
+function uiiTogglePick(el, ready) {
+  const S = uiiState;
+  const at = S.picks.findIndex((p) => p.el === el);
+  if (at >= 0) S.picks.splice(at, 1); else S.picks.push({ el, ready });
+  uiiDrawPicks();
+  const seq = ++S.pickSeq;
+  if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
+  Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
+    if (seq !== S.pickSeq) return;
+    // One prompt opener, ready to type the ask after: "Update these elements [a], [b] and [c]: "
+    const ids = infos.map(uiiFormatForAI);
+    const list = ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1];
+    uiiCopy((ids.length < 2 ? 'Update this element ' : 'Update these elements ') + list + ': ');
+  });
 }
 
 const UII_EVENTS = [

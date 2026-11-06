@@ -1,4 +1,4 @@
-/*! ui-inspector v0.13.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.14.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -19,11 +19,14 @@ const UII_CSS = `
 .box.field  { border-color: #16a34a; background: rgba(22,163,74,.06); }
 .box.link   { border-color: #9333ea; background: rgba(147,51,234,.06); }
 .box.block  { border-color: rgba(249,115,22,.7); border-style: dashed; }  /* containers: no fill, they stack */
-.hover { position: fixed; pointer-events: none; z-index: 2147483001; border: 2px solid #ef4444;
+.hover { position: fixed; pointer-events: none; z-index: 2147483001; border: 2px dashed #ef4444;
   background: rgba(239,68,68,.08); border-radius: 2px; display: none; }
 .hover.on { display: block; }
-.hover:not(.sel) { border-style: dashed; }
-.hover.sel { background: rgba(239,68,68,.14); }
+.pickbox { position: fixed; pointer-events: none; z-index: 2147483001; border: 2px solid #0ea5e9;
+  background: rgba(14,165,233,.10); border-radius: 2px; }
+.pickbox::before { content: attr(data-n); position: absolute; z-index: 2147483002; top: -2px; left: -2px; padding: 0 3px;
+  background: #0ea5e9; color: #fff; border-radius: 2px 0 4px 0;
+  font: 700 9px/11px -apple-system, "Segoe UI", system-ui, sans-serif; }
 .tip { position: fixed; pointer-events: none; z-index: 2147483002; display: none; max-width: 360px;
   padding: 3px 8px; border-radius: 4px; background: #111827; color: #f9fafb;
   font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; white-space: nowrap;
@@ -53,15 +56,21 @@ const UII_CSS = `
    an edit is judged against the real screen. !important, because the pieces
    are shown by a second class (.hover.on) of equal weight. */
 :host(.peek) .layer, :host(.peek) .hover, :host(.peek) .tip,
-:host(.peek) .sp, :host(.peek) .spv, :host(.peek) .badge { display: none !important; }
+:host(.peek) .sp, :host(.peek) .spv, :host(.peek) .pickbox, :host(.peek) .badge { display: none !important; }
 .head button.on { background: #1f2937; border-color: #1f2937; color: #fff; }
 
-.panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: ${UII_PANEL_W}px; max-height: calc(100vh - 64px);
+.panel { position: fixed; z-index: 2147483003; top: 8px; right: 16px; width: ${UII_PANEL_W}px; max-height: calc(100vh - 16px);
   display: none; flex-direction: column; pointer-events: auto;
   background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,.25);
   font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
 .panel.on { display: flex; }
+/* Alt held: the panel fades, each key's tooltip stays sharp on top. */
+.panel.hints > :not(.hk) { opacity: .3; transition: opacity .12s; }
+.hk { position: absolute; z-index: 2; pointer-events: none; white-space: nowrap;
+  background: #111827; color: #f9fafb; padding: 3px 7px; border-radius: 4px; font-size: 11px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+.hk b { color: #fbbf24; font-family: ui-monospace, Menlo, monospace; }
 .panel.min .split { display: none; }
 .panel.min .head { border-bottom: 0; border-radius: 8px; }
 .head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; cursor: move;
@@ -103,8 +112,17 @@ const UII_CSS = `
 .tree .more { color: #9ca3af; cursor: default; }
 .tree .more:hover { background: none; }
 .body > .sec:first-child { margin-top: 0; }
-.grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; }
-.grip:hover { background: rgba(59,130,246,.35); }
+/* Resize handles: four edges, four corners on top of them, just outside the border. */
+.grip { position: absolute; z-index: 1; }
+.grip.n, .grip.s { left: 8px; right: 8px; height: 7px; cursor: ns-resize; }
+.grip.e, .grip.w { top: 8px; bottom: 8px; width: 7px; cursor: ew-resize; }
+.grip.n { top: -4px; } .grip.s { bottom: -4px; } .grip.e { right: -4px; } .grip.w { left: -4px; }
+.grip.ne, .grip.nw, .grip.se, .grip.sw { width: 14px; height: 14px; z-index: 2; }
+.grip.nw { top: -5px; left: -5px; cursor: nwse-resize; } .grip.se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.grip.ne { top: -5px; right: -5px; cursor: nesw-resize; } .grip.sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+/* Minimised: only the header shows, so only its width can change. */
+.panel.min { height: auto !important; }
+.panel.min .grip:not(.e):not(.w) { display: none; }
 .sec { display: flex; align-items: center; min-height: 30px; margin: 6px 0 2px; padding: 3px 10px; background: #e5e7eb; color: #1f2937; font-weight: 700;
   text-transform: uppercase; font-size: 11px; letter-spacing: .05em; }
 .row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 2px 10px; }
@@ -174,11 +192,14 @@ const UII_CSS = `
 /* The palette (editvars.js): one row per custom property the page declares. */
 .vrs { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
 .vr { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 5px; }
+.sec .find + .mini, .sec .mini + .mini { margin-left: 6px; } /* one auto margin: the pair sits right together */
+.vr[hidden] { display: none; } /* display:flex above beats the hidden attribute */
 .vr .n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: #0f766e; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 .vr .nf { flex: 1; min-width: 0; height: 24px; }
 .vr.on { background: #ecfdf5; box-shadow: inset 2px 0 0 #0f766e; }
 .vnone { padding: 8px 10px; color: #6b7280; }
+.vgrp { padding: 6px 4px 0; color: #6b7280; font: 600 10px/1.2 ui-monospace, Menlo, monospace; }
 /* The pinned element's own declarations (editprops.js), folded away when the
    list is long. summary.sec keeps the section bar's look; the marker is the
    only part a <details> adds. */
@@ -839,13 +860,12 @@ function uiiMount() {
   const mk = (cls) => { const d = document.createElement('div'); d.className = cls; sh.appendChild(d); return d; };
   S.layer = mk('layer');
   S.hoverBox = mk('hover');
-  S.selBox = mk('hover sel');
   S.tip = mk('tip');
   S.mgBox = mk('sp mg');
   S.pdBox = mk('sp pd');
   S.spv = mk('spv');
   S.badge = mk('badge');
-  S.badge.innerHTML = 'Inspect — click to pin, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
+  S.badge.innerHTML = 'Inspect — click to pin, <kbd>Shift</kbd>+click to pick several, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
     + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.scratch = mk('scratch');
@@ -859,24 +879,37 @@ function uiiMount() {
 function uiiUnmount() {
   const S = uiiState;
   if (S.host) S.host.remove();
-  S.host = S.shadow = S.layer = S.hoverBox = S.selBox = S.tip = S.badge = S.scratch = S.panel = null;
+  S.host = S.shadow = S.layer = S.hoverBox = S.tip = S.badge = S.scratch = S.panel = null;
   S.mgBox = S.pdBox = S.spv = null;
   S.boxes = [];
+  S.pickBoxes = [];
+}
+
+// The panel sits on the right, unless x (the pointer) is in the right 30% of
+// the screen — then it moves left so it does not cover what was just picked.
+// A panel already on the wanted side stays where it is, so a spot the user
+// dragged it to is kept.
+function uiiPanelAway(x) {
+  const p = uiiState.panel.root;
+  const r = p.getBoundingClientRect();
+  const w = window.innerWidth;
+  const wantLeft = x > w * 0.7;
+  if (r.width && (r.left + r.width / 2 < w / 2) === wantLeft) return;
+  if (wantLeft) { p.style.left = '16px'; p.style.right = 'auto'; }
+  else { p.style.left = 'auto'; p.style.right = '16px'; }
 }
 
 // The panel opens with inspect mode, already filled: the element under the
 // pointer is pinned, so there is no empty panel to look at and no click to
-// make first. It is parked on the half of the screen the pointer is NOT on,
-// because the pointer is sitting on what is about to be inspected and a
-// 500px panel over it would be the first thing to drag out of the way.
+// make first. It is parked on the right, or on the left when the pointer is
+// in the right 30% of the screen, because the pointer is sitting on what is
+// about to be inspected and a 500px panel over it would be in the way.
 // Without a pointer position (the shortcut pressed on a freshly loaded page)
 // nothing is pinned and the panel stays closed until the first click.
 function uiiOpenAtPointer() {
   const S = uiiState;
   if (!S.pos) return;
-  const p = S.panel.root;
-  if (S.mx > window.innerWidth / 2) { p.style.left = '16px'; p.style.right = 'auto'; }
-  else { p.style.left = 'auto'; p.style.right = '16px'; }
+  uiiPanelAway(S.mx);
   const el = uiiSnap(document.elementFromPoint(S.mx, S.my), false);
   if (!el || el === document.body || el === document.documentElement || S.host.contains(el)) return;
   uiiSelect(el);
@@ -920,10 +953,8 @@ function uiiPeek(on) {
     uiiBindEvents();
     uiiDrawOutlines();
     // The page may have scrolled or re-rendered while the overlay was off.
-    if (S.selected && S.selected.isConnected) {
-      uiiPlace(S.selBox, S.selected.getBoundingClientRect());
-      uiiDrawSpacing(S.selected);
-    }
+    if (S.selected && S.selected.isConnected) uiiDrawSpacing(S.selected);
+    uiiDrawPicks();
   }
   const P = S.panel;
   if (!P || !P.peek) return;
@@ -989,9 +1020,35 @@ function uiiDrawOutlines() {
     d.className = 'box ' + uiiKind(it.el);
     uiiPlace(d, it.r);
   });
-  if (S.selected && S.selected.isConnected) uiiPlace(S.selBox, S.selected.getBoundingClientRect());
-  else S.selBox.classList.remove('on');
   uiiDrawSpacing(S.selected);
+  uiiDrawPicks();
+}
+
+// One numbered box per Shift+click pick, in list order. Boxes are reused;
+// spares hide. A picked element that left the page hides its box. Each box
+// holds its own margin and padding bands (fixed, so they sit on the page, and
+// hide with the box); the pinned pick leaves them off, uiiDrawSpacing has it.
+function uiiDrawPicks() {
+  const S = uiiState;
+  if (!S.shadow) return;
+  S.picks.forEach((p, i) => {
+    let d = S.pickBoxes[i];
+    if (!d) {
+      d = document.createElement('div');
+      d.className = 'pickbox';
+      d.innerHTML = '<div class="sp mg"></div><div class="sp pd"></div>';
+      S.shadow.appendChild(d);
+      S.pickBoxes.push(d);
+    }
+    d.dataset.n = i + 1;
+    d.style.display = p.el.isConnected ? '' : 'none';
+    if (!p.el.isConnected) return;
+    uiiPlace(d, p.el.getBoundingClientRect());
+    const [mg, pd] = d.children;
+    if (p.el === S.selected) { mg.classList.remove('on'); pd.classList.remove('on'); }
+    else uiiDrawBands(mg, pd, p.el);
+  });
+  S.pickBoxes.slice(S.picks.length).forEach((d) => { d.style.display = 'none'; });
 }
 
 function uiiScheduleDraw() {
@@ -1020,7 +1077,8 @@ function uiiScheduleDraw() {
    space actually sits. The pinned element gets DevTools' two bands — green
    padding inside the border box, orange margin outside it — plus one chip
    carrying the numbers, because a 1px band is visible and still unreadable.
-   Pinned only: on hover the bands would chase the pointer. */
+   Pinned and picked only: on hover the bands would chase the pointer. The
+   chip goes on the pinned element alone; every other pick gets bare bands. */
 
 const UII_SIDES = ['top', 'right', 'bottom', 'left'];
 
@@ -1045,13 +1103,8 @@ function uiiBand(box, out, w) {
   box.classList.add('on');
 }
 
-function uiiDrawSpacing(el) {
-  const S = uiiState;
-  if (!S.mgBox) return;
-  if (!el || !el.isConnected) {
-    for (const b of [S.mgBox, S.pdBox, S.spv]) b.classList.remove('on');
-    return;
-  }
+// Margin band into mg, padding band into pd, for el; returns what the chip needs.
+function uiiDrawBands(mg, pd, el) {
   const cs = getComputedStyle(el);
   const r = el.getBoundingClientRect();
   const m = uiiBoxSides(cs, 'margin');
@@ -1059,10 +1112,21 @@ function uiiDrawSpacing(el) {
   const bw = uiiBoxSides(cs, 'border');
   // A negative margin pulls the element over its neighbour; the band cannot
   // be drawn inside-out, so only the chip reports it.
-  uiiBand(S.mgBox, { left: r.left - Math.max(0, m[3]), top: r.top - Math.max(0, m[0]),
+  uiiBand(mg, { left: r.left - Math.max(0, m[3]), top: r.top - Math.max(0, m[0]),
     width: r.width + Math.max(0, m[1]) + Math.max(0, m[3]), height: r.height + Math.max(0, m[0]) + Math.max(0, m[2]) }, m);
-  uiiBand(S.pdBox, { left: r.left + bw[3], top: r.top + bw[0],
+  uiiBand(pd, { left: r.left + bw[3], top: r.top + bw[0],
     width: r.width - bw[1] - bw[3], height: r.height - bw[0] - bw[2] }, p);
+  return { r, m, p };
+}
+
+function uiiDrawSpacing(el) {
+  const S = uiiState;
+  if (!S.mgBox) return;
+  if (!el || !el.isConnected) {
+    for (const b of [S.mgBox, S.pdBox, S.spv]) b.classList.remove('on');
+    return;
+  }
+  const { r, m, p } = uiiDrawBands(S.mgBox, S.pdBox, el);
   S.spv.title = 'padding · margin, in px';
   S.spv.innerHTML = 'padding <b></b> · margin <i></i>';
   S.spv.querySelector('b').textContent = uiiShortSides(p);
@@ -1152,18 +1216,20 @@ function uiiOnClick(e) {
   if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
   const el = uiiTargetFrom(e);
   if (!el) return;
-  const ready = uiiSelect(el);
+  uiiPanelAway(e.clientX);
+  const ready = uiiSelect(el, e.shiftKey);
+  if (e.shiftKey) { uiiTogglePick(el, ready); return; }
   // Cmd/Ctrl+click pins and copies the Copy ID line in one go. It waits for
   // the script scan so the line names the script files, as the button would.
   // (Ctrl+click on macOS arrives as contextmenu, which also lands here.)
   if (e.metaKey || e.ctrlKey) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
 }
 
-function uiiSelect(el) {
+// Every pin (click, arrow walk, tree row, the shortcut) makes el pick 1 and
+// drops the rest of the list; keep (Shift+click) leaves the list to the caller.
+function uiiSelect(el, keep) {
   const S = uiiState;
   S.selected = el;
-  uiiPlace(S.selBox, el.getBoundingClientRect());
-  S.selBox.classList.add('on');
   uiiDrawSpacing(el); // the bands belong to the click, not to the next frame
   const info = uiiCollect(el);
   S.info = info;
@@ -1171,7 +1237,29 @@ function uiiSelect(el) {
   // Script scan is async (first call fetches every <script src>); the Copy
   // buttons read info.code when pressed. Resolves to info once it is set;
   // a failed scan just leaves the line without script files.
-  return uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
+  const ready = uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
+  if (!keep) { S.picks = [{ el, ready }]; S.pickSeq++; uiiDrawPicks(); } // seq++: a pending Shift copy is stale now
+  return ready;
+}
+
+// Shift+click: add el to the pick list, or take it out when already there,
+// then copy every picked element's Copy ID line as one prompt opener. ready is
+// uiiSelect's promise, kept so each line names its script files. The seq
+// guard stops a slow, older copy from landing over a newer list.
+function uiiTogglePick(el, ready) {
+  const S = uiiState;
+  const at = S.picks.findIndex((p) => p.el === el);
+  if (at >= 0) S.picks.splice(at, 1); else S.picks.push({ el, ready });
+  uiiDrawPicks();
+  const seq = ++S.pickSeq;
+  if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
+  Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
+    if (seq !== S.pickSeq) return;
+    // One prompt opener, ready to type the ask after: "Update these elements [a], [b] and [c]: "
+    const ids = infos.map(uiiFormatForAI);
+    const list = ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1];
+    uiiCopy((ids.length < 2 ? 'Update this element ' : 'Update these elements ') + list + ': ');
+  });
 }
 
 const UII_EVENTS = [
@@ -1388,7 +1476,7 @@ function uiiSyncRules() {
   uiiRuleOrig.clear();
   // A variable edit may live in a rule just restored, and it outlives this:
   // it belongs to the palette, not to the checkbox.
-  for (const [name, e] of uiiVarEdits) e.style.setProperty(name, e.to);
+  for (const e of uiiVarEdits.values()) e.style.setProperty(e.prop, e.to, e.pri);
   if (uiiState.similar && uiiState.edits) {
     for (const [el, e] of uiiState.edits) {
       for (const [prop, v] of Object.entries(e.props)) {
@@ -1405,26 +1493,22 @@ function uiiSyncRules() {
    app's palette is for. The declaring rule is rewritten in memory, the way
    "Apply to similar" rewrites a plain one, and Reset puts it back. */
 
-// --name -> {style, file, selector, from, to, add}; `from` is what the sheet
-// said before the inspector touched it, `add` marks a var no sheet declared.
+// key -> {style, prop, pri, file, selector, from, to, add}. A variable is
+// keyed by its name; a declaration in a state rule (the States section) by
+// uiiDeclKey. `from` is what the sheet said before the inspector touched it,
+// `add` marks a var no sheet declared.
 const uiiVarEdits = new Map();
 
-function uiiVarApply(name, value, el) {
-  let e = uiiVarEdits.get(name);
-  uiiUndoAdd({ k: 'var', name, el, had: !!e, to: e && e.to });
-  if (!e) {
-    // The palette edits variables with nothing pinned: no info to carry the
-    // rule list, so the one it collected on open stands in.
-    const r = uiiVarRule(name, el, (uiiState.info && uiiState.info.all) || uiiState.all || []);
-    // Nothing readable declares it (an inline style, a cross-origin sheet):
-    // own it on :root, where a palette belongs, and say so in the log.
-    const style = r ? r.style : document.documentElement.style;
-    e = { style, file: r ? r.file.split('/').pop() : '', selector: r ? r.selector : ':root',
-      from: style.getPropertyValue(name), add: !r };
-    uiiVarEdits.set(name, e);
-  }
+// Writes one declaration and records it for undo, Reset and the Changes box.
+// `find` builds the entry the first time a key is written; undo passes none,
+// the entry it replays already exists.
+function uiiDeclSet(key, value, find) {
+  let e = uiiVarEdits.get(key);
+  if (!e && !find) return;
+  uiiUndoAdd({ k: 'var', name: key, had: !!e, to: e && e.to });
+  if (!e) uiiVarEdits.set(key, e = find());
   e.to = value;
-  e.style.setProperty(name, value);
+  e.style.setProperty(e.prop, value, e.pri);
   if (uiiState.panel) {
     uiiState.panel.reset.disabled = false;
     uiiRefreshChanges();
@@ -1432,9 +1516,31 @@ function uiiVarApply(name, value, el) {
   uiiScheduleDraw();
 }
 
+function uiiVarApply(name, value, el) {
+  uiiDeclSet(name, value, () => {
+    // The palette edits variables with nothing pinned: no info to carry the
+    // rule list, so the one it collected on open stands in.
+    const r = uiiVarRule(name, el, (uiiState.info && uiiState.info.all) || uiiState.all || []);
+    // Nothing readable declares it (an inline style, a cross-origin sheet):
+    // own it on :root, where a palette belongs, and say so in the log.
+    const style = r ? r.style : document.documentElement.style;
+    return { style, prop: name, pri: '', file: r ? r.file.split('/').pop() : '',
+      selector: r ? r.selector : ':root', from: style.getPropertyValue(name), add: !r };
+  });
+}
+
+// One id per rule, so two rules with the same selector (a second @media copy)
+// never share an edit.
+const uiiRuleIds = new WeakMap();
+let uiiRuleSeq = 0;
+function uiiDeclKey(style, prop) {
+  if (!uiiRuleIds.has(style)) uiiRuleIds.set(style, ++uiiRuleSeq);
+  return 'rule#' + uiiRuleIds.get(style) + ' ' + prop;
+}
+
 function uiiVarReset() {
-  for (const [name, e] of uiiVarEdits) {
-    if (e.from) e.style.setProperty(name, e.from); else e.style.removeProperty(name);
+  for (const e of uiiVarEdits.values()) {
+    if (e.from) e.style.setProperty(e.prop, e.from, e.pri); else e.style.removeProperty(e.prop);
   }
   uiiVarEdits.clear();
 }
@@ -1442,9 +1548,9 @@ function uiiVarReset() {
 // [[head, decl]] for the Changes box: "style.css :root", "--bg: #1f2937".
 // Page-wide, so uiiChangeLines lists these before the per-element ones.
 function uiiVarLines() {
-  return [...uiiVarEdits].map(([name, e]) => [
+  return [...uiiVarEdits.values()].map((e) => [
     (e.file ? e.file + ' ' : '') + e.selector + (e.add ? ' /* new rule */' : ''),
-    name + ': ' + e.to,
+    e.prop + ': ' + e.to + (e.pri ? ' !important' : ''),
   ]);
 }
 
@@ -2224,15 +2330,101 @@ function uiiFindBox(find, list) {
 // names, and the one being tried is usually known by part of it.
 function uiiRenderVars(body) {
   const vars = uiiPageVars(uiiState.all);
-  const head = uiiEl('div', 'sec', 'Variables — type a value, Enter applies ', 'section-vars');
+  const head = uiiEl('div', 'sec', 'Variables ', 'section-vars');
   const find = uiiEl('input', 'find', undefined, 'filter-vars');
-  head.appendChild(find);
+  const copy = uiiEl('button', 'mini', '📋 Copy', 'copy-vars');
+  copy.title = 'Copy every variable as a :root block, edits included';
+  // Read at click time, so edits made since the list was built are in it.
+  copy.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const lines = uiiPageVars(uiiState.all).map((v) => `  ${v.name}: ${v.value};`);
+    uiiCopy(`:root {\n${lines.join('\n')}\n}`, copy);
+  });
+  const imp = uiiEl('button', 'mini', '📥 Import', 'import-vars');
+  imp.title = 'Apply --name: value pairs from the clipboard (one undo step)';
+  imp.addEventListener('click', (e) => { e.stopPropagation(); uiiImportVars(); });
+  head.append(find, copy, imp);
   const list = uiiEl('div', 'vrs', undefined, 'vars-list');
   for (const v of vars) list.appendChild(uiiVarRow(v));
   if (!vars.length) list.appendChild(uiiEl('div', 'vnone', 'No custom properties in the stylesheets this page lets us read.'));
   uiiFindBox(find, list);
   body.append(head, list);
   return vars.length;
+}
+
+/* States: the colours a rule only paints while a state holds — :hover,
+   :focus, :disabled… The list above shows values in force now; these wait
+   for a pointer or a key, so they are listed rule by rule, grouped by state.
+   Editing one rewrites that rule, through the same records as a variable. */
+const UII_STATES = [[':hover', /:hover/], [':focus', /:focus/], [':active', /:active/],
+  [':disabled', /:disabled|\[disabled|\[aria-disabled/], [':read-only', /:read-only|\[readonly/],
+  [':checked / selected', /:checked|\[aria-(checked|selected)/],
+  [':invalid', /:(user-)?invalid|\[aria-invalid/], ['::placeholder', /::?placeholder/], [':visited', /:visited/]];
+const UII_COLOR_PROP = /(^|-)color$|^(background|border(-(top|right|bottom|left))?|outline|fill|stroke|box-shadow|text-shadow)$/;
+
+// [[label, [{style, prop, pri, value, file, selector}]]], empty groups left
+// out. cssText, not the longhands: `background: var(--x)` leaves every
+// longhand empty and only the shorthand says what the rule meant. A selector
+// list naming two states lands in the first one.
+function uiiStateDecls(all) {
+  const groups = new Map(UII_STATES.map(([label]) => [label, []]));
+  for (const { rule, file } of all) {
+    const st = UII_STATES.find(([, re]) => re.test(rule.selectorText));
+    if (!st) continue;
+    for (const [, prop, raw] of rule.style.cssText.matchAll(/([\w-]+)\s*:\s*([^;]+)/g)) {
+      const pri = /!important\s*$/.test(raw) ? 'important' : '';
+      const value = raw.replace(/\s*!important\s*$/, '').trim();
+      if (prop.startsWith('--') ? !uiiRowHex(value) : !UII_COLOR_PROP.test(prop)) continue;
+      groups.get(st[0]).push({ style: rule.style, prop, pri, value, file, selector: rule.selectorText });
+    }
+  }
+  return [...groups].filter(([, rows]) => rows.length);
+}
+
+function uiiRenderStates(body, all) {
+  const groups = uiiStateDecls(all);
+  const n = groups.reduce((s, [, rows]) => s + rows.length, 0);
+  const wrap = uiiEl('details', 'more');
+  const sum = uiiEl('summary', 'sec', 'States — ' + n + ' ', 'section-states');
+  const find = uiiEl('input', 'find', undefined, 'filter-states');
+  sum.appendChild(find);
+  const list = uiiEl('div', 'vrs', undefined, 'states-list');
+  let edited = false;
+  for (const [label, rows] of groups) {
+    list.appendChild(uiiEl('div', 'vgrp', label));
+    for (const d of rows) {
+      const key = uiiDeclKey(d.style, d.prop);
+      const { row } = uiiValueRow(d.selector + ' · ' + d.prop, d.value, (val) => uiiDeclSet(key, val, () => ({
+        style: d.style, prop: d.prop, pri: d.pri, file: d.file.split('/').pop(),
+        selector: d.selector, from: d.value, add: false })));
+      row.dataset.name += ' ' + label; // "hover" finds the whole group
+      row.querySelector('.n').title = d.selector + ' { ' + d.prop + ' }'; // the name is cut short
+      if (uiiVarEdits.has(key)) { row.classList.add('on'); edited = true; }
+      list.appendChild(row);
+    }
+  }
+  if (!n) list.appendChild(uiiEl('div', 'vnone', 'No colour rules for hover, focus, disabled… in the stylesheets this page lets us read.'));
+  uiiFindBox(find, list);
+  wrap.open = n <= 12 || edited;
+  wrap.append(sum, list);
+  body.appendChild(wrap);
+}
+
+// The other half of Copy: any text holding `--name: value` pairs — a :root
+// block, a bare list, one line — lands as one undo step. The clipboard read
+// can be refused (permission, plain http): a prompt takes the paste instead.
+async function uiiImportVars() {
+  let text = null;
+  try { text = await navigator.clipboard.readText(); } catch (_) { /* refused */ }
+  if (!text || !text.includes('--')) text = prompt('Paste the palette (--name: value; …)');
+  if (!text) return;
+  const pairs = [...text.matchAll(/(--[\w-]+)\s*:\s*([^;}]+)/g)];
+  if (!pairs.length) { uiiFlash('No --variables found'); return; }
+  uiiUndoBegin();
+  try { for (const [, name, value] of pairs) uiiVarApply(name, value.trim(), document.documentElement); }
+  finally { uiiUndoEnd(); }
+  if (uiiState.varsMode) uiiVarsPanel();
+  uiiFlash('✅ imported ' + pairs.length + (pairs.length === 1 ? ' var' : ' vars'));
 }
 
 // The palette as a panel mode: it needs no element, so it opens the panel on
@@ -2247,6 +2439,7 @@ function uiiVarsPanel() {
   P.body.textContent = '';
   const n = uiiRenderVars(P.body);
   P.tag.textContent = n + (n === 1 ? ' var' : ' vars');
+  uiiRenderStates(P.body, S.all);
   uiiChangesBox(P.body);
   P.reset.disabled = !uiiVarEdits.size;
   P.root.classList.add('on');
@@ -2258,10 +2451,14 @@ function uiiToggleVars() {
   const S = uiiState;
   if (!S.panel) return;
   uiiCloseVarList();
+  uiiHoldPanelSize(S.panel.root);
   S.varsMode = !S.varsMode;
   S.panel.vars.classList.toggle('on', S.varsMode);
-  if (S.varsMode) uiiVarsPanel();
-  else if (S.info) uiiRenderPanel(S.info);
+  if (S.varsMode) {
+    uiiVarsPanel();
+    // Only on the switch: uiiVarsPanel also re-renders after undo/reset.
+    S.panel.body.querySelector('input.find').focus();
+  } else if (S.info) uiiRenderPanel(S.info);
   else S.panel.root.classList.remove('on');
 }
 
@@ -2617,9 +2814,9 @@ function uiiUndoSync() {
 }
 
 function uiiUndoRunVar(e) {
-  if (e.had) { uiiVarApply(e.name, e.to, e.el); return; }
+  if (e.had) { uiiDeclSet(e.name, e.to); return; }
   const v = uiiVarEdits.get(e.name);
-  if (v) { if (v.from) v.style.setProperty(e.name, v.from); else v.style.removeProperty(e.name); }
+  if (v) { if (v.from) v.style.setProperty(v.prop, v.from, v.pri); else v.style.removeProperty(v.prop); }
   uiiVarEdits.delete(e.name);
 }
 
@@ -2788,6 +2985,7 @@ function uiiPanelW(p) {
 function uiiToggleTree() {
   const S = uiiState, P = S.panel;
   if (!P || !P.tree) return;
+  uiiHoldPanelSize(P.root); // the height stays; the width changes below
   const on = P.tree.hidden;
   P.tree.hidden = !on;
   P.treeBtn.classList.toggle('on', on);
@@ -2797,6 +2995,21 @@ function uiiToggleTree() {
     on ? w + UII_TREE_W : w - (P.treeAdd ?? UII_TREE_W)));
   if (on) P.treeAdd = nw - w;
   P.root.style.width = nw + 'px';
+  // A panel placed by its left edge (dragged, resized, or parked on the left)
+  // grows to the right; slide it back so its right edge stays on screen, and
+  // put it back where it was when the tree closes — unless it was moved since.
+  const st = P.root.style;
+  if (on) {
+    P.treeSlide = null;
+    const left = parseFloat(st.left);
+    if (left + nw > window.innerWidth - 8) {
+      st.left = Math.max(8, window.innerWidth - 8 - nw) + 'px';
+      P.treeSlide = { from: left + 'px', to: st.left };
+    }
+  } else if (P.treeSlide) {
+    if (st.left === P.treeSlide.to) st.left = P.treeSlide.from;
+    P.treeSlide = null;
+  }
   if (on) {
     uiiTreeOpen.add(document.body);
     for (const c of uiiTreeKids(document.body)) uiiTreeOpen.add(c);
@@ -2932,14 +3145,12 @@ function uiiBuildPanel(sh) {
   tree.hidden = true;
   const split = uiiEl('div', 'split');
   split.append(tree, body);
-  const grip = uiiEl('div', 'grip', undefined, 'resize-grip');
-  grip.title = 'Drag to resize';
-  p.append(grip, parts.head, split);
+  p.append(parts.head, split);
   sh.appendChild(p);
   uiiState.panel = Object.assign({ root: p, body, tree }, parts);
   uiiTreeBind(tree);
   uiiDrag(parts.head, p);
-  uiiResizeLeft(grip, p);
+  uiiResize(p);
 }
 
 function uiiDrag(handle, box) {
@@ -2962,24 +3173,45 @@ function uiiDrag(handle, box) {
   });
 }
 
-// Drag the left edge to resize; the right edge stays put, as the panel sits
-// at the right of the window. Same capture-listener pattern as uiiDrag.
-function uiiResizeLeft(handle, box) {
-  let sx = 0, sw = 0, right = 0;
+// Drag any edge or corner to resize, as in a desktop window: the opposite
+// edge stays put, and the panel stays inside the window. Same capture-listener
+// pattern as uiiDrag.
+const UII_EDGES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+const UII_MIN_W = 320, UII_MIN_H = 120;
+
+function uiiResize(box) {
+  let dir = '', sx = 0, sy = 0, r0 = null;
   const move = (e) => {
-    const w = Math.max(320, Math.min(window.innerWidth - 16, sw + sx - e.clientX));
-    box.style.width = w + 'px';
-    box.style.left = Math.max(0, right - w) + 'px';
-    box.style.right = 'auto';
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    let { left, top, right, bottom } = r0;
+    if (dir.includes('w')) left = Math.max(0, Math.min(right - UII_MIN_W, left + dx));
+    if (dir.includes('e')) right = Math.min(window.innerWidth, Math.max(left + UII_MIN_W, right + dx));
+    if (dir.includes('n')) top = Math.max(0, Math.min(bottom - UII_MIN_H, top + dy));
+    if (dir.includes('s')) bottom = Math.min(window.innerHeight, Math.max(top + UII_MIN_H, bottom + dy));
+    Object.assign(box.style, { left: left + 'px', top: top + 'px', right: 'auto', width: right - left + 'px' });
+    // A height set by hand replaces the fit-to-content one (CSS max-height).
+    if (/[ns]/.test(dir)) Object.assign(box.style, { height: bottom - top + 'px', maxHeight: 'none' });
   };
   const up = () => { window.removeEventListener('mousemove', move, true); window.removeEventListener('mouseup', up, true); };
-  handle.addEventListener('mousedown', (e) => {
-    const r = box.getBoundingClientRect();
-    sx = e.clientX; sw = r.width; right = r.right;
-    window.addEventListener('mousemove', move, true);
-    window.addEventListener('mouseup', up, true);
-    e.preventDefault();
-  });
+  for (const d of UII_EDGES) {
+    const g = uiiEl('div', 'grip ' + d, undefined, 'resize-' + d);
+    g.addEventListener('mousedown', (e) => {
+      dir = d; sx = e.clientX; sy = e.clientY; r0 = box.getBoundingClientRect();
+      window.addEventListener('mousemove', move, true);
+      window.addEventListener('mouseup', up, true);
+      e.preventDefault();
+    });
+    box.appendChild(g);
+  }
+}
+
+// Switching views (P, T) swaps what the panel holds, and a fit-to-content
+// panel would jump to the new content's height. An open panel keeps the size it has, as if the
+// user had resized it by hand (see uiiResize).
+function uiiHoldPanelSize(p) {
+  if (!p.classList.contains('on') || p.classList.contains('min')) return;
+  const r = p.getBoundingClientRect();
+  Object.assign(p.style, { width: r.width + 'px', height: r.height + 'px', maxHeight: 'none' });
 }
 
 // btn: the Copy button pressed, if any. It shows the result in its own
@@ -3141,6 +3373,7 @@ function uiiOnKey(e) {
     return;
   }
   if (!S.on) return;
+  if (e.key === 'Alt') { if (!e.repeat) uiiHintsSoon(); return; }
   // Shadow DOM retargets e.target to S.host for anything inside the panel —
   // a focused button reports the same target as a focused text input. Use
   // composedPath() to find what was actually focused, so Escape/arrows still
@@ -3186,6 +3419,55 @@ function uiiOnKey(e) {
 // sees it while inspect mode is on.
 function uiiKeyAction(e, run) { e.preventDefault(); e.stopPropagation(); run(); }
 
+// Hold Alt: the panel dims and every control with a key shows it. A short
+// wait first, so a quick Alt+click (pick the exact element) does not flash.
+const UII_HINTS = [
+  ['undo-edit', 'Ctrl/Cmd+Z', 'undo last edit'],
+  ['dom-tree-toggle', 'T', 'DOM tree'],
+  ['vars-mode', 'P', 'page variables'],
+  ['normal-view', 'V', 'normal view'],
+  ['copy-id', 'C', 'copy ID'],
+  ['copy-for-ai', 'A', 'copy all changes'],
+];
+
+function uiiHintsSoon() {
+  clearTimeout(uiiState.hintTimer);
+  uiiState.hintTimer = setTimeout(() => uiiHints(true), 300);
+}
+
+function uiiHints(on) {
+  const S = uiiState;
+  clearTimeout(S.hintTimer);
+  const P = S.panel;
+  if (!P) return;
+  const p = P.root;
+  p.querySelectorAll('.hk').forEach((t) => t.remove());
+  p.classList.toggle('hints', on && p.classList.contains('on'));
+  if (!p.classList.contains('hints')) return;
+  const pr = p.getBoundingClientRect();
+  const placed = [];
+  const hit = (a) => placed.some((b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom);
+  // Right to left, so neighbouring header keys step down like stairs instead of overlapping.
+  for (const [id, key, what] of UII_HINTS.slice().reverse()) {
+    const el = p.querySelector('#' + id);
+    if (!el || !el.offsetParent) continue; // folded away or not on this view
+    const r = el.getBoundingClientRect();
+    if (r.bottom <= pr.top || r.top >= pr.bottom) continue; // scrolled out of the body
+    const tip = uiiEl('div', 'hk');
+    tip.append(uiiEl('b', '', key), document.createTextNode(' - ' + what));
+    // Right edges line up: the buttons sit at the panel's right side.
+    let top = r.bottom - pr.top + 4;
+    Object.assign(tip.style, { top: top + 'px', right: pr.right - r.right + 'px' });
+    p.appendChild(tip);
+    let tr = tip.getBoundingClientRect();
+    while (hit(tr)) { top += tr.height + 2; tip.style.top = top + 'px'; tr = tip.getBoundingClientRect(); }
+    placed.push(tr);
+  }
+}
+
+function uiiOnKeyUp(e) { if (e.key === 'Alt') uiiHints(false); }
+function uiiHintsOff() { uiiHints(false); } // the window lost focus: Alt's keyup may never come
+
 /* ================= public API + keyboard =================
    UIInspector.init(opts) binds the shortcut; toggle()/enable()/disable()
    drive it by hand; destroy() removes everything including the shortcut. */
@@ -3217,10 +3499,11 @@ const UII_DEFAULTS = {
 const uiiState = {
   similar: true,  // edits also rewrite the CSS rule (see editrules.js)
   opts: null, selList: '', on: false, bound: false,
-  host: null, shadow: null, layer: null, hoverBox: null, selBox: null, tip: null,
+  host: null, shadow: null, layer: null, hoverBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,
   hovered: null, selected: null, info: null, key: null, sources: null,
   mgBox: null, pdBox: null, spv: null, badgeTimer: 0, badgeHtml: '', peek: false,
+  picks: [], pickBoxes: [], pickSeq: 0,  // Shift+click list: [{el, ready}] and its numbered boxes
   mx: 0, my: 0, pos: false,  // last pointer position, tracked while bound (see uiiTrackPointer)
 };
 
@@ -3254,6 +3537,7 @@ function uiiDisable() {
   S.raf = 0;
   uiiUnmount();
   S.hovered = S.selected = S.info = null;
+  S.picks = [];
   S.peek = false;
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(false);
 }
@@ -3269,6 +3553,8 @@ function uiiInit(opts) {
   S.key = uiiParseShortcut(S.opts.shortcut);
   if (!S.bound) {
     window.addEventListener('keydown', uiiOnKey, true);
+    window.addEventListener('keyup', uiiOnKeyUp, true);
+    window.addEventListener('blur', uiiHintsOff);
     window.addEventListener('mousemove', uiiTrackPointer, { capture: true, passive: true });
     S.bound = true;
   }
@@ -3279,6 +3565,8 @@ function uiiDestroy() {
   uiiDisable();
   if (uiiState.bound) {
     window.removeEventListener('keydown', uiiOnKey, true);
+    window.removeEventListener('keyup', uiiOnKeyUp, true);
+    window.removeEventListener('blur', uiiHintsOff);
     window.removeEventListener('mousemove', uiiTrackPointer, true);
   }
   uiiState.bound = false;

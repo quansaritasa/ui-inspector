@@ -41,7 +41,7 @@ function uiiSyncRules() {
   uiiRuleOrig.clear();
   // A variable edit may live in a rule just restored, and it outlives this:
   // it belongs to the palette, not to the checkbox.
-  for (const [name, e] of uiiVarEdits) e.style.setProperty(name, e.to);
+  for (const e of uiiVarEdits.values()) e.style.setProperty(e.prop, e.to, e.pri);
   if (uiiState.similar && uiiState.edits) {
     for (const [el, e] of uiiState.edits) {
       for (const [prop, v] of Object.entries(e.props)) {
@@ -58,26 +58,22 @@ function uiiSyncRules() {
    app's palette is for. The declaring rule is rewritten in memory, the way
    "Apply to similar" rewrites a plain one, and Reset puts it back. */
 
-// --name -> {style, file, selector, from, to, add}; `from` is what the sheet
-// said before the inspector touched it, `add` marks a var no sheet declared.
+// key -> {style, prop, pri, file, selector, from, to, add}. A variable is
+// keyed by its name; a declaration in a state rule (the States section) by
+// uiiDeclKey. `from` is what the sheet said before the inspector touched it,
+// `add` marks a var no sheet declared.
 const uiiVarEdits = new Map();
 
-function uiiVarApply(name, value, el) {
-  let e = uiiVarEdits.get(name);
-  uiiUndoAdd({ k: 'var', name, el, had: !!e, to: e && e.to });
-  if (!e) {
-    // The palette edits variables with nothing pinned: no info to carry the
-    // rule list, so the one it collected on open stands in.
-    const r = uiiVarRule(name, el, (uiiState.info && uiiState.info.all) || uiiState.all || []);
-    // Nothing readable declares it (an inline style, a cross-origin sheet):
-    // own it on :root, where a palette belongs, and say so in the log.
-    const style = r ? r.style : document.documentElement.style;
-    e = { style, file: r ? r.file.split('/').pop() : '', selector: r ? r.selector : ':root',
-      from: style.getPropertyValue(name), add: !r };
-    uiiVarEdits.set(name, e);
-  }
+// Writes one declaration and records it for undo, Reset and the Changes box.
+// `find` builds the entry the first time a key is written; undo passes none,
+// the entry it replays already exists.
+function uiiDeclSet(key, value, find) {
+  let e = uiiVarEdits.get(key);
+  if (!e && !find) return;
+  uiiUndoAdd({ k: 'var', name: key, had: !!e, to: e && e.to });
+  if (!e) uiiVarEdits.set(key, e = find());
   e.to = value;
-  e.style.setProperty(name, value);
+  e.style.setProperty(e.prop, value, e.pri);
   if (uiiState.panel) {
     uiiState.panel.reset.disabled = false;
     uiiRefreshChanges();
@@ -85,9 +81,31 @@ function uiiVarApply(name, value, el) {
   uiiScheduleDraw();
 }
 
+function uiiVarApply(name, value, el) {
+  uiiDeclSet(name, value, () => {
+    // The palette edits variables with nothing pinned: no info to carry the
+    // rule list, so the one it collected on open stands in.
+    const r = uiiVarRule(name, el, (uiiState.info && uiiState.info.all) || uiiState.all || []);
+    // Nothing readable declares it (an inline style, a cross-origin sheet):
+    // own it on :root, where a palette belongs, and say so in the log.
+    const style = r ? r.style : document.documentElement.style;
+    return { style, prop: name, pri: '', file: r ? r.file.split('/').pop() : '',
+      selector: r ? r.selector : ':root', from: style.getPropertyValue(name), add: !r };
+  });
+}
+
+// One id per rule, so two rules with the same selector (a second @media copy)
+// never share an edit.
+const uiiRuleIds = new WeakMap();
+let uiiRuleSeq = 0;
+function uiiDeclKey(style, prop) {
+  if (!uiiRuleIds.has(style)) uiiRuleIds.set(style, ++uiiRuleSeq);
+  return 'rule#' + uiiRuleIds.get(style) + ' ' + prop;
+}
+
 function uiiVarReset() {
-  for (const [name, e] of uiiVarEdits) {
-    if (e.from) e.style.setProperty(name, e.from); else e.style.removeProperty(name);
+  for (const e of uiiVarEdits.values()) {
+    if (e.from) e.style.setProperty(e.prop, e.from, e.pri); else e.style.removeProperty(e.prop);
   }
   uiiVarEdits.clear();
 }
@@ -95,8 +113,8 @@ function uiiVarReset() {
 // [[head, decl]] for the Changes box: "style.css :root", "--bg: #1f2937".
 // Page-wide, so uiiChangeLines lists these before the per-element ones.
 function uiiVarLines() {
-  return [...uiiVarEdits].map(([name, e]) => [
+  return [...uiiVarEdits.values()].map((e) => [
     (e.file ? e.file + ' ' : '') + e.selector + (e.add ? ' /* new rule */' : ''),
-    name + ': ' + e.to,
+    e.prop + ': ' + e.to + (e.pri ? ' !important' : ''),
   ]);
 }

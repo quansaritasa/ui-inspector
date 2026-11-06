@@ -3,69 +3,699 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ui-inspector demo</title>
-<link rel="icon" href="data:,">
-<link rel="stylesheet" href="demo.css">
+<title>UI Mock</title>
+<style>
+/* =========================================================
+   DESIGN TOKENS  (developers: reuse these variables)
+   ========================================================= */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --border:#dfe3e8;
+  --text:#1c2430; --text-muted:#5f6b7a; --accent:#2f5bea; --accent-contrast:#fff;
+  --ok:#168a4a; --warn:#b7791f; --danger:#c7372f;
+  --radius:10px; --radius-sm:6px; --shadow:0 1px 2px rgba(16,24,40,.06),0 2px 8px rgba(16,24,40,.05);
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  /* One color per table. Many tables: group by hue family (see Dev notes) */
+  --t-a:#3b82f6;  /* Vendor        */
+  --t-b:#14b8a6;  /* Order         */
+  --t-c:#8b5cf6;  /* Product       */
+  --t-d:#22c55e;  /* Line Item     */
+  --t-e:#f97316;  /* Shipment      */
+  --t-f:#ec4899;  /* Payment Terms */
+  --t-g:#eab308;  /* Invoice Total */
+  --hl-alpha:30%;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1319; --surface:#171c24; --surface-2:#1e2530; --border:#2b3441;
+    --text:#e6eaf0; --text-muted:#98a3b3; --accent:#6c8cff; --accent-contrast:#0b1020;
+    --ok:#4cc38a; --warn:#e0b04d; --danger:#ef7a73; --hl-alpha:38%;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 var(--font);display:flex;flex-direction:column}
+button,input,textarea,select{font:inherit;color:inherit}
+.muted{color:var(--text-muted)}
+.mono{font-family:var(--mono)}
+
+/* =========================================================
+   APP BAR
+   ========================================================= */
+.appbar{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border)}
+.appbar h1{font-size:16px;margin:0;font-weight:650}
+.appbar .sub{font-size:12px;color:var(--text-muted)}
+.spacer{flex:1}
+.btn{border:1px solid var(--border);background:var(--surface);padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;font-weight:550}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.ok{color:var(--ok);border-color:currentColor}
+.btn.bad{color:var(--danger);border-color:currentColor}
+
+/* =========================================================
+   INPUT PANEL (collapsible)
+   ========================================================= */
+.inputs{background:var(--surface);border-bottom:1px solid var(--border)}
+.inputs summary{cursor:pointer;padding:8px 20px;font-weight:600;font-size:13px;list-style:none;display:flex;align-items:center;gap:8px}
+.inputs summary::before{content:"▸";transition:transform .15s}
+.inputs[open] summary::before{transform:rotate(90deg)}
+.inputs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px 14px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text-muted)}
+.field textarea{width:100%;height:110px;resize:vertical;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);font:12px/1.5 var(--mono)}
+.inputs-actions{grid-column:1/-1;display:flex;gap:10px;align-items:center}
+.inputs-actions label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted)}
+.inputs-actions input[type=range]{width:120px}
+
+/* =========================================================
+   STATS BAR
+   ========================================================= */
+.stats{display:flex;gap:12px;padding:12px 20px;flex-wrap:wrap}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;min-width:130px;box-shadow:var(--shadow)}
+.stat .v{font-size:20px;font-weight:700;line-height:1.2}
+.stat .l{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+.stat.cov{min-width:220px}
+.bar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.stat.warn .v{color:var(--warn)} .stat.bad .v{color:var(--danger)}
+
+/* =========================================================
+   MAIN 3-COLUMN LAYOUT
+   ========================================================= */
+.workspace{flex:1;min-height:0;display:grid;grid-template-columns:260px minmax(0,1fr) 400px;gap:12px;padding:0 20px 16px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
+.panel>header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:650}
+.panel>header .tools{margin-left:auto;display:flex;gap:10px;align-items:center;font-weight:400;font-size:12px;color:var(--text-muted)}
+.panel .body{overflow:auto;padding:12px 14px;min-height:0;flex:1}
+
+/* ---- Table legend ---- */
+.legend-search{width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);margin-bottom:8px}
+.tbl{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-sm);cursor:pointer}
+.tbl:hover{background:var(--surface-2)}
+.tbl input{accent-color:var(--c)}
+.tbl .dot{width:12px;height:12px;border-radius:3px;background:var(--c);flex:none}
+.tbl .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbl .count{font-size:12px;color:var(--text-muted)}
+.badge{font-size:11px;padding:1px 7px;border-radius:99px;font-weight:600}
+.badge.bad{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
+.badge.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.more{font-size:12px;color:var(--text-muted);padding:8px;text-align:center;border:1px dashed var(--border);border-radius:var(--radius-sm);margin-top:6px}
+
+/* ---- Raw text viewer ---- */
+.raw{font:13.5px/2 var(--mono);word-break:break-word}
+.raw .ln{display:block;white-space:pre-wrap}
+mark.hl{background:color-mix(in srgb,var(--c) var(--hl-alpha),transparent);color:inherit;border-bottom:2px solid var(--c);border-radius:3px;padding:1px 2px;cursor:pointer;position:relative;transition:box-shadow .15s}
+mark.hl:hover,mark.hl.active{box-shadow:0 0 0 2px var(--c)}
+mark.hl.flash{animation:flash .9s ease 1}
+@keyframes flash{0%,60%{box-shadow:0 0 0 4px var(--c)}100%{box-shadow:0 0 0 0 transparent}}
+mark.hl[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:0;top:100%;margin-top:4px;z-index:5;white-space:nowrap;background:var(--text);color:var(--bg);font:12px/1.4 var(--font);padding:4px 8px;border-radius:var(--radius-sm);pointer-events:none}
+.t-a{--c:var(--t-a)} .t-b{--c:var(--t-b)} .t-c{--c:var(--t-c)} .t-d{--c:var(--t-d)}
+.t-e{--c:var(--t-e)} .t-f{--c:var(--t-f)} .t-g{--c:var(--t-g)}
+/* fuzzy matches get a dashed underline so QA can tell them apart */
+mark.hl.fuzzy{border-bottom-style:dashed}
+/* uncovered text (recall check) */
+.unc{border-radius:3px}
+body.show-unc .unc{background:repeating-linear-gradient(135deg,transparent 0 4px,color-mix(in srgb,var(--danger) 14%,transparent) 4px 8px);outline:1px dashed color-mix(in srgb,var(--danger) 55%,transparent)}
+/* hide a table's highlights when its checkbox is off */
+body.hide-a mark.t-a,body.hide-b mark.t-b,body.hide-c mark.t-c,body.hide-d mark.t-d,
+body.hide-e mark.t-e,body.hide-f mark.t-f,body.hide-g mark.t-g{background:none;border-color:transparent;box-shadow:none;cursor:default}
+
+/* ---- Records ---- */
+.group-title{display:flex;align-items:center;gap:8px;font-weight:650;margin:4px 0 8px}
+.group-title .dot{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.rec{border:1px solid var(--border);border-left:4px solid var(--c);border-radius:var(--radius-sm);margin-bottom:10px;background:var(--surface)}
+.rec.selected{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 55%,transparent)}
+.rec>header{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;font-weight:600}
+.rec .score{margin-left:auto}
+.frow{display:grid;grid-template-columns:110px 1fr auto;gap:8px;padding:5px 10px;border-top:1px solid var(--border);align-items:center;cursor:pointer}
+.frow:hover,.frow.active{background:color-mix(in srgb,var(--c) 10%,transparent)}
+.frow .k{color:var(--text-muted);font-size:12px}
+.frow .val{font-family:var(--mono);font-size:12.5px;overflow-wrap:anywhere}
+.chip{font-size:11px;padding:1px 8px;border-radius:99px;font-weight:600;white-space:nowrap;border:1px solid transparent}
+.chip.exact{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.chip.norm{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+.chip.fuzzy{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.chip.amb{background:var(--surface-2);color:var(--text-muted);border-color:var(--border)}
+.chip.none{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
+.rec.noev{border-color:color-mix(in srgb,var(--danger) 45%,var(--border));border-left-color:var(--c)}
+
+/* ---- Judge panel (Phase 2) ---- */
+.judge{margin:2px 0 4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)}
+.judge-h{display:flex;align-items:center;gap:8px;padding:8px 10px;font-weight:650}
+.phase{font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:1px 6px;border-radius:4px;border:1px solid var(--border);color:var(--text-muted)}
+.scores{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 10px 8px}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px}
+.sc .l{font-size:11px;color:var(--text-muted)} .sc .v{font-weight:700;font-size:16px}
+.judge p{margin:0;padding:0 10px 8px;font-size:13px}
+.quote{margin:0 10px 8px;padding:6px 10px;border-left:3px solid var(--accent);background:var(--surface);font:12px/1.5 var(--mono);color:var(--text-muted)}
+.verdict{display:flex;gap:8px;padding:0 10px 10px;align-items:center}
+.verdict input{flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)}
+
+/* ---- Dev notes ---- */
+.notes{margin:0 20px 20px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:10px 16px;font-size:13px}
+.notes summary{cursor:pointer;font-weight:650}
+.notes ul{margin:8px 0 0;padding-left:18px}
+.notes li{margin:3px 0}
+
+/* ---- Wide panels (grid, icons) ---- */
+.panel.wide{margin:0 20px 16px;flex:none}
+.workspace{flex:1 0 560px}
+.grid-wrap{max-height:460px;padding:0}
+.grid{width:100%;border-collapse:collapse;font-size:13px}
+.grid th,.grid td{padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.grid thead th{position:sticky;top:0;background:var(--surface-2);font-size:12px;color:var(--text-muted);font-weight:650;z-index:1}
+.grid tbody tr:nth-child(even){background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+.grid tbody tr:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.grid .num{text-align:right;font-variant-numeric:tabular-nums}
+.gal-h{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:4px 0 8px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-bottom:16px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer}
+.tile:hover{background:var(--surface-2);border-color:var(--accent)}
+.tile .glyph{font-size:22px;line-height:1.2}
+.tile .tl{font-size:11px;color:var(--text-muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+.gal-search{max-width:420px}
+.gal-hint{font-size:12px;margin:0 0 10px}
+.gal-count{font-weight:400;text-transform:none;letter-spacing:0}
+.gal-empty{grid-column:1/-1;font-size:12px;color:var(--text-muted);padding:6px 0}
+.tile[hidden]{display:none}
+.tile.copied{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:var(--radius-sm);font-size:13px;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:1180px){
+  body{display:block;height:auto}
+  .workspace{grid-template-columns:1fr}
+  .panel .body{max-height:420px}
+  .inputs-grid{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
-<header class="topbar" data-ui="topbar">
-  <span class="brand">Demo app</span>
-  <nav class="nav">
-    <a href="#" class="nav-link active">Orders</a>
-    <a href="#" class="nav-link">Customers</a>
-    <a href="#" class="nav-link">Settings</a>
-  </nav>
-</header>
 
-<main class="page">
-  <p class="hint">
-    Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>\</kbd> to toggle inspect mode (on at load).
-    Click to pin, <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+click to pin and copy the ID,
-    <kbd>Alt</kbd> for the exact element, arrows to walk, <kbd>Esc</kbd> to quit.
-  </p>
-
-  <section class="card" id="filters">
-    <h2 class="card-title">Filters</h2>
-    <form class="form">
-      <label class="field">Search <input id="search" class="input" placeholder="Order number"></label>
-      <label class="field">Status
-        <select id="status" class="input">
-          <option>All</option><option>Paid</option><option>Refunded</option>
-        </select>
-      </label>
-      <button type="button" id="apply-btn" class="btn btn-primary"><span class="icon">✓</span> Apply</button>
-      <button type="button" id="reset-btn" class="btn btn-ghost">Reset</button>
-    </form>
-  </section>
-
-  <section class="card" id="orders">
-    <h2 class="card-title">Orders <span class="badge-count">3</span></h2>
-    <table class="grid" id="orders-grid">
-      <thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr><td>1001</td><td>Ann Lee</td><td class="num">$120.00</td><td><span class="pill pill-ok">Paid</span></td></tr>
-        <tr><td>1002</td><td>Bo Chen</td><td class="num">$75.50</td><td><span class="pill pill-warn">Pending</span></td></tr>
-        <tr><td>1003</td><td>Cy Diaz</td><td class="num">$9.99</td><td><span class="pill pill-bad">Refunded</span></td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <button type="button" id="open-dialog" class="btn btn-danger">Delete order…</button>
-</main>
-
-<div class="backdrop" id="dialog" hidden>
-  <div class="dialog" role="dialog" aria-label="Confirm delete">
-    <p class="dialog-text">Delete order 1001? This cannot be undone.</p>
-    <div class="dialog-actions">
-      <button type="button" id="cancel-delete" class="btn btn-ghost">Cancel</button>
-      <button type="button" id="confirm-delete" class="btn btn-danger">Delete</button>
-    </div>
+<!-- ============ APP BAR ============ -->
+<div class="appbar">
+  <div>
+    <h1>UI Mock</h1>
+    <div class="sub">Review what was extracted from raw text into models (local only, nothing is uploaded)</div>
   </div>
+  <div class="spacer"></div>
+  <button class="btn">Load sample</button>
+  <button class="btn">Export review (JSON)</button>
+  <button class="btn primary">Analyze</button>
 </div>
 
-<script src="app.js"></script>
-<!-- Under dist/, so the code scan skips it: Copy ID names app.js, not the library. -->
+<!-- ============ INPUTS ============ -->
+<details class="inputs" open>
+  <summary>Inputs</summary>
+  <div class="inputs-grid">
+    <div class="field">
+      <label for="raw-in">Raw text (OCR / parsed text)</label>
+      <textarea id="raw-in" placeholder="Paste raw text here..."></textarea>
+    </div>
+    <div class="field">
+      <label for="json-in">Extracted models (JSON: { "table_name": [ {record}, ... ] })</label>
+      <textarea id="json-in" placeholder='{ "line_item": [ { "name": "Stapler", "qty": "10 units" } ] }'></textarea>
+    </div>
+    <div class="inputs-actions">
+      <label>Fuzzy threshold <input type="range" min="60" max="100" value="82"> <span class="mono">0.82</span></label>
+      <label><input type="checkbox" checked> Normalize dates and numbers</label>
+      <label><input type="checkbox"> Use record <span class="mono">source_text</span> when present</label>
+    </div>
+  </div>
+</details>
+
+<!-- ============ STATS ============ -->
+<div class="stats">
+  <div class="stat cov">
+    <div class="l">Raw text coverage</div>
+    <div class="v">81%</div>
+    <div class="bar"><i style="width:81%"></i></div>
+  </div>
+  <div class="stat"><div class="v">7 / 20</div><div class="l">Tables with data</div></div>
+  <div class="stat"><div class="v">42</div><div class="l">Fields matched</div></div>
+  <div class="stat warn"><div class="v">3</div><div class="l">Fuzzy / ambiguous</div></div>
+  <div class="stat bad"><div class="v">2</div><div class="l">No evidence</div></div>
+  <div class="stat bad"><div class="v">3</div><div class="l">Uncovered segments</div></div>
+</div>
+
+<!-- ============ WORKSPACE ============ -->
+<div class="workspace">
+
+  <!-- Left: legend -->
+  <section class="panel" aria-label="Tables">
+    <header>Tables</header>
+    <div class="body">
+      <input class="legend-search" placeholder="Filter tables...">
+      <label class="tbl t-a"><input type="checkbox" checked data-toggle="a"><span class="dot"></span><span class="name">Vendor</span><span class="count">4</span></label>
+      <label class="tbl t-b"><input type="checkbox" checked data-toggle="b"><span class="dot"></span><span class="name">Order</span><span class="count">3</span></label>
+      <label class="tbl t-c"><input type="checkbox" checked data-toggle="c"><span class="dot"></span><span class="name">Product</span><span class="count">2</span><span class="badge bad">1</span></label>
+      <label class="tbl t-d"><input type="checkbox" checked data-toggle="d"><span class="dot"></span><span class="name">Line Item</span><span class="count">2</span><span class="badge warn">1</span></label>
+      <label class="tbl t-e"><input type="checkbox" checked data-toggle="e"><span class="dot"></span><span class="name">Shipment</span><span class="count">1</span></label>
+      <label class="tbl t-f"><input type="checkbox" checked data-toggle="f"><span class="dot"></span><span class="name">Payment Terms</span><span class="count">1</span></label>
+      <label class="tbl t-g"><input type="checkbox" checked data-toggle="g"><span class="dot"></span><span class="name">Invoice Total</span><span class="count">1</span><span class="badge bad">1</span></label>
+      <div class="more">+ 13 tables with no records (hidden)</div>
+      <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
+      <label class="tbl" style="--c:var(--danger)"><input type="checkbox" id="unc-toggle"><span class="dot" style="background:repeating-linear-gradient(135deg,transparent 0 3px,var(--danger) 3px 5px);border:1px solid var(--danger)"></span><span class="name">Show uncovered text</span></label>
+    </div>
+  </section>
+
+  <!-- Center: raw text -->
+  <section class="panel" aria-label="Raw text">
+    <header>Raw text
+      <div class="tools"><span><span class="mono">━</span> exact / normalized</span><span><span class="mono">┅</span> fuzzy</span></div>
+    </header>
+    <div class="body">
+<div class="raw" id="raw"><span class="ln">VENDOR: <mark class="hl t-a" data-ref="a-name" data-tip="Vendor · name · exact">Acme Supply Co.</mark>   SINCE: <mark class="hl t-a" data-ref="a-since" data-tip="Vendor · since · normalized (2015-03-14)">03/14/2015</mark>   ACCT: <mark class="hl t-a" data-ref="a-acct" data-tip="Vendor · account_no · exact">000123</mark></span>
+<span class="ln">Order Date: <mark class="hl t-b" data-ref="b-date" data-tip="Order · order_date · normalized (2026-09-12)">09/12/2026</mark>   Buyer: <mark class="hl t-b" data-ref="b-buyer" data-tip="Order · buyer · exact">Sam Example</mark>, <mark class="hl t-b" data-ref="b-wh" data-tip="Order · warehouse · exact">Example Warehouse East</mark></span>
+<span class="ln">Notes: <span class="unc">Rush order requested by phone on 09/02/2026.</span></span>
+<span class="ln">Product: <mark class="hl t-c" data-ref="c-name" data-tip="Product · description · exact">Office chair</mark> (<mark class="hl t-c" data-ref="c-sku" data-tip="Product · sku · exact">OC-1100</mark>).</span>
+<span class="ln">Line items: <mark class="hl t-d fuzzy" data-ref="d1-name" data-tip="Line Item · name · fuzzy 0.86 (OCR: Stap1er)">Stap1er</mark> <mark class="hl t-d" data-ref="d1-qty" data-tip="Line Item · qty · exact">10 units</mark> each, per carton. <mark class="hl t-d" data-ref="d2-name" data-tip="Line Item · name · exact">Copy paper</mark> <mark class="hl t-d" data-ref="d2-qty" data-tip="Line Item · qty · exact">60 reams</mark> each.</span>
+<span class="ln">Shipping: <mark class="hl t-e" data-ref="e-type" data-tip="Shipment · method · exact">Ground freight</mark> <mark class="hl t-e" data-ref="e-date" data-tip="Shipment · ship_date · normalized (2026-09-15)">09/15/2026</mark> notes <mark class="hl t-e" data-ref="e-note" data-tip="Shipment · note · exact">2 cartons damaged in transit</mark>.</span>
+<span class="ln">Terms: <mark class="hl t-f" data-ref="f-terms" data-tip="Payment Terms · terms · exact">Net 30, 2% discount if paid within 10 days</mark>. <span class="unc">Notify buyer on delivery.</span></span>
+<span class="ln">Total: <mark class="hl t-g" data-ref="g-amt" data-tip="Invoice Total · amount · normalized (1250.00)">$1,250.00</mark> REF <span class="unc">PO-00000</span></span></div>
+    </div>
+  </section>
+
+  <!-- Right: records + judge -->
+  <section class="panel" aria-label="Records">
+    <header>Records
+      <div class="tools"><select aria-label="Filter"><option>All fields</option><option>Problems only</option><option>No evidence</option><option>Fuzzy / ambiguous</option></select></div>
+    </header>
+    <div class="body">
+
+      <div class="group-title t-d"><span class="dot"></span>Line Item</div>
+      <article class="rec t-d selected" id="rec-d1">
+        <header>#1 Stapler <span class="chip fuzzy score">score 0.78</span></header>
+        <div class="frow" data-ref="d1-name"><span class="k">name</span><span class="val">Stapler</span><span class="chip fuzzy">fuzzy 0.86</span></div>
+        <div class="frow" data-ref="d1-qty"><span class="k">qty</span><span class="val">10 units</span><span class="chip exact">exact</span></div>
+        <div class="frow"><span class="k">unit</span><span class="val">each</span><span class="chip amb">ambiguous (2)</span></div>
+        <div class="judge">
+          <div class="judge-h">LLM judge <span class="phase">Phase 2</span></div>
+          <div class="scores">
+            <div class="sc"><div class="l">Faithfulness</div><div class="v">0.9</div></div>
+            <div class="sc"><div class="l">Field mapping</div><div class="v">1.0</div></div>
+            <div class="sc"><div class="l">Completeness</div><div class="v">0.5</div></div>
+          </div>
+          <p><b>Reason:</b> Item name matches an OCR variant of the source text. Packaging "per carton" is present in the raw text but was not extracted.</p>
+          <blockquote class="quote">"Stap1er 10 units each, per carton."</blockquote>
+          <div class="verdict">
+            <button class="btn sm ok">Accept</button><button class="btn sm bad">Reject</button>
+            <input placeholder="QA comment (optional)">
+          </div>
+        </div>
+      </article>
+      <article class="rec t-d" id="rec-d2">
+        <header>#2 Copy paper <span class="chip exact score">score 0.97</span></header>
+        <div class="frow" data-ref="d2-name"><span class="k">name</span><span class="val">Copy paper</span><span class="chip exact">exact</span></div>
+        <div class="frow" data-ref="d2-qty"><span class="k">qty</span><span class="val">60 reams</span><span class="chip exact">exact</span></div>
+      </article>
+
+      <div class="group-title t-c"><span class="dot"></span>Product</div>
+      <article class="rec t-c">
+        <header>#1 Office chair <span class="chip exact score">score 0.95</span></header>
+        <div class="frow" data-ref="c-name"><span class="k">description</span><span class="val">Office chair</span><span class="chip exact">exact</span></div>
+        <div class="frow" data-ref="c-sku"><span class="k">sku</span><span class="val">OC-1100</span><span class="chip exact">exact</span></div>
+      </article>
+      <article class="rec t-c noev">
+        <header>#2 Wireless keyboard <span class="chip none score">score 0.12</span></header>
+        <div class="frow"><span class="k">description</span><span class="val">Wireless keyboard</span><span class="chip none">no evidence</span></div>
+        <div class="frow"><span class="k">sku</span><span class="val">KB-200</span><span class="chip none">no evidence</span></div>
+      </article>
+
+      <div class="group-title t-b"><span class="dot"></span>Order</div>
+      <article class="rec t-b">
+        <header>#1 2026-09-12 <span class="chip exact score">score 0.98</span></header>
+        <div class="frow" data-ref="b-date"><span class="k">order_date</span><span class="val">2026-09-12</span><span class="chip norm">normalized</span></div>
+        <div class="frow" data-ref="b-buyer"><span class="k">buyer</span><span class="val">Sam Example</span><span class="chip exact">exact</span></div>
+        <div class="frow" data-ref="b-wh"><span class="k">warehouse</span><span class="val">Example Warehouse East</span><span class="chip exact">exact</span></div>
+      </article>
+    </div>
+  </section>
+</div>
+
+<!-- ============ DATA GRID ============ -->
+<section class="panel wide" aria-label="Orders grid">
+  <header>Orders grid <div class="tools"><span>8 columns · 50 rows</span></div></header>
+  <div class="body grid-wrap">
+    <table class="grid">
+      <thead><tr><th>PO #</th><th>Vendor</th><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th><th>Status</th><th>Order date</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">PO-1001</td><td>Acme Supply Co.</td><td>Copy paper</td><td class="num">42</td><td class="num">$12.00</td><td class="num">$504.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-09-04</td></tr>
+        <tr><td class="mono">PO-1002</td><td>Summit Goods</td><td>Stapler</td><td class="num">47</td><td class="num">$2.50</td><td class="num">$117.50</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-02-14</td></tr>
+        <tr><td class="mono">PO-1003</td><td>Example Parts</td><td>Ink cartridge</td><td class="num">54</td><td class="num">$4.99</td><td class="num">$269.46</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-07-02</td></tr>
+        <tr><td class="mono">PO-1004</td><td>Acme Supply Co.</td><td>Label maker</td><td class="num">106</td><td class="num">$4.99</td><td class="num">$528.94</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-10-13</td></tr>
+        <tr><td class="mono">PO-1005</td><td>Blue Ridge Office</td><td>Whiteboard</td><td class="num">7</td><td class="num">$18.75</td><td class="num">$131.25</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-07-05</td></tr>
+        <tr><td class="mono">PO-1006</td><td>Lakeside Hardware</td><td>Ink cartridge</td><td class="num">70</td><td class="num">$4.99</td><td class="num">$349.30</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-03-04</td></tr>
+        <tr><td class="mono">PO-1007</td><td>Example Parts</td><td>Ink cartridge</td><td class="num">75</td><td class="num">$18.75</td><td class="num">$1,406.25</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-02-19</td></tr>
+        <tr><td class="mono">PO-1008</td><td>Harbor Tech</td><td>Monitor arm</td><td class="num">8</td><td class="num">$18.75</td><td class="num">$150.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-08-19</td></tr>
+        <tr><td class="mono">PO-1009</td><td>Lakeside Hardware</td><td>Desk lamp</td><td class="num">119</td><td class="num">$249.00</td><td class="num">$29,631.00</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-03-23</td></tr>
+        <tr><td class="mono">PO-1010</td><td>Lakeside Hardware</td><td>Ink cartridge</td><td class="num">100</td><td class="num">$18.75</td><td class="num">$1,875.00</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-08-11</td></tr>
+        <tr><td class="mono">PO-1011</td><td>Example Parts</td><td>Copy paper</td><td class="num">94</td><td class="num">$249.00</td><td class="num">$23,406.00</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-09-14</td></tr>
+        <tr><td class="mono">PO-1012</td><td>Sample Imports</td><td>USB-C cable</td><td class="num">22</td><td class="num">$54.90</td><td class="num">$1,207.80</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-01-22</td></tr>
+        <tr><td class="mono">PO-1013</td><td>Pine Paper Co.</td><td>Label maker</td><td class="num">10</td><td class="num">$54.90</td><td class="num">$549.00</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-08-19</td></tr>
+        <tr><td class="mono">PO-1014</td><td>Example Parts</td><td>Whiteboard</td><td class="num">103</td><td class="num">$249.00</td><td class="num">$25,647.00</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-08-23</td></tr>
+        <tr><td class="mono">PO-1015</td><td>Lakeside Hardware</td><td>Shelf unit</td><td class="num">86</td><td class="num">$4.99</td><td class="num">$429.14</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-10-22</td></tr>
+        <tr><td class="mono">PO-1016</td><td>Harbor Tech</td><td>Shelf unit</td><td class="num">106</td><td class="num">$249.00</td><td class="num">$26,394.00</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-06-01</td></tr>
+        <tr><td class="mono">PO-1017</td><td>Example Parts</td><td>Notebook</td><td class="num">60</td><td class="num">$54.90</td><td class="num">$3,294.00</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-01-07</td></tr>
+        <tr><td class="mono">PO-1018</td><td>Summit Goods</td><td>USB-C cable</td><td class="num">99</td><td class="num">$39.00</td><td class="num">$3,861.00</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-07-28</td></tr>
+        <tr><td class="mono">PO-1019</td><td>Sample Imports</td><td>USB-C cable</td><td class="num">64</td><td class="num">$4.99</td><td class="num">$319.36</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-09-09</td></tr>
+        <tr><td class="mono">PO-1020</td><td>Lakeside Hardware</td><td>Paper shredder</td><td class="num">114</td><td class="num">$12.00</td><td class="num">$1,368.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-07-12</td></tr>
+        <tr><td class="mono">PO-1021</td><td>Blue Ridge Office</td><td>Copy paper</td><td class="num">88</td><td class="num">$129.00</td><td class="num">$11,352.00</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-03-05</td></tr>
+        <tr><td class="mono">PO-1022</td><td>Sample Imports</td><td>Label maker</td><td class="num">30</td><td class="num">$18.75</td><td class="num">$562.50</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-03-09</td></tr>
+        <tr><td class="mono">PO-1023</td><td>Harbor Tech</td><td>Ink cartridge</td><td class="num">37</td><td class="num">$2.50</td><td class="num">$92.50</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-06-20</td></tr>
+        <tr><td class="mono">PO-1024</td><td>Acme Supply Co.</td><td>Notebook</td><td class="num">73</td><td class="num">$54.90</td><td class="num">$4,007.70</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-09-13</td></tr>
+        <tr><td class="mono">PO-1025</td><td>Example Parts</td><td>Notebook</td><td class="num">51</td><td class="num">$129.00</td><td class="num">$6,579.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-07-02</td></tr>
+        <tr><td class="mono">PO-1026</td><td>Sample Imports</td><td>Office chair</td><td class="num">25</td><td class="num">$4.99</td><td class="num">$124.75</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-02-11</td></tr>
+        <tr><td class="mono">PO-1027</td><td>Acme Supply Co.</td><td>Label maker</td><td class="num">77</td><td class="num">$2.50</td><td class="num">$192.50</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-03-18</td></tr>
+        <tr><td class="mono">PO-1028</td><td>Acme Supply Co.</td><td>Copy paper</td><td class="num">13</td><td class="num">$54.90</td><td class="num">$713.70</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-04-20</td></tr>
+        <tr><td class="mono">PO-1029</td><td>Pine Paper Co.</td><td>Label maker</td><td class="num">49</td><td class="num">$12.00</td><td class="num">$588.00</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-06-16</td></tr>
+        <tr><td class="mono">PO-1030</td><td>Sample Imports</td><td>Notebook</td><td class="num">16</td><td class="num">$4.99</td><td class="num">$79.84</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-08-10</td></tr>
+        <tr><td class="mono">PO-1031</td><td>Pine Paper Co.</td><td>Paper shredder</td><td class="num">11</td><td class="num">$12.00</td><td class="num">$132.00</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-05-16</td></tr>
+        <tr><td class="mono">PO-1032</td><td>Acme Supply Co.</td><td>Desk lamp</td><td class="num">107</td><td class="num">$12.00</td><td class="num">$1,284.00</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-09-12</td></tr>
+        <tr><td class="mono">PO-1033</td><td>Lakeside Hardware</td><td>Shelf unit</td><td class="num">19</td><td class="num">$2.50</td><td class="num">$47.50</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-02-23</td></tr>
+        <tr><td class="mono">PO-1034</td><td>Pine Paper Co.</td><td>Office chair</td><td class="num">109</td><td class="num">$39.00</td><td class="num">$4,251.00</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-06-25</td></tr>
+        <tr><td class="mono">PO-1035</td><td>Summit Goods</td><td>Desk lamp</td><td class="num">29</td><td class="num">$54.90</td><td class="num">$1,592.10</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-07-24</td></tr>
+        <tr><td class="mono">PO-1036</td><td>Sample Imports</td><td>Monitor arm</td><td class="num">103</td><td class="num">$18.75</td><td class="num">$1,931.25</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-01-01</td></tr>
+        <tr><td class="mono">PO-1037</td><td>Lakeside Hardware</td><td>Desk lamp</td><td class="num">102</td><td class="num">$39.00</td><td class="num">$3,978.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-10-12</td></tr>
+        <tr><td class="mono">PO-1038</td><td>Example Parts</td><td>Desk lamp</td><td class="num">58</td><td class="num">$54.90</td><td class="num">$3,184.20</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-02-08</td></tr>
+        <tr><td class="mono">PO-1039</td><td>Summit Goods</td><td>Notebook</td><td class="num">61</td><td class="num">$18.75</td><td class="num">$1,143.75</td><td><span class="chip norm">Shipped</span></td><td class="mono">2026-10-20</td></tr>
+        <tr><td class="mono">PO-1040</td><td>Pine Paper Co.</td><td>Shelf unit</td><td class="num">108</td><td class="num">$2.50</td><td class="num">$270.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-02-27</td></tr>
+        <tr><td class="mono">PO-1041</td><td>Summit Goods</td><td>Notebook</td><td class="num">85</td><td class="num">$4.99</td><td class="num">$424.15</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-03-14</td></tr>
+        <tr><td class="mono">PO-1042</td><td>Harbor Tech</td><td>Notebook</td><td class="num">102</td><td class="num">$54.90</td><td class="num">$5,599.80</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-07-24</td></tr>
+        <tr><td class="mono">PO-1043</td><td>Blue Ridge Office</td><td>Stapler</td><td class="num">11</td><td class="num">$12.00</td><td class="num">$132.00</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-03-19</td></tr>
+        <tr><td class="mono">PO-1044</td><td>Sample Imports</td><td>Shelf unit</td><td class="num">116</td><td class="num">$249.00</td><td class="num">$28,884.00</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-06-05</td></tr>
+        <tr><td class="mono">PO-1045</td><td>Acme Supply Co.</td><td>Paper shredder</td><td class="num">71</td><td class="num">$12.00</td><td class="num">$852.00</td><td><span class="chip amb">Draft</span></td><td class="mono">2026-02-17</td></tr>
+        <tr><td class="mono">PO-1046</td><td>Summit Goods</td><td>Desk lamp</td><td class="num">96</td><td class="num">$12.00</td><td class="num">$1,152.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-01-09</td></tr>
+        <tr><td class="mono">PO-1047</td><td>Summit Goods</td><td>Label maker</td><td class="num">28</td><td class="num">$39.00</td><td class="num">$1,092.00</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-06-09</td></tr>
+        <tr><td class="mono">PO-1048</td><td>Acme Supply Co.</td><td>Paper shredder</td><td class="num">70</td><td class="num">$129.00</td><td class="num">$9,030.00</td><td><span class="chip exact">Approved</span></td><td class="mono">2026-06-15</td></tr>
+        <tr><td class="mono">PO-1049</td><td>Blue Ridge Office</td><td>Ink cartridge</td><td class="num">85</td><td class="num">$129.00</td><td class="num">$10,965.00</td><td><span class="chip none">Cancelled</span></td><td class="mono">2026-03-17</td></tr>
+        <tr><td class="mono">PO-1050</td><td>Blue Ridge Office</td><td>Label maker</td><td class="num">66</td><td class="num">$2.50</td><td class="num">$165.00</td><td><span class="chip fuzzy">Delayed</span></td><td class="mono">2026-01-25</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ ICONS & SYMBOLS ============ -->
+<section class="panel wide" aria-label="Icons and symbols">
+  <header>Icons &amp; symbols <div class="tools"><span>100 icons · 100 symbols</span></div></header>
+  <div class="body">
+    <input class="legend-search gal-search" id="gal-search" type="search" placeholder="Search icons and symbols (name or glyph)..." aria-label="Search icons and symbols">
+    <p class="muted gal-hint">Click a tile to copy its name and glyph (e.g. "Keyboard ⌨️"). Shift+click copies the glyph only.</p>
+    <h3 class="gal-h">Icons <span class="gal-count"></span></h3>
+    <div class="gallery">
+      <div class="tile" role="button" tabindex="0" title="Home"><span class="glyph">🏠</span><span class="tl">Home</span></div>
+      <div class="tile" role="button" tabindex="0" title="Search"><span class="glyph">🔍</span><span class="tl">Search</span></div>
+      <div class="tile" role="button" tabindex="0" title="Settings"><span class="glyph">⚙️</span><span class="tl">Settings</span></div>
+      <div class="tile" role="button" tabindex="0" title="User"><span class="glyph">👤</span><span class="tl">User</span></div>
+      <div class="tile" role="button" tabindex="0" title="Users"><span class="glyph">👥</span><span class="tl">Users</span></div>
+      <div class="tile" role="button" tabindex="0" title="Notifications"><span class="glyph">🔔</span><span class="tl">Notifications</span></div>
+      <div class="tile" role="button" tabindex="0" title="Mail"><span class="glyph">✉️</span><span class="tl">Mail</span></div>
+      <div class="tile" role="button" tabindex="0" title="Chat"><span class="glyph">💬</span><span class="tl">Chat</span></div>
+      <div class="tile" role="button" tabindex="0" title="Phone"><span class="glyph">📞</span><span class="tl">Phone</span></div>
+      <div class="tile" role="button" tabindex="0" title="Calendar"><span class="glyph">📅</span><span class="tl">Calendar</span></div>
+      <div class="tile" role="button" tabindex="0" title="Alarm"><span class="glyph">⏰</span><span class="tl">Alarm</span></div>
+      <div class="tile" role="button" tabindex="0" title="Clock"><span class="glyph">🕒</span><span class="tl">Clock</span></div>
+      <div class="tile" role="button" tabindex="0" title="Folder"><span class="glyph">📁</span><span class="tl">Folder</span></div>
+      <div class="tile" role="button" tabindex="0" title="Open folder"><span class="glyph">📂</span><span class="tl">Open folder</span></div>
+      <div class="tile" role="button" tabindex="0" title="File"><span class="glyph">📄</span><span class="tl">File</span></div>
+      <div class="tile" role="button" tabindex="0" title="Edit"><span class="glyph">📝</span><span class="tl">Edit</span></div>
+      <div class="tile" role="button" tabindex="0" title="Pencil"><span class="glyph">✏️</span><span class="tl">Pencil</span></div>
+      <div class="tile" role="button" tabindex="0" title="Delete"><span class="glyph">🗑️</span><span class="tl">Delete</span></div>
+      <div class="tile" role="button" tabindex="0" title="Attach"><span class="glyph">📎</span><span class="tl">Attach</span></div>
+      <div class="tile" role="button" tabindex="0" title="Link"><span class="glyph">🔗</span><span class="tl">Link</span></div>
+      <div class="tile" role="button" tabindex="0" title="Pin"><span class="glyph">📌</span><span class="tl">Pin</span></div>
+      <div class="tile" role="button" tabindex="0" title="Location"><span class="glyph">📍</span><span class="tl">Location</span></div>
+      <div class="tile" role="button" tabindex="0" title="Map"><span class="glyph">🗺️</span><span class="tl">Map</span></div>
+      <div class="tile" role="button" tabindex="0" title="Compass"><span class="glyph">🧭</span><span class="tl">Compass</span></div>
+      <div class="tile" role="button" tabindex="0" title="Lock"><span class="glyph">🔒</span><span class="tl">Lock</span></div>
+      <div class="tile" role="button" tabindex="0" title="Unlock"><span class="glyph">🔓</span><span class="tl">Unlock</span></div>
+      <div class="tile" role="button" tabindex="0" title="Key"><span class="glyph">🔑</span><span class="tl">Key</span></div>
+      <div class="tile" role="button" tabindex="0" title="Shield"><span class="glyph">🛡️</span><span class="tl">Shield</span></div>
+      <div class="tile" role="button" tabindex="0" title="Star"><span class="glyph">⭐</span><span class="tl">Star</span></div>
+      <div class="tile" role="button" tabindex="0" title="Favorite"><span class="glyph">❤️</span><span class="tl">Favorite</span></div>
+      <div class="tile" role="button" tabindex="0" title="Like"><span class="glyph">👍</span><span class="tl">Like</span></div>
+      <div class="tile" role="button" tabindex="0" title="Dislike"><span class="glyph">👎</span><span class="tl">Dislike</span></div>
+      <div class="tile" role="button" tabindex="0" title="Bookmark"><span class="glyph">🔖</span><span class="tl">Bookmark</span></div>
+      <div class="tile" role="button" tabindex="0" title="Tag"><span class="glyph">🏷️</span><span class="tl">Tag</span></div>
+      <div class="tile" role="button" tabindex="0" title="Chart"><span class="glyph">📊</span><span class="tl">Chart</span></div>
+      <div class="tile" role="button" tabindex="0" title="Trend up"><span class="glyph">📈</span><span class="tl">Trend up</span></div>
+      <div class="tile" role="button" tabindex="0" title="Trend down"><span class="glyph">📉</span><span class="tl">Trend down</span></div>
+      <div class="tile" role="button" tabindex="0" title="Clipboard"><span class="glyph">📋</span><span class="tl">Clipboard</span></div>
+      <div class="tile" role="button" tabindex="0" title="Index"><span class="glyph">🗂️</span><span class="tl">Index</span></div>
+      <div class="tile" role="button" tabindex="0" title="Archive"><span class="glyph">🗃️</span><span class="tl">Archive</span></div>
+      <div class="tile" role="button" tabindex="0" title="Package"><span class="glyph">📦</span><span class="tl">Package</span></div>
+      <div class="tile" role="button" tabindex="0" title="Cart"><span class="glyph">🛒</span><span class="tl">Cart</span></div>
+      <div class="tile" role="button" tabindex="0" title="Shopping"><span class="glyph">🛍️</span><span class="tl">Shopping</span></div>
+      <div class="tile" role="button" tabindex="0" title="Card"><span class="glyph">💳</span><span class="tl">Card</span></div>
+      <div class="tile" role="button" tabindex="0" title="Money"><span class="glyph">💰</span><span class="tl">Money</span></div>
+      <div class="tile" role="button" tabindex="0" title="Receipt"><span class="glyph">🧾</span><span class="tl">Receipt</span></div>
+      <div class="tile" role="button" tabindex="0" title="Bank"><span class="glyph">🏦</span><span class="tl">Bank</span></div>
+      <div class="tile" role="button" tabindex="0" title="Cash"><span class="glyph">💵</span><span class="tl">Cash</span></div>
+      <div class="tile" role="button" tabindex="0" title="Coin"><span class="glyph">🪙</span><span class="tl">Coin</span></div>
+      <div class="tile" role="button" tabindex="0" title="Gift"><span class="glyph">🎁</span><span class="tl">Gift</span></div>
+      <div class="tile" role="button" tabindex="0" title="Camera"><span class="glyph">📷</span><span class="tl">Camera</span></div>
+      <div class="tile" role="button" tabindex="0" title="Image"><span class="glyph">🖼️</span><span class="tl">Image</span></div>
+      <div class="tile" role="button" tabindex="0" title="Video"><span class="glyph">🎥</span><span class="tl">Video</span></div>
+      <div class="tile" role="button" tabindex="0" title="Music"><span class="glyph">🎵</span><span class="tl">Music</span></div>
+      <div class="tile" role="button" tabindex="0" title="Mic"><span class="glyph">🎤</span><span class="tl">Mic</span></div>
+      <div class="tile" role="button" tabindex="0" title="Volume"><span class="glyph">🔊</span><span class="tl">Volume</span></div>
+      <div class="tile" role="button" tabindex="0" title="Mute"><span class="glyph">🔇</span><span class="tl">Mute</span></div>
+      <div class="tile" role="button" tabindex="0" title="Play"><span class="glyph">▶️</span><span class="tl">Play</span></div>
+      <div class="tile" role="button" tabindex="0" title="Pause"><span class="glyph">⏸️</span><span class="tl">Pause</span></div>
+      <div class="tile" role="button" tabindex="0" title="Stop"><span class="glyph">⏹️</span><span class="tl">Stop</span></div>
+      <div class="tile" role="button" tabindex="0" title="Next"><span class="glyph">⏭️</span><span class="tl">Next</span></div>
+      <div class="tile" role="button" tabindex="0" title="Previous"><span class="glyph">⏮️</span><span class="tl">Previous</span></div>
+      <div class="tile" role="button" tabindex="0" title="Repeat"><span class="glyph">🔁</span><span class="tl">Repeat</span></div>
+      <div class="tile" role="button" tabindex="0" title="Shuffle"><span class="glyph">🔀</span><span class="tl">Shuffle</span></div>
+      <div class="tile" role="button" tabindex="0" title="Refresh"><span class="glyph">🔄</span><span class="tl">Refresh</span></div>
+      <div class="tile" role="button" tabindex="0" title="Download"><span class="glyph">⬇️</span><span class="tl">Download</span></div>
+      <div class="tile" role="button" tabindex="0" title="Upload"><span class="glyph">⬆️</span><span class="tl">Upload</span></div>
+      <div class="tile" role="button" tabindex="0" title="Cloud"><span class="glyph">☁️</span><span class="tl">Cloud</span></div>
+      <div class="tile" role="button" tabindex="0" title="Save"><span class="glyph">💾</span><span class="tl">Save</span></div>
+      <div class="tile" role="button" tabindex="0" title="Print"><span class="glyph">🖨️</span><span class="tl">Print</span></div>
+      <div class="tile" role="button" tabindex="0" title="Laptop"><span class="glyph">💻</span><span class="tl">Laptop</span></div>
+      <div class="tile" role="button" tabindex="0" title="Desktop"><span class="glyph">🖥️</span><span class="tl">Desktop</span></div>
+      <div class="tile" role="button" tabindex="0" title="Mobile"><span class="glyph">📱</span><span class="tl">Mobile</span></div>
+      <div class="tile" role="button" tabindex="0" title="Keyboard"><span class="glyph">⌨️</span><span class="tl">Keyboard</span></div>
+      <div class="tile" role="button" tabindex="0" title="Mouse"><span class="glyph">🖱️</span><span class="tl">Mouse</span></div>
+      <div class="tile" role="button" tabindex="0" title="Battery"><span class="glyph">🔋</span><span class="tl">Battery</span></div>
+      <div class="tile" role="button" tabindex="0" title="Plug"><span class="glyph">🔌</span><span class="tl">Plug</span></div>
+      <div class="tile" role="button" tabindex="0" title="Signal"><span class="glyph">📶</span><span class="tl">Signal</span></div>
+      <div class="tile" role="button" tabindex="0" title="Wi-Fi"><span class="glyph">🛜</span><span class="tl">Wi-Fi</span></div>
+      <div class="tile" role="button" tabindex="0" title="Antenna"><span class="glyph">📡</span><span class="tl">Antenna</span></div>
+      <div class="tile" role="button" tabindex="0" title="Idea"><span class="glyph">💡</span><span class="tl">Idea</span></div>
+      <div class="tile" role="button" tabindex="0" title="Flashlight"><span class="glyph">🔦</span><span class="tl">Flashlight</span></div>
+      <div class="tile" role="button" tabindex="0" title="Plugin"><span class="glyph">🧩</span><span class="tl">Plugin</span></div>
+      <div class="tile" role="button" tabindex="0" title="Tools"><span class="glyph">🛠️</span><span class="tl">Tools</span></div>
+      <div class="tile" role="button" tabindex="0" title="Wrench"><span class="glyph">🔧</span><span class="tl">Wrench</span></div>
+      <div class="tile" role="button" tabindex="0" title="Test"><span class="glyph">🧪</span><span class="tl">Test</span></div>
+      <div class="tile" role="button" tabindex="0" title="Bug"><span class="glyph">🐞</span><span class="tl">Bug</span></div>
+      <div class="tile" role="button" tabindex="0" title="Launch"><span class="glyph">🚀</span><span class="tl">Launch</span></div>
+      <div class="tile" role="button" tabindex="0" title="Target"><span class="glyph">🎯</span><span class="tl">Target</span></div>
+      <div class="tile" role="button" tabindex="0" title="Trophy"><span class="glyph">🏆</span><span class="tl">Trophy</span></div>
+      <div class="tile" role="button" tabindex="0" title="Globe"><span class="glyph">🌐</span><span class="tl">Globe</span></div>
+      <div class="tile" role="button" tabindex="0" title="Dark mode"><span class="glyph">🌙</span><span class="tl">Dark mode</span></div>
+      <div class="tile" role="button" tabindex="0" title="Light mode"><span class="glyph">☀️</span><span class="tl">Light mode</span></div>
+      <div class="tile" role="button" tabindex="0" title="Hot"><span class="glyph">🔥</span><span class="tl">Hot</span></div>
+      <div class="tile" role="button" tabindex="0" title="Fast"><span class="glyph">⚡</span><span class="tl">Fast</span></div>
+      <div class="tile" role="button" tabindex="0" title="Help"><span class="glyph">❓</span><span class="tl">Help</span></div>
+      <div class="tile" role="button" tabindex="0" title="Info"><span class="glyph">ℹ️</span><span class="tl">Info</span></div>
+      <div class="tile" role="button" tabindex="0" title="Warning"><span class="glyph">⚠️</span><span class="tl">Warning</span></div>
+      <div class="tile" role="button" tabindex="0" title="Error"><span class="glyph">❌</span><span class="tl">Error</span></div>
+      <div class="tile" role="button" tabindex="0" title="Success"><span class="glyph">✅</span><span class="tl">Success</span></div>
+    </div>
+    <h3 class="gal-h">Symbols <span class="gal-count"></span></h3>
+    <div class="gallery">
+      <div class="tile" role="button" tabindex="0" title="Check"><span class="glyph">✓</span><span class="tl">Check</span></div>
+      <div class="tile" role="button" tabindex="0" title="Heavy check"><span class="glyph">✔</span><span class="tl">Heavy check</span></div>
+      <div class="tile" role="button" tabindex="0" title="Close"><span class="glyph">✕</span><span class="tl">Close</span></div>
+      <div class="tile" role="button" tabindex="0" title="Heavy close"><span class="glyph">✖</span><span class="tl">Heavy close</span></div>
+      <div class="tile" role="button" tabindex="0" title="Plus"><span class="glyph">＋</span><span class="tl">Plus</span></div>
+      <div class="tile" role="button" tabindex="0" title="Minus"><span class="glyph">−</span><span class="tl">Minus</span></div>
+      <div class="tile" role="button" tabindex="0" title="Multiply"><span class="glyph">×</span><span class="tl">Multiply</span></div>
+      <div class="tile" role="button" tabindex="0" title="Divide"><span class="glyph">÷</span><span class="tl">Divide</span></div>
+      <div class="tile" role="button" tabindex="0" title="Equals"><span class="glyph">=</span><span class="tl">Equals</span></div>
+      <div class="tile" role="button" tabindex="0" title="Not equal"><span class="glyph">≠</span><span class="tl">Not equal</span></div>
+      <div class="tile" role="button" tabindex="0" title="Approx"><span class="glyph">≈</span><span class="tl">Approx</span></div>
+      <div class="tile" role="button" tabindex="0" title="Plus-minus"><span class="glyph">±</span><span class="tl">Plus-minus</span></div>
+      <div class="tile" role="button" tabindex="0" title="Less or equal"><span class="glyph">≤</span><span class="tl">Less or equal</span></div>
+      <div class="tile" role="button" tabindex="0" title="Greater or equal"><span class="glyph">≥</span><span class="tl">Greater or equal</span></div>
+      <div class="tile" role="button" tabindex="0" title="Less"><span class="glyph"><</span><span class="tl">Less</span></div>
+      <div class="tile" role="button" tabindex="0" title="Greater"><span class="glyph">></span><span class="tl">Greater</span></div>
+      <div class="tile" role="button" tabindex="0" title="Infinity"><span class="glyph">∞</span><span class="tl">Infinity</span></div>
+      <div class="tile" role="button" tabindex="0" title="Percent"><span class="glyph">%</span><span class="tl">Percent</span></div>
+      <div class="tile" role="button" tabindex="0" title="Per mille"><span class="glyph">‰</span><span class="tl">Per mille</span></div>
+      <div class="tile" role="button" tabindex="0" title="Degree"><span class="glyph">°</span><span class="tl">Degree</span></div>
+      <div class="tile" role="button" tabindex="0" title="Right"><span class="glyph">→</span><span class="tl">Right</span></div>
+      <div class="tile" role="button" tabindex="0" title="Left"><span class="glyph">←</span><span class="tl">Left</span></div>
+      <div class="tile" role="button" tabindex="0" title="Up"><span class="glyph">↑</span><span class="tl">Up</span></div>
+      <div class="tile" role="button" tabindex="0" title="Down"><span class="glyph">↓</span><span class="tl">Down</span></div>
+      <div class="tile" role="button" tabindex="0" title="Left-right"><span class="glyph">↔</span><span class="tl">Left-right</span></div>
+      <div class="tile" role="button" tabindex="0" title="Up-down"><span class="glyph">↕</span><span class="tl">Up-down</span></div>
+      <div class="tile" role="button" tabindex="0" title="North-east"><span class="glyph">↗</span><span class="tl">North-east</span></div>
+      <div class="tile" role="button" tabindex="0" title="South-east"><span class="glyph">↘</span><span class="tl">South-east</span></div>
+      <div class="tile" role="button" tabindex="0" title="South-west"><span class="glyph">↙</span><span class="tl">South-west</span></div>
+      <div class="tile" role="button" tabindex="0" title="North-west"><span class="glyph">↖</span><span class="tl">North-west</span></div>
+      <div class="tile" role="button" tabindex="0" title="Implies"><span class="glyph">⇒</span><span class="tl">Implies</span></div>
+      <div class="tile" role="button" tabindex="0" title="Implied by"><span class="glyph">⇐</span><span class="tl">Implied by</span></div>
+      <div class="tile" role="button" tabindex="0" title="Iff"><span class="glyph">⇔</span><span class="tl">Iff</span></div>
+      <div class="tile" role="button" tabindex="0" title="Return"><span class="glyph">↩</span><span class="tl">Return</span></div>
+      <div class="tile" role="button" tabindex="0" title="Forward"><span class="glyph">↪</span><span class="tl">Forward</span></div>
+      <div class="tile" role="button" tabindex="0" title="Reload"><span class="glyph">⟳</span><span class="tl">Reload</span></div>
+      <div class="tile" role="button" tabindex="0" title="Undo"><span class="glyph">⟲</span><span class="tl">Undo</span></div>
+      <div class="tile" role="button" tabindex="0" title="Up turn"><span class="glyph">⤴</span><span class="tl">Up turn</span></div>
+      <div class="tile" role="button" tabindex="0" title="Down turn"><span class="glyph">⤵</span><span class="tl">Down turn</span></div>
+      <div class="tile" role="button" tabindex="0" title="Arrow"><span class="glyph">➜</span><span class="tl">Arrow</span></div>
+      <div class="tile" role="button" tabindex="0" title="Up triangle"><span class="glyph">▲</span><span class="tl">Up triangle</span></div>
+      <div class="tile" role="button" tabindex="0" title="Down triangle"><span class="glyph">▼</span><span class="tl">Down triangle</span></div>
+      <div class="tile" role="button" tabindex="0" title="Left triangle"><span class="glyph">◀</span><span class="tl">Left triangle</span></div>
+      <div class="tile" role="button" tabindex="0" title="Right triangle"><span class="glyph">▶</span><span class="tl">Right triangle</span></div>
+      <div class="tile" role="button" tabindex="0" title="Small up"><span class="glyph">▴</span><span class="tl">Small up</span></div>
+      <div class="tile" role="button" tabindex="0" title="Small down"><span class="glyph">▾</span><span class="tl">Small down</span></div>
+      <div class="tile" role="button" tabindex="0" title="Single left"><span class="glyph">‹</span><span class="tl">Single left</span></div>
+      <div class="tile" role="button" tabindex="0" title="Single right"><span class="glyph">›</span><span class="tl">Single right</span></div>
+      <div class="tile" role="button" tabindex="0" title="Double left"><span class="glyph">«</span><span class="tl">Double left</span></div>
+      <div class="tile" role="button" tabindex="0" title="Double right"><span class="glyph">»</span><span class="tl">Double right</span></div>
+      <div class="tile" role="button" tabindex="0" title="Bullet"><span class="glyph">•</span><span class="tl">Bullet</span></div>
+      <div class="tile" role="button" tabindex="0" title="Middle dot"><span class="glyph">·</span><span class="tl">Middle dot</span></div>
+      <div class="tile" role="button" tabindex="0" title="Ellipsis"><span class="glyph">…</span><span class="tl">Ellipsis</span></div>
+      <div class="tile" role="button" tabindex="0" title="Vertical dots"><span class="glyph">⋮</span><span class="tl">Vertical dots</span></div>
+      <div class="tile" role="button" tabindex="0" title="Horizontal dots"><span class="glyph">⋯</span><span class="tl">Horizontal dots</span></div>
+      <div class="tile" role="button" tabindex="0" title="Menu"><span class="glyph">☰</span><span class="tl">Menu</span></div>
+      <div class="tile" role="button" tabindex="0" title="Hamburger"><span class="glyph">≡</span><span class="tl">Hamburger</span></div>
+      <div class="tile" role="button" tabindex="0" title="Command"><span class="glyph">⌘</span><span class="tl">Command</span></div>
+      <div class="tile" role="button" tabindex="0" title="Option"><span class="glyph">⌥</span><span class="tl">Option</span></div>
+      <div class="tile" role="button" tabindex="0" title="Shift"><span class="glyph">⇧</span><span class="tl">Shift</span></div>
+      <div class="tile" role="button" tabindex="0" title="Control"><span class="glyph">⌃</span><span class="tl">Control</span></div>
+      <div class="tile" role="button" tabindex="0" title="Enter"><span class="glyph">⏎</span><span class="tl">Enter</span></div>
+      <div class="tile" role="button" tabindex="0" title="Backspace"><span class="glyph">⌫</span><span class="tl">Backspace</span></div>
+      <div class="tile" role="button" tabindex="0" title="Delete fwd"><span class="glyph">⌦</span><span class="tl">Delete fwd</span></div>
+      <div class="tile" role="button" tabindex="0" title="Tab"><span class="glyph">⇥</span><span class="tl">Tab</span></div>
+      <div class="tile" role="button" tabindex="0" title="Escape"><span class="glyph">⎋</span><span class="tl">Escape</span></div>
+      <div class="tile" role="button" tabindex="0" title="Eject"><span class="glyph">⏏</span><span class="tl">Eject</span></div>
+      <div class="tile" role="button" tabindex="0" title="Space"><span class="glyph">␣</span><span class="tl">Space</span></div>
+      <div class="tile" role="button" tabindex="0" title="Pilcrow"><span class="glyph">¶</span><span class="tl">Pilcrow</span></div>
+      <div class="tile" role="button" tabindex="0" title="Section"><span class="glyph">§</span><span class="tl">Section</span></div>
+      <div class="tile" role="button" tabindex="0" title="Star"><span class="glyph">★</span><span class="tl">Star</span></div>
+      <div class="tile" role="button" tabindex="0" title="Star outline"><span class="glyph">☆</span><span class="tl">Star outline</span></div>
+      <div class="tile" role="button" tabindex="0" title="Heart"><span class="glyph">♥</span><span class="tl">Heart</span></div>
+      <div class="tile" role="button" tabindex="0" title="Heart outline"><span class="glyph">♡</span><span class="tl">Heart outline</span></div>
+      <div class="tile" role="button" tabindex="0" title="Circle"><span class="glyph">●</span><span class="tl">Circle</span></div>
+      <div class="tile" role="button" tabindex="0" title="Circle outline"><span class="glyph">○</span><span class="tl">Circle outline</span></div>
+      <div class="tile" role="button" tabindex="0" title="Square"><span class="glyph">■</span><span class="tl">Square</span></div>
+      <div class="tile" role="button" tabindex="0" title="Square outline"><span class="glyph">□</span><span class="tl">Square outline</span></div>
+      <div class="tile" role="button" tabindex="0" title="Diamond"><span class="glyph">◆</span><span class="tl">Diamond</span></div>
+      <div class="tile" role="button" tabindex="0" title="Diamond outline"><span class="glyph">◇</span><span class="tl">Diamond outline</span></div>
+      <div class="tile" role="button" tabindex="0" title="Copyright"><span class="glyph">©</span><span class="tl">Copyright</span></div>
+      <div class="tile" role="button" tabindex="0" title="Registered"><span class="glyph">®</span><span class="tl">Registered</span></div>
+      <div class="tile" role="button" tabindex="0" title="Trademark"><span class="glyph">™</span><span class="tl">Trademark</span></div>
+      <div class="tile" role="button" tabindex="0" title="Hash"><span class="glyph">#</span><span class="tl">Hash</span></div>
+      <div class="tile" role="button" tabindex="0" title="At"><span class="glyph">@</span><span class="tl">At</span></div>
+      <div class="tile" role="button" tabindex="0" title="Ampersand"><span class="glyph">&</span><span class="tl">Ampersand</span></div>
+      <div class="tile" role="button" tabindex="0" title="Asterisk"><span class="glyph">*</span><span class="tl">Asterisk</span></div>
+      <div class="tile" role="button" tabindex="0" title="Dagger"><span class="glyph">†</span><span class="tl">Dagger</span></div>
+      <div class="tile" role="button" tabindex="0" title="Double dagger"><span class="glyph">‡</span><span class="tl">Double dagger</span></div>
+      <div class="tile" role="button" tabindex="0" title="Numero"><span class="glyph">№</span><span class="tl">Numero</span></div>
+      <div class="tile" role="button" tabindex="0" title="Dollar"><span class="glyph">$</span><span class="tl">Dollar</span></div>
+      <div class="tile" role="button" tabindex="0" title="Euro"><span class="glyph">€</span><span class="tl">Euro</span></div>
+      <div class="tile" role="button" tabindex="0" title="Pound"><span class="glyph">£</span><span class="tl">Pound</span></div>
+      <div class="tile" role="button" tabindex="0" title="Yen"><span class="glyph">¥</span><span class="tl">Yen</span></div>
+      <div class="tile" role="button" tabindex="0" title="Dong"><span class="glyph">₫</span><span class="tl">Dong</span></div>
+      <div class="tile" role="button" tabindex="0" title="Rupee"><span class="glyph">₹</span><span class="tl">Rupee</span></div>
+      <div class="tile" role="button" tabindex="0" title="Cent"><span class="glyph">¢</span><span class="tl">Cent</span></div>
+      <div class="tile" role="button" tabindex="0" title="Em dash"><span class="glyph">—</span><span class="tl">Em dash</span></div>
+      <div class="tile" role="button" tabindex="0" title="En dash"><span class="glyph">–</span><span class="tl">En dash</span></div>
+      <div class="tile" role="button" tabindex="0" title="Quotes"><span class="glyph">“ ”</span><span class="tl">Quotes</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEV NOTES ============ -->
+<details class="notes">
+  <summary>Dev notes (not part of the UI)</summary>
+  <ul>
+    <li><b>Layout:</b> app bar, collapsible inputs, stats bar, then a 3-column workspace (tables 260px, raw text fluid, records 400px). Under 1180px the columns stack.</li>
+    <li><b>Highlights:</b> one <span class="mono">mark.hl</span> per matched field value, colored by the table class (<span class="mono">.t-*</span>) through the <span class="mono">--c</span> variable. Solid underline for exact/normalized, dashed for fuzzy. Hover shows table, field and match type.</li>
+    <li><b>Match status chips:</b> exact, normalized, fuzzy (with score), ambiguous (value appears more than once), no evidence (value not found, possible hallucination or inferred value).</li>
+    <li><b>Uncovered text:</b> segments not covered by any highlight get class <span class="mono">.unc</span>, shown only when "Show uncovered text" is on. Coverage % = covered characters / total characters of the raw text.</li>
+    <li><b>Colors for many tables:</b> assign a hue family per table group (for example parties = blues, items = greens, money = yellows) and vary lightness inside the group. Highlight alpha is separated into <span class="mono">--hl-alpha</span> so it can be tuned per theme.</li>
+    <li><b>Interactions (wired in this mock):</b> click a highlight to select its field row, click a field row to scroll to and flash its highlight, table checkboxes toggle highlights.</li>
+    <li><b>Judge block:</b> Phase 2. Per record: three scores, reason, evidence quote, QA verdict (Accept, Reject, comment). Export writes all verdicts to JSON.</li>
+    <li><b>Data in this mock is fictional.</b></li>
+  </ul>
+</details>
+
+<script>
+/* Minimal interactions for the mock only (not production code) */
+document.querySelectorAll('[data-toggle]').forEach(cb=>{
+  cb.addEventListener('change',()=>document.body.classList.toggle('hide-'+cb.dataset.toggle,!cb.checked));
+});
+document.getElementById('unc-toggle').addEventListener('change',e=>document.body.classList.toggle('show-unc',e.target.checked));
+
+function clearActive(){document.querySelectorAll('.active').forEach(el=>el.classList.remove('active'))}
+function select(ref,from){
+  clearActive();
+  const mark=document.querySelector('mark[data-ref="'+ref+'"]');
+  const row=document.querySelector('.frow[data-ref="'+ref+'"]');
+  if(mark){mark.classList.add('active');mark.classList.remove('flash');void mark.offsetWidth;mark.classList.add('flash')}
+  if(row)row.classList.add('active');
+  if(from==='mark'&&row)row.scrollIntoView({block:'center',behavior:'smooth'});
+  if(from==='row'&&mark)mark.scrollIntoView({block:'center',behavior:'smooth'});
+}
+document.querySelectorAll('mark[data-ref]').forEach(m=>m.addEventListener('click',()=>select(m.dataset.ref,'mark')));
+document.querySelectorAll('.frow[data-ref]').forEach(r=>r.addEventListener('click',()=>select(r.dataset.ref,'row')));
+/* Icons & symbols: filter + click to copy */
+(function(){
+  const input=document.getElementById('gal-search');
+  const galleries=[...document.querySelectorAll('.gallery')];
+  const toast=Object.assign(document.createElement('div'),{className:'toast',role:'status'});
+  toast.setAttribute('aria-live','polite');
+  document.body.appendChild(toast);
+  galleries.forEach(g=>{const e=document.createElement('div');e.className='gal-empty';e.textContent='No matches';e.hidden=true;g.appendChild(e)});
+
+  function filter(){
+    const q=input.value.trim().toLowerCase();
+    galleries.forEach(g=>{
+      let n=0;
+      g.querySelectorAll('.tile').forEach(t=>{
+        const hit=!q||t.title.toLowerCase().includes(q)||t.querySelector('.glyph').textContent.includes(q);
+        t.hidden=!hit; if(hit)n++;
+      });
+      g.querySelector('.gal-empty').hidden=n>0;
+      g.previousElementSibling.querySelector('.gal-count').textContent='('+n+')';
+    });
+  }
+  input.addEventListener('input',filter);
+  filter();
+
+  let timer;
+  function notify(msg){toast.textContent=msg;toast.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>toast.classList.remove('show'),1400)}
+  async function copy(text){
+    try{await navigator.clipboard.writeText(text);return true}
+    catch{ /* fallback for browsers that block the async clipboard on file:// */
+      const ta=Object.assign(document.createElement('textarea'),{value:text});
+      ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();
+      const ok=document.execCommand('copy');ta.remove();return ok;
+    }
+  }
+  async function copyTile(tile,withName){
+    const glyph=tile.querySelector('.glyph').textContent;
+    const text=withName?tile.title+' '+glyph:glyph;
+    const ok=await copy(text);
+    notify(ok?'Copied: '+text:'Copy failed');
+    if(ok){tile.classList.add('copied');setTimeout(()=>tile.classList.remove('copied'),600)}
+  }
+  document.querySelectorAll('.tile').forEach(t=>{
+    t.addEventListener('click',e=>copyTile(t,!e.shiftKey));
+    t.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();copyTile(t,!e.shiftKey)}});
+  });
+})();
+</script>
 <script src="../dist/ui-inspector.js"></script>
-<script>UIInspector.init({ shortcut: 'Mod+\\' }).enable();</script>
+<script>UIInspector.init().enable();</script>
 </body>
 </html>

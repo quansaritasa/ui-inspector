@@ -13,11 +13,14 @@ const UII_CSS = `
 .box.field  { border-color: #16a34a; background: rgba(22,163,74,.06); }
 .box.link   { border-color: #9333ea; background: rgba(147,51,234,.06); }
 .box.block  { border-color: rgba(249,115,22,.7); border-style: dashed; }  /* containers: no fill, they stack */
-.hover { position: fixed; pointer-events: none; z-index: 2147483001; border: 2px solid #ef4444;
+.hover { position: fixed; pointer-events: none; z-index: 2147483001; border: 2px dashed #ef4444;
   background: rgba(239,68,68,.08); border-radius: 2px; display: none; }
 .hover.on { display: block; }
-.hover:not(.sel) { border-style: dashed; }
-.hover.sel { background: rgba(239,68,68,.14); }
+.pickbox { position: fixed; pointer-events: none; z-index: 2147483001; border: 2px solid #0ea5e9;
+  background: rgba(14,165,233,.10); border-radius: 2px; }
+.pickbox::before { content: attr(data-n); position: absolute; z-index: 2147483002; top: -2px; left: -2px; padding: 0 3px;
+  background: #0ea5e9; color: #fff; border-radius: 2px 0 4px 0;
+  font: 700 9px/11px -apple-system, "Segoe UI", system-ui, sans-serif; }
 .tip { position: fixed; pointer-events: none; z-index: 2147483002; display: none; max-width: 360px;
   padding: 3px 8px; border-radius: 4px; background: #111827; color: #f9fafb;
   font: 12px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; white-space: nowrap;
@@ -47,15 +50,21 @@ const UII_CSS = `
    an edit is judged against the real screen. !important, because the pieces
    are shown by a second class (.hover.on) of equal weight. */
 :host(.peek) .layer, :host(.peek) .hover, :host(.peek) .tip,
-:host(.peek) .sp, :host(.peek) .spv, :host(.peek) .badge { display: none !important; }
+:host(.peek) .sp, :host(.peek) .spv, :host(.peek) .pickbox, :host(.peek) .badge { display: none !important; }
 .head button.on { background: #1f2937; border-color: #1f2937; color: #fff; }
 
-.panel { position: fixed; z-index: 2147483003; top: 48px; right: 16px; width: ${UII_PANEL_W}px; max-height: calc(100vh - 64px);
+.panel { position: fixed; z-index: 2147483003; top: 8px; right: 16px; width: ${UII_PANEL_W}px; max-height: calc(100vh - 16px);
   display: none; flex-direction: column; pointer-events: auto;
   background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,.25);
   font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
 .panel.on { display: flex; }
+/* Alt held: the panel fades, each key's tooltip stays sharp on top. */
+.panel.hints > :not(.hk) { opacity: .3; transition: opacity .12s; }
+.hk { position: absolute; z-index: 2; pointer-events: none; white-space: nowrap;
+  background: #111827; color: #f9fafb; padding: 3px 7px; border-radius: 4px; font-size: 11px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+.hk b { color: #fbbf24; font-family: ui-monospace, Menlo, monospace; }
 .panel.min .split { display: none; }
 .panel.min .head { border-bottom: 0; border-radius: 8px; }
 .head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; cursor: move;
@@ -97,8 +106,17 @@ const UII_CSS = `
 .tree .more { color: #9ca3af; cursor: default; }
 .tree .more:hover { background: none; }
 .body > .sec:first-child { margin-top: 0; }
-.grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; }
-.grip:hover { background: rgba(59,130,246,.35); }
+/* Resize handles: four edges, four corners on top of them, just outside the border. */
+.grip { position: absolute; z-index: 1; }
+.grip.n, .grip.s { left: 8px; right: 8px; height: 7px; cursor: ns-resize; }
+.grip.e, .grip.w { top: 8px; bottom: 8px; width: 7px; cursor: ew-resize; }
+.grip.n { top: -4px; } .grip.s { bottom: -4px; } .grip.e { right: -4px; } .grip.w { left: -4px; }
+.grip.ne, .grip.nw, .grip.se, .grip.sw { width: 14px; height: 14px; z-index: 2; }
+.grip.nw { top: -5px; left: -5px; cursor: nwse-resize; } .grip.se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.grip.ne { top: -5px; right: -5px; cursor: nesw-resize; } .grip.sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+/* Minimised: only the header shows, so only its width can change. */
+.panel.min { height: auto !important; }
+.panel.min .grip:not(.e):not(.w) { display: none; }
 .sec { display: flex; align-items: center; min-height: 30px; margin: 6px 0 2px; padding: 3px 10px; background: #e5e7eb; color: #1f2937; font-weight: 700;
   text-transform: uppercase; font-size: 11px; letter-spacing: .05em; }
 .row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 2px 10px; }
@@ -168,11 +186,14 @@ const UII_CSS = `
 /* The palette (editvars.js): one row per custom property the page declares. */
 .vrs { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
 .vr { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 5px; }
+.sec .find + .mini, .sec .mini + .mini { margin-left: 6px; } /* one auto margin: the pair sits right together */
+.vr[hidden] { display: none; } /* display:flex above beats the hidden attribute */
 .vr .n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: #0f766e; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 .vr .nf { flex: 1; min-width: 0; height: 24px; }
 .vr.on { background: #ecfdf5; box-shadow: inset 2px 0 0 #0f766e; }
 .vnone { padding: 8px 10px; color: #6b7280; }
+.vgrp { padding: 6px 4px 0; color: #6b7280; font: 600 10px/1.2 ui-monospace, Menlo, monospace; }
 /* The pinned element's own declarations (editprops.js), folded away when the
    list is long. summary.sec keeps the section bar's look; the marker is the
    only part a <details> adds. */

@@ -54,9 +54,9 @@ function uiiUndoSync() {
 }
 
 function uiiUndoRunVar(e) {
-  if (e.had) { uiiVarApply(e.name, e.to, e.el); return; }
+  if (e.had) { uiiDeclSet(e.name, e.to); return; }
   const v = uiiVarEdits.get(e.name);
-  if (v) { if (v.from) v.style.setProperty(e.name, v.from); else v.style.removeProperty(e.name); }
+  if (v) { if (v.from) v.style.setProperty(v.prop, v.from, v.pri); else v.style.removeProperty(v.prop); }
   uiiVarEdits.delete(e.name);
 }
 
