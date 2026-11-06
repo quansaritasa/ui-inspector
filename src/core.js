@@ -3,7 +3,7 @@
    drive it by hand; destroy() removes everything including the shortcut. */
 
 const UII_DEFAULTS = {
-  shortcut: 'Mod+/',          // Mod = Cmd on macOS, Ctrl elsewhere; null = no key binding
+  shortcut: 'Mod+\\',          // Mod = Cmd on macOS, Ctrl elsewhere; null = no key binding
   selectors: ['button', 'input', 'select', 'textarea', 'a', 'label', 'summary',
     'section', '[role]', '[id]', '[data-ui]', '[contenteditable]'],
   nameAttr: 'data-ui',        // attribute the app uses to label components

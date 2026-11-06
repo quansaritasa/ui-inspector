@@ -24,7 +24,7 @@ Then load it with one script tag:
 ```html
 <script src="vendor/ui-inspector.js"></script>
 <script>
-  UIInspector.init({ shortcut: 'Mod+/' });
+  UIInspector.init({ shortcut: 'Mod+\\' });
 </script>
 ```
 
@@ -42,7 +42,7 @@ code scan fetches `demo/app.js`, and browsers block that fetch from `file://`.
 
 | Action | Result |
 |---|---|
-| `Mod+/` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode. Opening it pins whatever the pointer is already on and opens the panel with it, on the half of the screen the pointer is not on, so the panel never lands on the element being looked at |
+| `Mod+\` (Cmd on macOS, Ctrl elsewhere) | Toggle inspect mode. Opening it pins whatever the pointer is already on and opens the panel with it, on the half of the screen the pointer is not on, so the panel never lands on the element being looked at |
 | Hover | Red dashed box and a tooltip with the element's name and size |
 | Click | Pin the element and open the details panel |
 | `Mod+click` (Cmd on macOS, Ctrl elsewhere) | Pin the element and copy its **📋 Copy ID** line in one go |
@@ -123,7 +123,7 @@ who served it.
 
 ```js
 UIInspector.init({
-  shortcut: 'Mod+/',      // 'Ctrl+Shift+I', 'Alt+I', … or null to disable the key
+  shortcut: 'Mod+\\',      // 'Ctrl+Shift+I', 'Alt+I', … or null to disable the key
   selectors: ['button', 'input', 'select', 'textarea', 'a', 'label', 'summary',
               'section', '[role]', '[id]', '[data-ui]', '[contenteditable]'],
   nameAttr: 'data-ui',    // attribute used as the preferred name
