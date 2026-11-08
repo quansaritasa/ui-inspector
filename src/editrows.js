@@ -77,6 +77,30 @@ function uiiResetOne(el) {
   uiiState.edits.delete(el);
 }
 
+// One element, and only that element: the ↺ in front of a tree row. The
+// header's ↺ is the wider one — it also puts back every variable edit, which
+// belongs to no element. Rules this element rewrote (Apply to similar) go back
+// through uiiSyncRules, which replays the edits still standing.
+function uiiResetEl(el) {
+  const e = uiiEditsFor(el, false);
+  if (!e) return false;
+  for (const k of e.kids || []) uiiResetOne(k);
+  uiiResetOne(el);
+  // Steps that would put this element back describe a world that is gone.
+  uiiUndoForget(el);
+  uiiSyncRules();
+  uiiRefreshChanges();
+  const P = uiiState.panel;
+  if (P) {
+    // The header's ↺ goes dim only when NOTHING is left — variables included.
+    P.reset.disabled = !((uiiState.edits ? uiiState.edits.size : 0) + uiiVarEdits.size);
+    if (uiiState.info && uiiState.info.el === el) uiiSelect(el);
+    else uiiRenderTree();
+  }
+  uiiScheduleDraw();
+  return true;
+}
+
 // The pinned element plus every text child an edit reached (see uiiSet), and
 // every variable edited from the colour fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.

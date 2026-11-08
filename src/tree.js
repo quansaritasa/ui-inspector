@@ -43,6 +43,16 @@ function uiiTreeRow(el, depth) {
   row.style.paddingLeft = (4 + depth * 12) + 'px';
   const kids = uiiTreeKids(el);
   const open = uiiTreeOpen.has(el);
+  // In front of every element: put back the edits made to THAT element, so a
+  // page full of tweaks can be unwound one control at a time instead of all at
+  // once. Dim with nothing to reset, and always the same width, so the names
+  // never shift under the pointer. Stopped here, or the row would pin instead.
+  const rst = uiiEl('button', 'rs', '↺', 'tree-reset');
+  rst.type = 'button';
+  rst.title = 'Reset this element — put back the edits made to it';
+  rst.disabled = !uiiEditsFor(el, false);
+  rst.addEventListener('click', (e) => { e.stopPropagation(); uiiResetEl(el); });
+  row.appendChild(rst);
   row.appendChild(uiiEl('span', 'tw', kids.length ? (open ? '▾' : '▸') : ''));
   const ctl = uiiTreeIsControl(el);
   row.appendChild(uiiEl('span', ctl ? 'nm' : 'tg', uiiShort(ctl ? uiiName(el) : uiiTreeTag(el), 40)));

@@ -1,4 +1,4 @@
-/*! ui-inspector v0.15.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.16.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -113,6 +113,18 @@ const UII_CSS = `
 /* A control reads as the panel would name it; a plain wrapper as its tag. */
 .tree .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
 .tree .tg { color: #6b7280; overflow: hidden; text-overflow: ellipsis; }
+/* The reset key in front of each row: a fixed 12px whether or not the element
+   has edits, so a name never moves. An element WITH edits wears it at half
+   strength — the row where you would reach for it — and one with nothing to
+   reset keeps the glyph as a placeholder and fades to a fifth. Inherits the
+   row's ink, so the pinned (dark) row needs no colour of its own. */
+.tree .rs { width: 12px; height: 13px; flex: none; padding: 0; border: 0; border-radius: 3px;
+  background: none; color: inherit; opacity: .5; cursor: pointer;
+  font: 11px/1 ui-monospace, Menlo, monospace; }
+.tree .tr:hover .rs { opacity: .85; }
+.tree .rs:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, .09); }
+.tree .tr.on .rs:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
+.tree .rs:disabled { opacity: .12; cursor: default; }
 .tree .more { color: #9ca3af; cursor: default; }
 .tree .more:hover { background: none; }
 .body > .sec:first-child { margin-top: 0; }
@@ -1406,6 +1418,30 @@ function uiiResetOne(el) {
   if (e.orig === null) el.removeAttribute('style'); else el.setAttribute('style', e.orig);
   uiiRestoreText(e);
   uiiState.edits.delete(el);
+}
+
+// One element, and only that element: the ↺ in front of a tree row. The
+// header's ↺ is the wider one — it also puts back every variable edit, which
+// belongs to no element. Rules this element rewrote (Apply to similar) go back
+// through uiiSyncRules, which replays the edits still standing.
+function uiiResetEl(el) {
+  const e = uiiEditsFor(el, false);
+  if (!e) return false;
+  for (const k of e.kids || []) uiiResetOne(k);
+  uiiResetOne(el);
+  // Steps that would put this element back describe a world that is gone.
+  uiiUndoForget(el);
+  uiiSyncRules();
+  uiiRefreshChanges();
+  const P = uiiState.panel;
+  if (P) {
+    // The header's ↺ goes dim only when NOTHING is left — variables included.
+    P.reset.disabled = !((uiiState.edits ? uiiState.edits.size : 0) + uiiVarEdits.size);
+    if (uiiState.info && uiiState.info.el === el) uiiSelect(el);
+    else uiiRenderTree();
+  }
+  uiiScheduleDraw();
+  return true;
 }
 
 // The pinned element plus every text child an edit reached (see uiiSet), and
@@ -2888,6 +2924,17 @@ function uiiUndoRun(e) {
   uiiUndoDrop(e.el, ed);
 }
 
+// One element's edits are gone, so the steps that would put them back point at
+// values that no longer exist. Its entries are dropped; every other element's
+// step stands, which is the point of resetting one row rather than everything.
+function uiiUndoForget(el) {
+  const U = uiiUndoState;
+  const keep = (step) => step.filter((x) => x.k === 'var' || x.el !== el);
+  U.stack = U.stack.map(keep).filter((step) => step.length);
+  if (U.open) U.open = keep(U.open);
+  uiiUndoSync();
+}
+
 // Newest step first, and within it newest entry first. Stylesheet rules are
 // put back wholesale by uiiSyncRules, which restores every rule the inspector
 // touched and replays the edits still standing — the same path the "Apply to
@@ -2962,6 +3009,16 @@ function uiiTreeRow(el, depth) {
   row.style.paddingLeft = (4 + depth * 12) + 'px';
   const kids = uiiTreeKids(el);
   const open = uiiTreeOpen.has(el);
+  // In front of every element: put back the edits made to THAT element, so a
+  // page full of tweaks can be unwound one control at a time instead of all at
+  // once. Dim with nothing to reset, and always the same width, so the names
+  // never shift under the pointer. Stopped here, or the row would pin instead.
+  const rst = uiiEl('button', 'rs', '↺', 'tree-reset');
+  rst.type = 'button';
+  rst.title = 'Reset this element — put back the edits made to it';
+  rst.disabled = !uiiEditsFor(el, false);
+  rst.addEventListener('click', (e) => { e.stopPropagation(); uiiResetEl(el); });
+  row.appendChild(rst);
   row.appendChild(uiiEl('span', 'tw', kids.length ? (open ? '▾' : '▸') : ''));
   const ctl = uiiTreeIsControl(el);
   row.appendChild(uiiEl('span', ctl ? 'nm' : 'tg', uiiShort(ctl ? uiiName(el) : uiiTreeTag(el), 40)));

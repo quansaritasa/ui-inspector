@@ -83,6 +83,17 @@ function uiiUndoRun(e) {
   uiiUndoDrop(e.el, ed);
 }
 
+// One element's edits are gone, so the steps that would put them back point at
+// values that no longer exist. Its entries are dropped; every other element's
+// step stands, which is the point of resetting one row rather than everything.
+function uiiUndoForget(el) {
+  const U = uiiUndoState;
+  const keep = (step) => step.filter((x) => x.k === 'var' || x.el !== el);
+  U.stack = U.stack.map(keep).filter((step) => step.length);
+  if (U.open) U.open = keep(U.open);
+  uiiUndoSync();
+}
+
 // Newest step first, and within it newest entry first. Stylesheet rules are
 // put back wholesale by uiiSyncRules, which restores every rule the inspector
 // touched and replays the edits still standing — the same path the "Apply to

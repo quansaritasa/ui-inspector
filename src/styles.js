@@ -107,6 +107,18 @@ const UII_CSS = `
 /* A control reads as the panel would name it; a plain wrapper as its tag. */
 .tree .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
 .tree .tg { color: #6b7280; overflow: hidden; text-overflow: ellipsis; }
+/* The reset key in front of each row: a fixed 12px whether or not the element
+   has edits, so a name never moves. An element WITH edits wears it at half
+   strength — the row where you would reach for it — and one with nothing to
+   reset keeps the glyph as a placeholder and fades to a fifth. Inherits the
+   row's ink, so the pinned (dark) row needs no colour of its own. */
+.tree .rs { width: 12px; height: 13px; flex: none; padding: 0; border: 0; border-radius: 3px;
+  background: none; color: inherit; opacity: .5; cursor: pointer;
+  font: 11px/1 ui-monospace, Menlo, monospace; }
+.tree .tr:hover .rs { opacity: .85; }
+.tree .rs:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, .09); }
+.tree .tr.on .rs:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
+.tree .rs:disabled { opacity: .12; cursor: default; }
 .tree .more { color: #9ca3af; cursor: default; }
 .tree .more:hover { background: none; }
 .body > .sec:first-child { margin-top: 0; }
