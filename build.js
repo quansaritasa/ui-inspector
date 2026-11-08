@@ -26,3 +26,13 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, out);
 fs.copyFileSync(OUT, path.join(__dirname, 'extension', 'ui-inspector.js')); // the extension can only load files inside its own folder
 console.log(`[ui-inspector] built ${path.relative(process.cwd(), OUT)} (${out.split('\n').length} lines)`);
+
+// Chrome shows the manifest's version on chrome://extensions, so it is not a
+// second place to bump by hand: derive it here. Only the number is rewritten.
+const MANIFEST = path.join(__dirname, 'extension', 'manifest.json');
+const manifest = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+if (manifest.version !== pkg.version) {
+  manifest.version = pkg.version;
+  fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`[ui-inspector] extension manifest → v${pkg.version}`);
+}

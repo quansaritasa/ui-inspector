@@ -35,6 +35,30 @@ column with the panel, so every element's **↺** is in view without knowing the
 `T` key; `selectors` and `ignore` say which elements count as controls, and
 `onCopy` / `onToggle` hook the clipboard and the mode switch.
 
+### Chrome extension
+
+`extension/` is the same library packaged as a Manifest V3 extension, for the
+pages you do not own. Its toolbar button injects `ui-inspector.js` into the
+page's own world — so the `<script src>` scan and the `cssRules` walk behave as
+they do for an app that loads the file — and then toggles inspect mode. It is
+loaded unpacked; it is not in the Web Store:
+
+```sh
+npm run build   # writes extension/ui-inspector.js and the manifest version
+```
+
+Then open `chrome://extensions`, turn on **Developer mode**, **Load unpacked**,
+and pick this repository's `extension/` folder. The button is per tab: the first
+click injects and turns inspect mode on, later clicks only toggle. After a
+rebuild, press **Reload** on the extension's card — Chrome runs the copy it
+loaded, not the file on disk.
+
+Chrome refuses injection into `chrome://` pages, the Web Store and the PDF
+viewer; there the button shows a red `!` and its tooltip says why.
+
+The mark in `extension/icons/` is drawn by `node extension/icons/make-icons.js`,
+which writes the four PNG sizes Chrome asks for and needs nothing installed.
+
 ### Try it
 
 `npm run demo` builds the library and serves the repository at
@@ -310,4 +334,7 @@ Sources live in `src/` in the fixed order `build.js` lists (`styles`,
 `events`, `editrows`, `editrules`, `edittext`, `editvar`, `editnum`,
 `editcolor`, `editvars`, `editprops`, `editfields`, `content`, `panel`, `keys`,
 `core`). Run `node build.js` to regenerate
-`dist/ui-inspector.js`. Do not edit the `dist` file by hand.
+`dist/ui-inspector.js`. Do not edit the `dist` file by hand. The same run copies
+the build into `extension/` and writes `package.json`'s version into
+`extension/manifest.json`, so neither the injected copy nor the number Chrome
+shows is a second place to bump.
