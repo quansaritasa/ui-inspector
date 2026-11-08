@@ -92,10 +92,11 @@ function uiiOnClick(e) {
   uiiPanelAway(e.clientX);
   const ready = uiiSelect(el, e.shiftKey);
   if (e.shiftKey) { uiiTogglePick(el, ready); return; }
-  // Cmd/Ctrl+click pins and copies the Copy ID line in one go. It waits for
-  // the script scan so the line names the script files, as the button would.
+  // Cmd/Ctrl+click (or any click with Auto copy ticked) pins and copies the
+  // Copy ID line in one go. It waits for the script scan so the line names
+  // the script files, as the button would.
   // (Ctrl+click on macOS arrives as contextmenu, which also lands here.)
-  if (e.metaKey || e.ctrlKey) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
+  if (e.metaKey || e.ctrlKey || uiiState.autoCopy) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
 }
 
 // Every pin (click, arrow walk, tree row, the shortcut) makes el pick 1 and
@@ -128,10 +129,9 @@ function uiiTogglePick(el, ready) {
   if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
   Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
     if (seq !== S.pickSeq) return;
-    // One prompt opener, ready to type the ask after: "Update these elements [a], [b] and [c]: "
+    // Just the list, "[a], [b] and [c]", so the user writes the ask around it
     const ids = infos.map(uiiFormatForAI);
-    const list = ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1];
-    uiiCopy((ids.length < 2 ? 'Update this element ' : 'Update these elements ') + list + ': ');
+    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1]);
   });
 }
 

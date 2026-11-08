@@ -47,7 +47,8 @@ files, and browsers block that fetch from `file://`.
 | Hover | Red dashed box and a tooltip with the element's name and size |
 | Click | Pin the element (a blue box numbered `1`) and open the details panel |
 | `Mod+click` (Cmd on macOS, Ctrl elsewhere) | Pin the element and copy its **📋 Copy ID** line in one go |
-| `Shift+click` | Add the element to the list started by the last pin, as the next numbered blue box, or take it out if already picked, and copy every picked element's **📋 Copy ID** line as one prompt opener, `Update these elements [a], [b] and [c]: ` — paste it and type what to change. Any other pin (click, arrows, tree row) starts the list again at `1`; `Esc` clears it |
+| **Auto copy** on **Identity** | Tick it and every plain click copies the **📋 Copy ID** line too, as `Mod+click` does. Off by default; the choice is kept across reloads (per site, in `localStorage`) |
+| `Shift+click` | Add the element to the list started by the last pin, as the next numbered blue box, or take it out if already picked, and copy every picked element's **📋 Copy ID** line as one list, `[a], [b] and [c]` — paste it into your prompt and say what to change. Any other pin (click, arrows, tree row) starts the list again at `1`; `Esc` clears it |
 | Hold `Alt` while hovering or clicking | Target the exact element under the pointer instead of its nearest button, link, label or input |
 | `↑` `↓` `←` `→` | Walk to the parent, first child, previous or next sibling of the pinned element |
 | Drag the panel header | Move the panel |

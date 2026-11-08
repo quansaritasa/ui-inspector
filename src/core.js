@@ -26,8 +26,19 @@ const UII_DEFAULTS = {
   onToggle: null,             // (on) => void
 };
 
+// Auto copy survives a reload in the page's localStorage. Storage can be
+// blocked (private mode, sandboxed frame): then the box just starts unticked.
+const UII_AUTO_COPY_KEY = 'ui-inspector.autoCopy';
+function uiiAutoCopySaved() {
+  try { return localStorage.getItem(UII_AUTO_COPY_KEY) === '1'; } catch (_) { return false; }
+}
+function uiiAutoCopySave() {
+  try { localStorage.setItem(UII_AUTO_COPY_KEY, uiiState.autoCopy ? '1' : '0'); } catch (_) { /* not saved */ }
+}
+
 const uiiState = {
   similar: true,  // edits also rewrite the CSS rule (see editrules.js)
+  autoCopy: uiiAutoCopySaved(), // every plain click also copies the Copy ID line (see uiiOnClick)
   opts: null, selList: '', on: false, bound: false,
   host: null, shadow: null, layer: null, hoverBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,

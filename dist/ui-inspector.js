@@ -196,7 +196,7 @@ const UII_CSS = `
 /* The palette (editvars.js): one row per custom property the page declares. */
 .vrs { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
 .vr { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 5px; }
-.sec .find + .mini, .sec .mini + .mini { margin-left: 6px; } /* one auto margin: the pair sits right together */
+.sec .find + .mini, .sec .mini + .mini, .sec .sim + .mini { margin-left: 6px; } /* one auto margin: the pair sits right together */
 .vr[hidden] { display: none; } /* display:flex above beats the hidden attribute */
 .vr .n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: #0f766e; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
@@ -1264,10 +1264,11 @@ function uiiOnClick(e) {
   uiiPanelAway(e.clientX);
   const ready = uiiSelect(el, e.shiftKey);
   if (e.shiftKey) { uiiTogglePick(el, ready); return; }
-  // Cmd/Ctrl+click pins and copies the Copy ID line in one go. It waits for
-  // the script scan so the line names the script files, as the button would.
+  // Cmd/Ctrl+click (or any click with Auto copy ticked) pins and copies the
+  // Copy ID line in one go. It waits for the script scan so the line names
+  // the script files, as the button would.
   // (Ctrl+click on macOS arrives as contextmenu, which also lands here.)
-  if (e.metaKey || e.ctrlKey) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
+  if (e.metaKey || e.ctrlKey || uiiState.autoCopy) ready.then((info) => uiiCopy(uiiFormatForAI(info)));
 }
 
 // Every pin (click, arrow walk, tree row, the shortcut) makes el pick 1 and
@@ -1300,10 +1301,9 @@ function uiiTogglePick(el, ready) {
   if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
   Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
     if (seq !== S.pickSeq) return;
-    // One prompt opener, ready to type the ask after: "Update these elements [a], [b] and [c]: "
+    // Just the list, "[a], [b] and [c]", so the user writes the ask around it
     const ids = infos.map(uiiFormatForAI);
-    const list = ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1];
-    uiiCopy((ids.length < 2 ? 'Update this element ' : 'Update these elements ') + list + ': ');
+    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1]);
   });
 }
 
@@ -3358,6 +3358,18 @@ function uiiButtonSay(btn, msg) {
   }, 2000);
 }
 
+// A section-bar checkbox bound to the uiiState flag key; then runs after it flips.
+function uiiCheck(key, text, title, then) {
+  const lab = uiiEl('label', 'sim');
+  const box = uiiEl('input', '', undefined, uiiSlug(text));
+  box.type = 'checkbox';
+  box.checked = uiiState[key];
+  lab.title = title;
+  lab.append(box, document.createTextNode(text));
+  box.addEventListener('change', () => { uiiState[key] = box.checked; if (then) then(); });
+  return lab;
+}
+
 function uiiRow(k, v, swatchHex) {
   const row = uiiEl('div', 'row', undefined, 'row-' + uiiSlug(k));
   row.appendChild(uiiEl('span', 'k', k));
@@ -3386,7 +3398,7 @@ function uiiRenderPanel(info) {
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info), copyAI));
-  idHead.appendChild(copyAI);
+  idHead.append(uiiCheck('autoCopy', ' Auto copy', 'Copy the ID line on every click, no Cmd/Ctrl needed', uiiAutoCopySave), copyAI);
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
@@ -3395,18 +3407,12 @@ function uiiRenderPanel(info) {
   if (textRow) b.appendChild(textRow);
   b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display + ' · font ' + info.fontSize));
 
-
   // Where-to-edit and the matched-rule list live in the Copy buttons; the
   // Changes box names the one rule each edit touches.
   const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ', 'section-style');
-  const sim = uiiEl('label', 'sim');
-  const box = uiiEl('input', '', undefined, 'apply-to-similar');
-  box.type = 'checkbox';
-  box.checked = uiiState.similar;
-  sim.title = 'Also edit the CSS rule itself, so every element it styles changes too';
-  sim.append(box, document.createTextNode(' Apply to similar'));
-  box.addEventListener('change', () => { uiiState.similar = box.checked; uiiSyncRules(); uiiRefreshChanges(); });
-  stHead.appendChild(sim);
+  stHead.appendChild(uiiCheck('similar', ' Apply to similar',
+    'Also edit the CSS rule itself, so every element it styles changes too',
+    () => { uiiSyncRules(); uiiRefreshChanges(); }));
   b.appendChild(stHead);
   uiiRenderEditRows(b, info);
 
@@ -3613,8 +3619,19 @@ const UII_DEFAULTS = {
   onToggle: null,             // (on) => void
 };
 
+// Auto copy survives a reload in the page's localStorage. Storage can be
+// blocked (private mode, sandboxed frame): then the box just starts unticked.
+const UII_AUTO_COPY_KEY = 'ui-inspector.autoCopy';
+function uiiAutoCopySaved() {
+  try { return localStorage.getItem(UII_AUTO_COPY_KEY) === '1'; } catch (_) { return false; }
+}
+function uiiAutoCopySave() {
+  try { localStorage.setItem(UII_AUTO_COPY_KEY, uiiState.autoCopy ? '1' : '0'); } catch (_) { /* not saved */ }
+}
+
 const uiiState = {
   similar: true,  // edits also rewrite the CSS rule (see editrules.js)
+  autoCopy: uiiAutoCopySaved(), // every plain click also copies the Copy ID line (see uiiOnClick)
   opts: null, selList: '', on: false, bound: false,
   host: null, shadow: null, layer: null, hoverBox: null, tip: null,
   badge: null, scratch: null, panel: null, boxes: [], raf: 0, mo: null,

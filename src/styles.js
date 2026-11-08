@@ -190,7 +190,7 @@ const UII_CSS = `
 /* The palette (editvars.js): one row per custom property the page declares. */
 .vrs { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; }
 .vr { display: flex; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 5px; }
-.sec .find + .mini, .sec .mini + .mini { margin-left: 6px; } /* one auto margin: the pair sits right together */
+.sec .find + .mini, .sec .mini + .mini, .sec .sim + .mini { margin-left: 6px; } /* one auto margin: the pair sits right together */
 .vr[hidden] { display: none; } /* display:flex above beats the hidden attribute */
 .vr .n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: #0f766e; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }

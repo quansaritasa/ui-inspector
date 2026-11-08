@@ -134,6 +134,18 @@ function uiiButtonSay(btn, msg) {
   }, 2000);
 }
 
+// A section-bar checkbox bound to the uiiState flag key; then runs after it flips.
+function uiiCheck(key, text, title, then) {
+  const lab = uiiEl('label', 'sim');
+  const box = uiiEl('input', '', undefined, uiiSlug(text));
+  box.type = 'checkbox';
+  box.checked = uiiState[key];
+  lab.title = title;
+  lab.append(box, document.createTextNode(text));
+  box.addEventListener('change', () => { uiiState[key] = box.checked; if (then) then(); });
+  return lab;
+}
+
 function uiiRow(k, v, swatchHex) {
   const row = uiiEl('div', 'row', undefined, 'row-' + uiiSlug(k));
   row.appendChild(uiiEl('span', 'k', k));
@@ -162,7 +174,7 @@ function uiiRenderPanel(info) {
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules';
   copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info), copyAI));
-  idHead.appendChild(copyAI);
+  idHead.append(uiiCheck('autoCopy', ' Auto copy', 'Copy the ID line on every click, no Cmd/Ctrl needed', uiiAutoCopySave), copyAI);
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
@@ -171,18 +183,12 @@ function uiiRenderPanel(info) {
   if (textRow) b.appendChild(textRow);
   b.appendChild(uiiRow('Size', info.width + ' × ' + info.height + 'px · ' + info.display + ' · font ' + info.fontSize));
 
-
   // Where-to-edit and the matched-rule list live in the Copy buttons; the
   // Changes box names the one rule each edit touches.
   const stHead = uiiEl('div', 'sec', 'Style — type, ↑↓ or drag a label ', 'section-style');
-  const sim = uiiEl('label', 'sim');
-  const box = uiiEl('input', '', undefined, 'apply-to-similar');
-  box.type = 'checkbox';
-  box.checked = uiiState.similar;
-  sim.title = 'Also edit the CSS rule itself, so every element it styles changes too';
-  sim.append(box, document.createTextNode(' Apply to similar'));
-  box.addEventListener('change', () => { uiiState.similar = box.checked; uiiSyncRules(); uiiRefreshChanges(); });
-  stHead.appendChild(sim);
+  stHead.appendChild(uiiCheck('similar', ' Apply to similar',
+    'Also edit the CSS rule itself, so every element it styles changes too',
+    () => { uiiSyncRules(); uiiRefreshChanges(); }));
   b.appendChild(stHead);
   uiiRenderEditRows(b, info);
 
