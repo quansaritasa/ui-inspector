@@ -30,6 +30,11 @@ Then load it with one script tag:
 
 `UIInspector` is exposed on `window`; the file also works with `require()`.
 
+`init` takes a few options besides `shortcut`: `tree: true` opens the DOM-tree
+column with the panel, so every element's **↺** is in view without knowing the
+`T` key; `selectors` and `ignore` say which elements count as controls, and
+`onCopy` / `onToggle` hook the clipboard and the mode switch.
+
 ### Try it
 
 `npm run demo` builds the library and serves the repository at

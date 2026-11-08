@@ -1,4 +1,4 @@
-/*! ui-inspector v0.16.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.17.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -114,17 +114,19 @@ const UII_CSS = `
 .tree .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
 .tree .tg { color: #6b7280; overflow: hidden; text-overflow: ellipsis; }
 /* The reset key in front of each row: a fixed 12px whether or not the element
-   has edits, so a name never moves. An element WITH edits wears it at half
+   has edits, so a name never moves. An element WITH edits wears it at full
    strength — the row where you would reach for it — and one with nothing to
-   reset keeps the glyph as a placeholder and fades to a fifth. Inherits the
-   row's ink, so the pinned (dark) row needs no colour of its own. */
+   reset keeps the glyph as a placeholder at a third. Inherits the row's ink,
+   so the pinned (dark) row needs no colour of its own. */
 .tree .rs { width: 12px; height: 13px; flex: none; padding: 0; border: 0; border-radius: 3px;
-  background: none; color: inherit; opacity: .5; cursor: pointer;
+  background: none; color: inherit; opacity: .85; cursor: pointer;
   font: 11px/1 ui-monospace, Menlo, monospace; }
 .tree .tr:hover .rs { opacity: .85; }
 .tree .rs:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, .09); }
 .tree .tr.on .rs:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
-.tree .rs:disabled { opacity: .12; cursor: default; }
+/* Even with nothing to reset the glyph stays visible at a third: a key you
+   only see after you have already edited something is a key nobody finds. */
+.tree .rs:disabled { opacity: .38; cursor: default; }
 .tree .more { color: #9ca3af; cursor: default; }
 .tree .more:hover { background: none; }
 .body > .sec:first-child { margin-top: 0; }
@@ -3674,6 +3676,10 @@ const UII_DEFAULTS = {
   scripts: null,              // (url) => bool: which <script src> to scan for the element; default skips vendor/
   onCopy: null,               // (text) => void; default navigator.clipboard
   onToggle: null,             // (on) => void
+  // Open the DOM-tree column as soon as inspect mode turns on. Every row in it
+  // carries its own ↺, and a list that needs a key nobody told you about is a
+  // list nobody finds. Off by default: it widens the panel by UII_TREE_W.
+  tree: false,
 };
 
 // Auto copy survives a reload in the page's localStorage. Storage can be
@@ -3711,6 +3717,7 @@ function uiiEnable() {
   uiiDrawOutlines();
   uiiScriptIndex(); // warm the script scan; never rejects (each fetch catches)
   uiiOpenAtPointer();
+  if (S.opts.tree) uiiToggleTree();
   S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }

@@ -24,6 +24,10 @@ const UII_DEFAULTS = {
   scripts: null,              // (url) => bool: which <script src> to scan for the element; default skips vendor/
   onCopy: null,               // (text) => void; default navigator.clipboard
   onToggle: null,             // (on) => void
+  // Open the DOM-tree column as soon as inspect mode turns on. Every row in it
+  // carries its own ↺, and a list that needs a key nobody told you about is a
+  // list nobody finds. Off by default: it widens the panel by UII_TREE_W.
+  tree: false,
 };
 
 // Auto copy survives a reload in the page's localStorage. Storage can be
@@ -61,6 +65,7 @@ function uiiEnable() {
   uiiDrawOutlines();
   uiiScriptIndex(); // warm the script scan; never rejects (each fetch catches)
   uiiOpenAtPointer();
+  if (S.opts.tree) uiiToggleTree();
   S.badgeTimer = setTimeout(() => { if (S.badge) S.badge.classList.add('off'); }, UII_BADGE_MS);
   if (typeof S.opts.onToggle === 'function') S.opts.onToggle(true);
 }
