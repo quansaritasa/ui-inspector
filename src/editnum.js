@@ -119,7 +119,7 @@ function uiiNumField(info, label, props, opt) {
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
     : conv(sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
-  const fld = uiiFld(label, wrap);
+  const fld = uiiFld(label, wrap, props);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));

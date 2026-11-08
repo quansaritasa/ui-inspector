@@ -62,6 +62,7 @@ files, and browsers block that fetch from `file://`.
 | `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
 | **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet files)]`, e.g. `[#edit-btn.btn (edit.js:12 · style.css)]` — an element with an id also carries its classes, the part that greps in the source |
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
+| **↺** in front of a field, or of a **Declared** row | Put back that one value: the inline edit and the rule the same change rewrote, and nothing else on the element. Dim until the value is actually changed |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
 | `A` | Copy the same **Changes** text from the keyboard — the badge says `No changes yet` when there is nothing to copy |

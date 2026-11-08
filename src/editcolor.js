@@ -137,5 +137,5 @@ function uiiColorField(info, label, prop) {
     if (sel.value) show(uiiVarHex(info, sel.value, target));
   });
   wrap.append(pick, box, sel);
-  return uiiFld(label, wrap).f;
+  return uiiFld(label, wrap, prop).f;
 }

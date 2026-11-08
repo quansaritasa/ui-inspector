@@ -30,7 +30,7 @@ function uiiRowHex(value) {
 // a box that writes through `set`. Edited rows carry .on, the mark the colour
 // list uses for the value in force. Shared by the palette and by the pinned
 // element's own declarations (editprops.js).
-function uiiValueRow(name, value, set) {
+function uiiValueRow(name, value, set, resetName) {
   const row = uiiEl('div', 'vr');
   row.dataset.name = name.toLowerCase();
   const wrap = uiiEl('span', 'nf');
@@ -56,11 +56,15 @@ function uiiValueRow(name, value, set) {
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   wrap.appendChild(box);
   row.append(uiiEl('span', 'n', name), wrap);
+  // A row that writes exactly one property or variable gets a key for it; a
+  // composite label (a state rule's "selector · prop") names no single value,
+  // so it passes null and goes without.
+  if (resetName) row.insertBefore(uiiResetKey(resetName), row.firstChild);
   return { row, box };
 }
 
 function uiiVarRow(v) {
-  const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement));
+  const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement), v.name);
   // An edit made here or from a colour field, before this list was built.
   const e = uiiVarEdits.get(v.name);
   if (e) { r.box.value = e.to; r.row.classList.add('on'); }

@@ -101,6 +101,74 @@ function uiiResetEl(el) {
   return true;
 }
 
+// What the page itself had for one property, before the inspector wrote it.
+function uiiRestoreProp(el, e, prop) {
+  const probe = document.createElement('div');
+  if (e.orig) probe.setAttribute('style', e.orig);
+  const had = probe.style.getPropertyValue(prop);
+  if (had) el.style.setProperty(prop, had, probe.style.getPropertyPriority(prop));
+  else el.style.removeProperty(prop);
+  // Nothing left inline: drop the empty attribute the property removal leaves,
+  // or the element reads as styled when it is not.
+  if (!el.style.length) el.removeAttribute('style');
+}
+
+// ONE value of ONE element: the ↺ in front of a field or a Declared row. The
+// tree's ↺ takes the whole element, the header's every element plus the
+// variables — this is the smaller undo, for the number that was just wrong.
+function uiiResetProp(el, prop) {
+  const e = uiiEditsFor(el, false);
+  if (!e || !(prop in e.props)) return false;
+  uiiRestoreProp(el, e, prop);
+  delete e.props[prop]; delete e.from[prop]; delete e.rule[prop];
+  const kids = e.kids ? [...e.kids].filter((k) => k !== el && uiiEditsFor(k, false)) : [];
+  if (!Object.keys(e.props).length && !e.text && !kids.length) uiiState.edits.delete(el);
+  uiiUndoForget(el, prop);
+  uiiSyncRules();
+  uiiRefreshChanges();
+  if (uiiState.info) uiiSelect(uiiState.info.el);
+  uiiScheduleDraw();
+  return true;
+}
+
+// The same for a variable, which belongs to no element: it is declared in a
+// rule of its own, and every element reading it follows.
+function uiiResetVarOne(name) {
+  const v = uiiVarEdits.get(name);
+  if (!v) return false;
+  if (v.from) v.style.setProperty(v.prop, v.from, v.pri); else v.style.removeProperty(v.prop);
+  uiiVarEdits.delete(name);
+  uiiUndoForgetVar(name);
+  uiiRefreshChanges();
+  const P = uiiState.panel;
+  if (P) P.reset.disabled = !((uiiState.edits ? uiiState.edits.size : 0) + uiiVarEdits.size);
+  if (uiiState.varsMode) uiiVarsPanel();
+  else if (uiiState.info) uiiSelect(uiiState.info.el);
+  uiiScheduleDraw();
+  return true;
+}
+
+// One entry point for both: a Declared row's name is either a property or a
+// custom property, and the key in front of it does not care which.
+function uiiResetValue(name) {
+  const n = String(name || '');
+  if (n.startsWith('--')) return uiiResetVarOne(n);
+  return uiiState.info ? uiiResetProp(uiiState.info.el, n) : false;
+}
+
+// A key is live only while its own value is changed, so a panel of keys reads
+// as a map of what was actually touched.
+function uiiSyncResetKeys() {
+  const S = uiiState, P = S.panel;
+  if (!P || !P.body || !S.info) return;
+  const e = uiiEditsFor(S.info.el, false);
+  for (const b of P.body.querySelectorAll('.rs')) {
+    const n = b.dataset.prop;
+    if (!n) continue;
+    b.disabled = n.startsWith('--') ? !uiiVarEdits.has(n) : !(e && n in e.props);
+  }
+}
+
 // The pinned element plus every text child an edit reached (see uiiSet), and
 // every variable edited from the colour fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.
@@ -169,4 +237,5 @@ function uiiEditValue(info, prop) {
 function uiiRefreshChanges() {
   const P = uiiState.panel;
   if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
+  uiiSyncResetKeys();
 }

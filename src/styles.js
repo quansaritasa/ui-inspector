@@ -151,6 +151,18 @@ const UII_CSS = `
 .g4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .g4 .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fld { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* The label's line, with the field's ↺ leading it. The label keeps flex:1 so
+   the ellipsis rules for the narrow grids still have a box to cut in. */
+.lw { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.lw .lab { flex: 1; min-width: 0; }
+/* Visible before it is useful: at a fifth the glyph is there and nobody sees
+   it, which is the whole reason it exists. Edited rows wear it darker. */
+.fld .rs, .vr .rs { flex: none; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 3px;
+  background: none; color: #6b7280; opacity: .38; cursor: pointer;
+  font: 11px/1 ui-monospace, Menlo, monospace; }
+.fld .rs:hover:not(:disabled), .vr .rs:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, .08); }
+.fld .rs:disabled, .vr .rs:disabled { opacity: .38; cursor: default; }
+.fld .rs:not(:disabled), .vr .rs:not(:disabled) { opacity: .9; color: #0f766e; }
 .fld .lab { color: #6b7280; font-size: 11px; user-select: none; }
 .fld .lab.scrub { cursor: ew-resize; }
 .nf, .tf, .seg { height: 26px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }

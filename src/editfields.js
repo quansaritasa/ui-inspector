@@ -9,13 +9,37 @@ const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 
 // Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
 // also names the pair for scripts: the field is "field-size", the control
 // inside it "size" (see uiiEl — each name is written as id and data-ui).
-function uiiFld(label, control) {
+function uiiFld(label, control, props) {
   const name = uiiSlug(label);
   const f = uiiEl('div', 'fld', undefined, 'field-' + name);
   const lab = uiiEl('span', 'lab', label);
   if (!control.id) { control.setAttribute('data-ui', name); control.id = name; }
-  f.append(lab, control);
+  if (props) {
+    // The label and its ↺ share a line: the key leads the label, and the label
+    // keeps its own box because that is what scrubs and what a px note
+    // rewrites (uiiNumField). One line either way, so nothing shifts when a
+    // value is edited and the key lights up.
+    const lw = uiiEl('div', 'lw');
+    lw.append(uiiResetKey([].concat(props)[0]), lab);
+    f.append(lw, control);
+  } else f.append(lab, control);
   return { f, lab };
+}
+
+// The ↺ that leads a control: put back the one value that control writes.
+// Dim until that value is actually changed — an always-live key reads as an
+// action worth taking on every untouched row.
+function uiiResetKey(name) {
+  const b = uiiEl('button', 'rs', '↺');
+  b.type = 'button';
+  b.dataset.prop = name;
+  b.setAttribute('data-ui', 'reset-' + uiiSlug(name));
+  b.title = 'Reset ' + name + ' — put back what the page had';
+  b.disabled = true;
+  // A press here must not also start the label's scrub drag or reach the tree.
+  b.addEventListener('mousedown', (e) => e.stopPropagation());
+  b.addEventListener('click', (e) => { e.stopPropagation(); uiiResetValue(name); });
+  return b;
 }
 
 function uiiTextField(info, label, prop) {
@@ -24,7 +48,7 @@ function uiiTextField(info, label, prop) {
   box.value = uiiEditValue(info, prop);
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  return uiiFld(label, box).f;
+  return uiiFld(label, box, prop).f;
 }
 
 function uiiWeightField(info) {
@@ -62,7 +86,7 @@ function uiiAlignField(info) {
     });
     seg.appendChild(b);
   }
-  return uiiFld('Align', seg).f;
+  return uiiFld('Align', seg, 'text-align').f;
 }
 
 function uiiCard(title, ...rows) {

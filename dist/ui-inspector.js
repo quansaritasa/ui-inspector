@@ -1,4 +1,4 @@
-/*! ui-inspector v0.17.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.18.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -157,6 +157,18 @@ const UII_CSS = `
 .g4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .g4 .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fld { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* The label's line, with the field's ↺ leading it. The label keeps flex:1 so
+   the ellipsis rules for the narrow grids still have a box to cut in. */
+.lw { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.lw .lab { flex: 1; min-width: 0; }
+/* Visible before it is useful: at a fifth the glyph is there and nobody sees
+   it, which is the whole reason it exists. Edited rows wear it darker. */
+.fld .rs, .vr .rs { flex: none; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 3px;
+  background: none; color: #6b7280; opacity: .38; cursor: pointer;
+  font: 11px/1 ui-monospace, Menlo, monospace; }
+.fld .rs:hover:not(:disabled), .vr .rs:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, .08); }
+.fld .rs:disabled, .vr .rs:disabled { opacity: .38; cursor: default; }
+.fld .rs:not(:disabled), .vr .rs:not(:disabled) { opacity: .9; color: #0f766e; }
 .fld .lab { color: #6b7280; font-size: 11px; user-select: none; }
 .fld .lab.scrub { cursor: ew-resize; }
 .nf, .tf, .seg { height: 26px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
@@ -1446,6 +1458,74 @@ function uiiResetEl(el) {
   return true;
 }
 
+// What the page itself had for one property, before the inspector wrote it.
+function uiiRestoreProp(el, e, prop) {
+  const probe = document.createElement('div');
+  if (e.orig) probe.setAttribute('style', e.orig);
+  const had = probe.style.getPropertyValue(prop);
+  if (had) el.style.setProperty(prop, had, probe.style.getPropertyPriority(prop));
+  else el.style.removeProperty(prop);
+  // Nothing left inline: drop the empty attribute the property removal leaves,
+  // or the element reads as styled when it is not.
+  if (!el.style.length) el.removeAttribute('style');
+}
+
+// ONE value of ONE element: the ↺ in front of a field or a Declared row. The
+// tree's ↺ takes the whole element, the header's every element plus the
+// variables — this is the smaller undo, for the number that was just wrong.
+function uiiResetProp(el, prop) {
+  const e = uiiEditsFor(el, false);
+  if (!e || !(prop in e.props)) return false;
+  uiiRestoreProp(el, e, prop);
+  delete e.props[prop]; delete e.from[prop]; delete e.rule[prop];
+  const kids = e.kids ? [...e.kids].filter((k) => k !== el && uiiEditsFor(k, false)) : [];
+  if (!Object.keys(e.props).length && !e.text && !kids.length) uiiState.edits.delete(el);
+  uiiUndoForget(el, prop);
+  uiiSyncRules();
+  uiiRefreshChanges();
+  if (uiiState.info) uiiSelect(uiiState.info.el);
+  uiiScheduleDraw();
+  return true;
+}
+
+// The same for a variable, which belongs to no element: it is declared in a
+// rule of its own, and every element reading it follows.
+function uiiResetVarOne(name) {
+  const v = uiiVarEdits.get(name);
+  if (!v) return false;
+  if (v.from) v.style.setProperty(v.prop, v.from, v.pri); else v.style.removeProperty(v.prop);
+  uiiVarEdits.delete(name);
+  uiiUndoForgetVar(name);
+  uiiRefreshChanges();
+  const P = uiiState.panel;
+  if (P) P.reset.disabled = !((uiiState.edits ? uiiState.edits.size : 0) + uiiVarEdits.size);
+  if (uiiState.varsMode) uiiVarsPanel();
+  else if (uiiState.info) uiiSelect(uiiState.info.el);
+  uiiScheduleDraw();
+  return true;
+}
+
+// One entry point for both: a Declared row's name is either a property or a
+// custom property, and the key in front of it does not care which.
+function uiiResetValue(name) {
+  const n = String(name || '');
+  if (n.startsWith('--')) return uiiResetVarOne(n);
+  return uiiState.info ? uiiResetProp(uiiState.info.el, n) : false;
+}
+
+// A key is live only while its own value is changed, so a panel of keys reads
+// as a map of what was actually touched.
+function uiiSyncResetKeys() {
+  const S = uiiState, P = S.panel;
+  if (!P || !P.body || !S.info) return;
+  const e = uiiEditsFor(S.info.el, false);
+  for (const b of P.body.querySelectorAll('.rs')) {
+    const n = b.dataset.prop;
+    if (!n) continue;
+    b.disabled = n.startsWith('--') ? !uiiVarEdits.has(n) : !(e && n in e.props);
+  }
+}
+
 // The pinned element plus every text child an edit reached (see uiiSet), and
 // every variable edited from the colour fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.
@@ -1514,6 +1594,7 @@ function uiiEditValue(info, prop) {
 function uiiRefreshChanges() {
   const P = uiiState.panel;
   if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
+  uiiSyncResetKeys();
 }
 
 /* ================= live editing: apply to similar =================
@@ -2113,7 +2194,7 @@ function uiiNumField(info, label, props, opt) {
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
     : conv(sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
-  const fld = uiiFld(label, wrap);
+  const fld = uiiFld(label, wrap, props);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));
@@ -2321,7 +2402,7 @@ function uiiColorField(info, label, prop) {
     if (sel.value) show(uiiVarHex(info, sel.value, target));
   });
   wrap.append(pick, box, sel);
-  return uiiFld(label, wrap).f;
+  return uiiFld(label, wrap, prop).f;
 }
 
 /* ================= the page's variables =================
@@ -2356,7 +2437,7 @@ function uiiRowHex(value) {
 // a box that writes through `set`. Edited rows carry .on, the mark the colour
 // list uses for the value in force. Shared by the palette and by the pinned
 // element's own declarations (editprops.js).
-function uiiValueRow(name, value, set) {
+function uiiValueRow(name, value, set, resetName) {
   const row = uiiEl('div', 'vr');
   row.dataset.name = name.toLowerCase();
   const wrap = uiiEl('span', 'nf');
@@ -2382,11 +2463,15 @@ function uiiValueRow(name, value, set) {
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   wrap.appendChild(box);
   row.append(uiiEl('span', 'n', name), wrap);
+  // A row that writes exactly one property or variable gets a key for it; a
+  // composite label (a state rule's "selector · prop") names no single value,
+  // so it passes null and goes without.
+  if (resetName) row.insertBefore(uiiResetKey(resetName), row.firstChild);
   return { row, box };
 }
 
 function uiiVarRow(v) {
-  const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement));
+  const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement), v.name);
   // An edit made here or from a colour field, before this list was built.
   const e = uiiVarEdits.get(v.name);
   if (e) { r.box.value = e.to; r.row.classList.add('on'); }
@@ -2657,8 +2742,8 @@ function uiiPropsSection(body, info) {
   const find = uiiEl('input', 'find', undefined, 'filter-declared');
   sum.appendChild(find);
   const list = uiiEl('div', 'vrs', undefined, 'declared-list');
-  for (const v of vars) list.appendChild(uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, info.el)).row);
-  for (const p of props) list.appendChild(uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val)).row);
+  for (const v of vars) list.appendChild(uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, info.el), v.name).row);
+  for (const p of props) list.appendChild(uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val), p.prop).row);
   list.appendChild(uiiAddPropRow(info));
   uiiFindBox(find, list);
   // Short enough to read at a glance, or an element already being worked on.
@@ -2678,13 +2763,37 @@ const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 
 // Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
 // also names the pair for scripts: the field is "field-size", the control
 // inside it "size" (see uiiEl — each name is written as id and data-ui).
-function uiiFld(label, control) {
+function uiiFld(label, control, props) {
   const name = uiiSlug(label);
   const f = uiiEl('div', 'fld', undefined, 'field-' + name);
   const lab = uiiEl('span', 'lab', label);
   if (!control.id) { control.setAttribute('data-ui', name); control.id = name; }
-  f.append(lab, control);
+  if (props) {
+    // The label and its ↺ share a line: the key leads the label, and the label
+    // keeps its own box because that is what scrubs and what a px note
+    // rewrites (uiiNumField). One line either way, so nothing shifts when a
+    // value is edited and the key lights up.
+    const lw = uiiEl('div', 'lw');
+    lw.append(uiiResetKey([].concat(props)[0]), lab);
+    f.append(lw, control);
+  } else f.append(lab, control);
   return { f, lab };
+}
+
+// The ↺ that leads a control: put back the one value that control writes.
+// Dim until that value is actually changed — an always-live key reads as an
+// action worth taking on every untouched row.
+function uiiResetKey(name) {
+  const b = uiiEl('button', 'rs', '↺');
+  b.type = 'button';
+  b.dataset.prop = name;
+  b.setAttribute('data-ui', 'reset-' + uiiSlug(name));
+  b.title = 'Reset ' + name + ' — put back what the page had';
+  b.disabled = true;
+  // A press here must not also start the label's scrub drag or reach the tree.
+  b.addEventListener('mousedown', (e) => e.stopPropagation());
+  b.addEventListener('click', (e) => { e.stopPropagation(); uiiResetValue(name); });
+  return b;
 }
 
 function uiiTextField(info, label, prop) {
@@ -2693,7 +2802,7 @@ function uiiTextField(info, label, prop) {
   box.value = uiiEditValue(info, prop);
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  return uiiFld(label, box).f;
+  return uiiFld(label, box, prop).f;
 }
 
 function uiiWeightField(info) {
@@ -2731,7 +2840,7 @@ function uiiAlignField(info) {
     });
     seg.appendChild(b);
   }
-  return uiiFld('Align', seg).f;
+  return uiiFld('Align', seg, 'text-align').f;
 }
 
 function uiiCard(title, ...rows) {
@@ -2926,15 +3035,25 @@ function uiiUndoRun(e) {
   uiiUndoDrop(e.el, ed);
 }
 
-// One element's edits are gone, so the steps that would put them back point at
-// values that no longer exist. Its entries are dropped; every other element's
-// step stands, which is the point of resetting one row rather than everything.
-function uiiUndoForget(el) {
+// A step that would put back a value nobody is editing any more describes a
+// world that no longer exists. `hit` decides which entries those are; every
+// other step stands, which is the point of resetting one value or one row.
+function uiiUndoDrop(hit) {
   const U = uiiUndoState;
-  const keep = (step) => step.filter((x) => x.k === 'var' || x.el !== el);
+  const keep = (step) => step.filter((x) => !hit(x));
   U.stack = U.stack.map(keep).filter((step) => step.length);
   if (U.open) U.open = keep(U.open);
   uiiUndoSync();
+}
+
+// One element: everything (prop == null) or just one property of it.
+function uiiUndoForget(el, prop) {
+  uiiUndoDrop((x) => x.k !== 'var' && x.el === el && (prop == null || x.prop === prop));
+}
+
+// One variable, which belongs to no element.
+function uiiUndoForgetVar(name) {
+  uiiUndoDrop((x) => x.k === 'var' && x.name === name);
 }
 
 // Newest step first, and within it newest entry first. Stylesheet rules are

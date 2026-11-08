@@ -83,15 +83,25 @@ function uiiUndoRun(e) {
   uiiUndoDrop(e.el, ed);
 }
 
-// One element's edits are gone, so the steps that would put them back point at
-// values that no longer exist. Its entries are dropped; every other element's
-// step stands, which is the point of resetting one row rather than everything.
-function uiiUndoForget(el) {
+// A step that would put back a value nobody is editing any more describes a
+// world that no longer exists. `hit` decides which entries those are; every
+// other step stands, which is the point of resetting one value or one row.
+function uiiUndoDrop(hit) {
   const U = uiiUndoState;
-  const keep = (step) => step.filter((x) => x.k === 'var' || x.el !== el);
+  const keep = (step) => step.filter((x) => !hit(x));
   U.stack = U.stack.map(keep).filter((step) => step.length);
   if (U.open) U.open = keep(U.open);
   uiiUndoSync();
+}
+
+// One element: everything (prop == null) or just one property of it.
+function uiiUndoForget(el, prop) {
+  uiiUndoDrop((x) => x.k !== 'var' && x.el === el && (prop == null || x.prop === prop));
+}
+
+// One variable, which belongs to no element.
+function uiiUndoForgetVar(name) {
+  uiiUndoDrop((x) => x.k === 'var' && x.name === name);
 }
 
 // Newest step first, and within it newest entry first. Stylesheet rules are
