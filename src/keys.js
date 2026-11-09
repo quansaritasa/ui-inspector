@@ -80,9 +80,11 @@ function uiiOnKey(e) {
     e.preventDefault();
     e.stopPropagation();
     if (box) box.blur(); // fires 'change', so a typed value lands before quitting
-    if (S.cvList) uiiCloseVarList(); else uiiDisable(); // first Escape closes an open var list
+    // First Escape closes an open var list or colour panel.
+    if (S.cvList) uiiCloseVarList(); else if (uiiColorPickerOpen()) uiiDismissColorPicker(); else uiiDisable();
     return;
   }
+  if (uiiColorPickerOpen()) return; // the colour panel owns arrows and letters while it is open
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;

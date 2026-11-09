@@ -76,6 +76,7 @@ function uiiDisable() {
   S.on = false;
   clearTimeout(S.badgeTimer);
   uiiCloseVarList();
+  uiiCloseColorPicker();
   uiiUnbindEvents();
   if (S.raf) cancelAnimationFrame(S.raf);
   clearTimeout(S.drawTimer); // a redraw waiting out uiiScheduleDraw's gap

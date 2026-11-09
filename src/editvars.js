@@ -44,13 +44,8 @@ function uiiValueRow(name, value, set, resetName) {
   };
   const hex = uiiRowHex(value);
   if (hex) {
-    const pick = uiiEl('input', 'pick');
-    pick.type = 'color';
     // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
-    pick.value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000';
-    uiiPickHold(pick);
-    pick.addEventListener('input', () => write(pick.value));
-    wrap.appendChild(pick);
+    wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
@@ -212,6 +207,7 @@ function uiiToggleVars() {
   const S = uiiState;
   if (!S.panel) return;
   uiiCloseVarList();
+  uiiCloseColorPicker();
   uiiHoldPanelSize(S.panel.root);
   S.varsMode = !S.varsMode;
   S.panel.vars.classList.toggle('on', S.varsMode);

@@ -204,11 +204,7 @@ const UII_CSS = `
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }
 .seg button + button { border-left: 1px solid #e5e7eb; }
 .seg button.on { background: #111827; color: #fff; }
-.nf input.pick { width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; flex: none; background: none; }
-/* The swatch fills the whole box: browsers pad and border it by default. */
-.nf input.pick::-webkit-color-swatch-wrapper { padding: 0; }
-.nf input.pick::-webkit-color-swatch { border: 0; border-radius: 3px; }
-.nf input.pick::-moz-color-swatch { border: 0; border-radius: 3px; }
+.nf button.pick { width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; flex: none; background: #000; }
 .sec .sim { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .sec .sim input { margin: 0 2px 0 0; vertical-align: -2px; }
 .sec input.find { margin-left: auto; width: 120px; height: 20px; padding: 0 6px; border: 1px solid #9ca3af; border-radius: 4px;

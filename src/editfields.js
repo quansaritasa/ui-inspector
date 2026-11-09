@@ -105,6 +105,7 @@ function uiiPair(...fields) {
 
 function uiiRenderEditRows(body, info) {
   uiiCloseVarList(); // its fields are about to be replaced
+  uiiCloseColorPicker();
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
     uiiCard('Colour', uiiPair(uiiColorField(info, 'Background', 'background-color'), uiiColorField(info, 'Text', 'color'))),

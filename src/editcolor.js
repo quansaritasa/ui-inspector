@@ -108,8 +108,7 @@ function uiiCloseVarList() {
 function uiiColorField(info, label, prop) {
   const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
-  const pick = uiiEl('input', 'pick');
-  pick.type = 'color';
+  const pick = uiiColorSwatch('#000000', (v) => write(v)); // write is defined below, used on click
   const box = uiiEl('input');
   box.spellcheck = false;
   const named = uiiColorVarOf(target, prop);
@@ -128,8 +127,6 @@ function uiiColorField(info, label, prop) {
     if (sel.value) uiiVarApply(sel.value, v, target); else uiiSet(info, prop, v);
     show(v);
   };
-  uiiPickHold(pick);
-  pick.addEventListener('input', () => write(pick.value));
   box.addEventListener('change', () => write(box.value.trim()));
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
   sel.addEventListener('change', () => {

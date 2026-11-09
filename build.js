@@ -4,13 +4,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const ORDER = ['styles', 'format', 'cssvars', 'sources', 'inspect', 'occlusion', 'overlay', 'spacing', 'events', 'editrows', 'editrules', 'edittext', 'editvar', 'editnum', 'editcolor', 'editvars', 'editprops', 'editfields', 'content', 'undo', 'tree', 'panelhead', 'panel', 'keys', 'core'];
+const ORDER = ['styles', 'format', 'cssvars', 'sources', 'inspect', 'occlusion', 'overlay', 'spacing', 'events', 'editrows', 'editrules', 'edittext', 'editvar', 'editnum', 'colorpick', 'editcolor', 'editvars', 'editprops', 'editfields', 'content', 'undo', 'tree', 'panelhead', 'panel', 'keys', 'core'];
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist', 'ui-inspector.js');
 const pkg = require('./package.json');
 
 const parts = ORDER.map((n) => fs.readFileSync(path.join(SRC, n + '.js'), 'utf8'));
-const body = parts.join('\n');
+// The vendored colour picker (vendor/): its own scope, so none of its names meet ours.
+const vjs = fs.readFileSync(path.join(__dirname, 'vendor', 'color-picker.js'), 'utf8');
+const vcss = fs.readFileSync(path.join(__dirname, 'vendor', 'color-picker.css'), 'utf8').trim();
+const vendor = `const UiiColorPicker = (() => {\n${vjs}\nreturn ColorPicker;\n})();\nconst UII_CP_CSS = ${JSON.stringify('\n' + vcss + '\n')};\n`;
+const body = vendor + parts.join('\n');
 const out = `/*! ui-inspector v${pkg.version} — ${pkg.description}
  * ${pkg.homepage || ''}  (${pkg.license})
  * Built from src/ by build.js — edit the sources, not this file. */

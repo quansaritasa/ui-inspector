@@ -10,7 +10,7 @@ function uiiMount() {
   host.setAttribute('data-uii', '');
   const sh = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = UII_CSS;
+  style.textContent = UII_CSS + UII_CP_CSS + UII_CP_TWEAKS;
   sh.appendChild(style);
   const mk = (cls) => { const d = document.createElement('div'); d.className = cls; sh.appendChild(d); return d; };
   S.layer = mk('layer');
@@ -34,6 +34,7 @@ function uiiMount() {
 
 function uiiUnmount() {
   const S = uiiState;
+  uiiDestroyColorPicker(); // its mount dies with the host
   if (S.host) S.host.remove();
   S.host = S.shadow = S.layer = S.hoverBox = S.tip = S.badge = S.scratch = S.panel = null;
   S.mgBox = S.pdBox = S.spv = S.ptrToast = null;
