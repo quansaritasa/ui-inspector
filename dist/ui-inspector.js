@@ -3542,10 +3542,23 @@ const UII_EVENTS = [
   ['mousemove', uiiOnMove], ['mouseover', uiiOnBlock], ['mouseout', uiiOnBlock],
   ['mousedown', uiiOnBlock], ['mouseup', uiiOnBlock], ['click', uiiOnClick],
   ['dblclick', uiiOnBlock], ['contextmenu', uiiOnClick], ['pointerdown', uiiOnBlock],
+  // The rest of what an app can hang a click on: pointerup/touch handlers, hover
+  // menus, middle-click. Same rule as the others: the page never sees them.
+  ['pointerup', uiiOnBlock], ['pointerover', uiiOnBlock], ['pointerout', uiiOnBlock],
+  ['auxclick', uiiOnBlock], ['touchstart', uiiOnBlock], ['touchend', uiiOnBlock],
 ];
 
+// Events from inside the panel pass the window untouched, then bubble out of
+// the host to the app's document/window listeners — where a popup's "click
+// outside" or "focus left" handler closes the popup being inspected. Stop them
+// at the host: the panel's own listeners (deeper in the shadow tree) already ran.
+const UII_PANEL_STOP = ['click', 'dblclick', 'auxclick', 'contextmenu', 'mousedown', 'mouseup',
+  'pointerdown', 'pointerup', 'touchstart', 'touchend', 'focusin', 'focusout'];
+const uiiStopAtHost = (e) => e.stopPropagation();
+
 function uiiBindEvents() {
-  for (const [n, fn] of UII_EVENTS) window.addEventListener(n, fn, true);
+  for (const [n, fn] of UII_EVENTS) window.addEventListener(n, fn, { capture: true, passive: false });
+  if (uiiState.host) for (const n of UII_PANEL_STOP) uiiState.host.addEventListener(n, uiiStopAtHost);
   window.addEventListener('scroll', uiiScheduleDraw, true);
   window.addEventListener('resize', uiiScheduleDraw);
   uiiState.mo = new MutationObserver(() => { uiiScheduleDraw(); uiiTreeTouch(); });
