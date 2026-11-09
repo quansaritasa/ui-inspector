@@ -27,6 +27,7 @@ function uiiMount() {
   S.scratch = mk('scratch');
   S.scratch.style.display = 'none';
   uiiBuildPanel(sh);
+  uiiBounceAttach(sh, 'button'); // every key in the panel and its popups
   document.documentElement.appendChild(host);
   S.host = host;
   S.shadow = sh;
@@ -224,6 +225,7 @@ function uiiDrawPicks() {
       S.shadow.appendChild(d);
       S.pickBoxes.push(d);
     }
+    if (p.el === S.selected && p.bounce) { p.bounce = false; uiiBounce(d, { scale: 0.96, over: 0.03 }); }
     d.dataset.n = i + 1;
     d.style.display = p.el.isConnected ? '' : 'none';
     if (!p.el.isConnected) return;

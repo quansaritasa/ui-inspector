@@ -78,7 +78,7 @@ const UII_CSS = `
 .head .tag { color: #6b7280; font-family: ui-monospace, Menlo, monospace; }
 /* Square icon buttons: one glyph each, so a fixed box reads as a row of
    equal keys — no word breaks the rhythm. */
-.head button { width: 26px; height: 26px; flex: none; display: grid; place-items: center;
+.head button { width: 32px; height: 32px; flex: none; display: grid; place-items: center;
   font: inherit; padding: 0; border: 1px solid #d1d5db;
   border-radius: 4px; background: #fff; color: #111827; cursor: pointer; }
 .head button:hover { background: #e5e7eb; }
@@ -112,7 +112,7 @@ const UII_CSS = `
    strength — the row where you would reach for it — and one with nothing to
    reset keeps the glyph as a placeholder at a third. Inherits the row's ink,
    so the pinned (dark) row needs no color of its own. */
-.tree .rs { width: 12px; height: 13px; flex: none; padding: 0; border: 0; border-radius: 3px;
+.tree .rs { width: 16px; height: 17px; flex: none; padding: 0; border: 0; border-radius: 3px;
   background: none; color: inherit; opacity: .85; cursor: pointer;
   font: 11px/1 ui-monospace, Menlo, monospace; }
 .tree .tr:hover .rs { opacity: .85; }
@@ -157,16 +157,16 @@ const UII_CSS = `
 .lw .lab { flex: 1; min-width: 0; }
 /* Visible before it is useful: at a fifth the glyph is there and nobody sees
    it, which is the whole reason it exists. Edited rows wear it darker. */
-.fld .rs, .vr .rs { flex: none; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 3px;
+.fld .rs, .vr .rs { flex: none; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 3px;
   background: none; color: #6b7280; opacity: .38; cursor: pointer;
   font: 11px/1 ui-monospace, Menlo, monospace; }
 .fld .rs:hover:not(:disabled), .vr .rs:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, .08); }
 .fld .rs:disabled, .vr .rs:disabled { opacity: .38; cursor: default; }
 .fld .rs:not(:disabled), .vr .rs:not(:disabled) { opacity: .9; color: #0f766e; }
-.fld .lab { color: #6b7280; font-size: 11px; user-select: none; }
+.fld .lab { color: #374151; font-size: 11px; user-select: none; }
 .fld .fml { font: 10px/1.4 ui-monospace, Consolas, monospace; color: #6b7280; word-break: break-all; user-select: text; }
 .fld .lab.scrub { cursor: ew-resize; }
-.nf, .tf, .seg { height: 26px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
+.nf, .tf, .seg { height: 28px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
 .nf { display: flex; align-items: center; gap: 4px; padding: 0 6px; min-width: 0; }
 .nf:focus-within, .tf:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
 .nf input, .tf { flex: 1; min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #111827; }
@@ -176,8 +176,8 @@ const UII_CSS = `
 .nf select.u { appearance: none; color: #9ca3af; font-size: 10px; text-transform: uppercase; max-width: 45%; text-overflow: ellipsis; padding: 0 2px; }
 .nf select.u:hover { color: #111827; }
 .st { display: flex; flex-direction: column; margin-right: -4px; }
-.st button { width: 14px; height: 11px; padding: 0; border: 0; border-radius: 2px; background: none;
-  color: #9ca3af; font-size: 7px; line-height: 11px; cursor: pointer; }
+.st button { width: 18px; height: 12px; padding: 0; border: 0; border-radius: 2px; background: none;
+  color: #9ca3af; font-size: 8px; line-height: 12px; cursor: pointer; }
 .st button:hover { color: #111827; background: #e5e7eb; }
 .nf button.cv { border: 0; background: none; color: #0f766e; font: inherit; font-size: 10px; max-width: 46%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; cursor: pointer; }
@@ -212,7 +212,7 @@ const UII_CSS = `
 .seg button { flex: 1; border: 0; background: none; color: #4b5563; cursor: pointer; display: grid; place-items: center; }
 .seg button + button { border-left: 1px solid #e5e7eb; }
 .seg button.on { background: #111827; color: #fff; }
-.nf button.pick { width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; flex: none; background: #000; }
+.nf button.pick { width: 22px; height: 22px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; flex: none; background: #000; }
 .sec .sim { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .sec .sim input { margin: 0 2px 0 0; vertical-align: -2px; }
 .sec input.find { margin-left: auto; width: 120px; height: 20px; padding: 0 6px; border: 1px solid #9ca3af; border-radius: 4px;
@@ -237,10 +237,10 @@ const UII_CSS = `
 .vr input.n { height: 24px; padding: 0 6px; border: 1px solid #d1d5db; border-radius: 5px;
   background: #fff; outline: none; }
 .vr input.n:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
-.vr .go { flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px;
-  background: #fff; color: #374151; font: 11px/1 inherit; cursor: pointer; }
+.vr .go { flex: none; width: 24px; height: 24px; padding: 0; border: 1px solid #d1d5db; border-radius: 4px;
+  background: #fff; color: #374151; font: 13px/1 inherit; cursor: pointer; }
 .vr .go:hover { background: #e5e7eb; }
-.sec .mini { margin-left: auto; font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 4px 10px;
+.sec .mini { margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: 0; padding: 6px 12px; font-size: 12px;
   border: 1px solid #9ca3af; border-radius: 4px; background: #fff; cursor: pointer; }
 .chg { display: block; width: calc(100% - 20px); margin: 4px 10px 8px; padding: 6px; resize: vertical;
   font: 11px/1.45 ui-monospace, Menlo, monospace; color: #111827; background: #fff;

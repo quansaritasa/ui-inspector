@@ -114,7 +114,7 @@ function uiiSelect(el, keep) {
   // buttons read info.code when pressed. Resolves to info once it is set;
   // a failed scan just leaves the line without script files.
   const ready = uiiCodeFiles(info).then((files) => { info.code = files; }, () => {}).then(() => info);
-  if (!keep) { S.picks = [{ el, ready }]; S.pickSeq++; uiiDrawPicks(); } // seq++: a pending Shift copy is stale now
+  if (!keep) { S.picks = [{ el, ready, bounce: true }]; S.pickSeq++; uiiDrawPicks(); } // seq++: a pending Shift copy is stale now
   return ready;
 }
 
@@ -125,7 +125,7 @@ function uiiSelect(el, keep) {
 function uiiTogglePick(el, ready) {
   const S = uiiState;
   const at = S.picks.findIndex((p) => p.el === el);
-  if (at >= 0) S.picks.splice(at, 1); else S.picks.push({ el, ready });
+  if (at >= 0) S.picks.splice(at, 1); else S.picks.push({ el, ready, bounce: true });
   uiiDrawPicks();
   const seq = ++S.pickSeq;
   if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
