@@ -8,6 +8,7 @@
   "repository": "github:quansaritasa/ui-inspector",
   "main": "dist/ui-inspector.js",
   "files": [
+    "src/bounce.js",
     "dist",
     "README.md",
     "LICENSE"
