@@ -9,7 +9,8 @@ const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist', 'ui-inspector.js');
 const pkg = require('./package.json');
 
-const parts = ORDER.map((n) => fs.readFileSync(path.join(SRC, n + '.js'), 'utf8'));
+// bounce.js is also a standalone file: its export tail follows the marker and is not inlined.
+const parts = ORDER.map((n) => fs.readFileSync(path.join(SRC, n + '.js'), 'utf8').split('/* ---- standalone export')[0]);
 // The vendored color picker (vendor/): its own scope, so none of its names meet ours.
 const vjs = fs.readFileSync(path.join(__dirname, 'vendor', 'color-picker.js'), 'utf8');
 const vcss = fs.readFileSync(path.join(__dirname, 'vendor', 'color-picker.css'), 'utf8').trim();
