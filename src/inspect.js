@@ -2,7 +2,7 @@
    Turns one DOM element into a plain object the panel renders and the
    "Copy for AI" text serialises. No DOM is touched here. */
 
-// Which outline colour an element gets. Order matters: a <button role="tab">
+// Which outline color an element gets. Order matters: a <button role="tab">
 // is still a button.
 function uiiKind(el) {
   const tag = el.tagName.toLowerCase();
@@ -151,7 +151,7 @@ function uiiCollect(el) {
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),
-    colorVars, // the palette the colour fields offer (cssvars.js)
+    colorVars, // the palette the color fields offer (cssvars.js)
     all, // every stylesheet rule, reused for the text children's lookups
   };
 }

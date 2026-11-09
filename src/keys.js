@@ -33,7 +33,7 @@ function uiiKeyMatches(e, k) {
   return key === k.key || code === k.key || code === 'key' + k.key || code === 'digit' + k.key;
 }
 
-// Only boxes that take typing: a focused checkbox or colour swatch must not
+// Only boxes that take typing: a focused checkbox or color swatch must not
 // swallow the shortcuts.
 const UII_TEXT_INPUT = /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week)$/;
 
@@ -80,17 +80,17 @@ function uiiOnKey(e) {
     e.preventDefault();
     e.stopPropagation();
     if (box) box.blur(); // fires 'change', so a typed value lands before quitting
-    // First Escape closes an open var list or colour panel.
+    // First Escape closes an open var list or color panel.
     if (S.cvList) uiiCloseVarList(); else if (uiiColorPickerOpen()) uiiDismissColorPicker(); else uiiDisable();
     return;
   }
-  if (uiiColorPickerOpen()) return; // the colour panel owns arrows and letters while it is open
+  if (uiiColorPickerOpen()) return; // the color panel owns arrows and letters while it is open
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
   // The shortcuts with a modifier: Cmd/Ctrl+Z takes back the last edit,
-  // Cmd/Ctrl+I copies the hovered colour with no click. Guarded above, so
+  // Cmd/Ctrl+I copies the hovered color with no click. Guarded above, so
   // inside a text box they stay the browser's own undo and italic.
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
     uiiKeyAction(e, uiiUndo);
@@ -103,7 +103,7 @@ function uiiOnKey(e) {
   // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
   // panel or on the page. Each is a panel button without the reach — C the
   // Copy ID line, A the Changes box, V the Normal view toggle, P the page
-  // variables, T the DOM tree, I the colour picker.
+  // variables, T the DOM tree, I the color picker.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
@@ -125,7 +125,7 @@ const UII_HINTS = [
   ['dom-tree-toggle', 'T', 'DOM tree'],
   ['vars-mode', 'P', 'page variables'],
   ['normal-view', 'V', 'normal view'],
-  ['color-picker', 'I', 'colour picker'],
+  ['color-picker', 'I', 'color picker'],
   ['copy-id', 'C', 'copy ID'],
   ['copy-for-ai', 'A', 'copy all changes'],
 ];

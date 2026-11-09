@@ -111,7 +111,7 @@ const UII_CSS = `
    has edits, so a name never moves. An element WITH edits wears it at full
    strength — the row where you would reach for it — and one with nothing to
    reset keeps the glyph as a placeholder at a third. Inherits the row's ink,
-   so the pinned (dark) row needs no colour of its own. */
+   so the pinned (dark) row needs no color of its own. */
 .tree .rs { width: 12px; height: 13px; flex: none; padding: 0; border: 0; border-radius: 3px;
   background: none; color: inherit; opacity: .85; cursor: pointer;
   font: 11px/1 ui-monospace, Menlo, monospace; }

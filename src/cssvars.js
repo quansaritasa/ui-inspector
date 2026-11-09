@@ -1,6 +1,6 @@
 /* ================= stylesheet lookups =================
    Two things the computed style cannot tell you: which --custom-property a
-   colour came from, and which selectors put it there. Both are recovered by
+   color came from, and which selectors put it there. Both are recovered by
    walking document.styleSheets — cross-origin sheets throw on .cssRules and
    are skipped. Runs only on click, so a few hundred rules is fine. */
 
@@ -76,14 +76,14 @@ function uiiNormColor(v) {
 }
 
 // [{name, hex}] for every custom property whose value, resolved on this
-// element, is a colour. Vars set on ancestors or :root all resolve here.
-// This is the palette the colour fields offer, so it is sorted by name.
+// element, is a color. Vars set on ancestors or :root all resolve here.
+// This is the palette the color fields offer, so it is sorted by name.
 function uiiColorVars(el, all) {
   const cs = getComputedStyle(el);
   const out = [];
   for (const name of uiiVarNames(all)) {
     const raw = cs.getPropertyValue(name).trim();
-    if (!raw || raw.length > 40) continue; // shadows, font stacks: never a colour
+    if (!raw || raw.length > 40) continue; // shadows, font stacks: never a color
     const rgb = uiiNormColor(raw);
     if (!rgb) continue;
     out.push({ name, hex: uiiToHex(rgb) });

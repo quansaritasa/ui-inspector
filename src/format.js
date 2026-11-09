@@ -1,9 +1,12 @@
 /* ================= value formatting =================
-   Colour normalisation and the "Copy for AI" text block. */
+   Color normalisation and the "Copy for AI" text block. */
 
 // "rgb(31, 41, 55)" / "rgba(31,41,55,0.5)" -> "#1f2937" / "#1f293780".
 // Anything else (gradients, "transparent") is returned untouched.
 function uiiToHex(v) {
+  // Chrome writes some computed colors as color(srgb 0.94 0.95 0.96 / 0.55): channels 0..1.
+  const c = /^color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(String(v || '').trim());
+  if (c) v = 'rgba(' + [c[1], c[2], c[3]].map((n) => Math.round(n * 255)).join(',') + (c[4] !== undefined ? ',' + c[4] : '') + ')';
   const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)$/.exec(String(v || '').trim());
   if (!m) return v;
   const h = (n) => Math.round(Number(n)).toString(16).padStart(2, '0');
@@ -17,7 +20,7 @@ function uiiToHex(v) {
 }
 
 function uiiIsTransparent(v) {
-  return !v || v === 'transparent' || /^rgba?\([^)]*[,/]\s*0\s*\)$/.test(v);
+  return !v || v === 'transparent' || /^(?:rgba?|color)\([^)]*[,/]\s*0\s*\)$/.test(v);
 }
 
 // "Inter, -apple-system, system-ui" -> "Inter (+2 fallbacks)"
@@ -33,7 +36,7 @@ function uiiShort(s, n) {
   return t.length > n ? t.slice(0, n - 1) + '…' : t;
 }
 
-// One colour line: "#ffffff (--surface)" or "#ffffff (inherited from #toolbar)".
+// One color line: "#ffffff (--surface)" or "#ffffff (inherited from #toolbar)".
 function uiiColorLine(c) {
   if (!c) return '';
   let s = c.hex;
@@ -141,7 +144,7 @@ function uiiChangesBox(body) {
 }
 
 // Multi-line block with the computed look, for when the AI must match or
-// change colours and type rather than just locate the element.
+// change colors and type rather than just locate the element.
 function uiiFormatDetails(info) {
   const L = [];
   L.push('UI component: ' + info.name);

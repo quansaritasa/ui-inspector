@@ -1,27 +1,45 @@
-/* ================= live editing: colour fields =================
-   A colour either sits on the element or comes from a variable. The picker
+/* ================= live editing: color fields =================
+   A color either sits on the element or comes from a variable. The picker
    below edits whichever the dropdown points at, so moving a palette entry
    moves every rule that reads it. Split out of editfields.js to keep each
    file short. */
 
-// Shorthands that can carry a colour: CSSOM leaves the longhand empty when
+// Shorthands that can carry a color: CSSOM leaves the longhand empty when
 // the shorthand holds a var(), so the var has to be read off the shorthand.
 const UII_COLOR_SHORTHAND = { 'background-color': 'background', 'border-color': 'border' };
 
-// The variable this colour comes from, '' when it is written out in full.
+// Which tab of the shared picker a color field's swatch opens on.
+const UII_PAIR_SLOT = { color: 'text', 'background-color': 'background' };
+
+// The side the border color field speaks for: the first one that draws a
+// line. A rule like `td { border-bottom: 1px solid var(--x) }` leaves the top
+// at currentColor, which is not the color anyone sees.
+function uiiBorderSide(el) {
+  const cs = getComputedStyle(el);
+  const on = ['top', 'right', 'bottom', 'left'].find((s) =>
+    parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
+  return on || 'top';
+}
+
+// The variable this color comes from, '' when it is written out in full.
 function uiiColorVarOf(el, prop) {
   const d = uiiAnyDecl(el, prop, uiiVarName) && uiiRuleDecl(el, prop);
   const named = uiiVarName(d && d.value);
   if (named || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
+  const heads = [UII_COLOR_SHORTHAND[prop]];
+  if (prop === 'border-color') heads.unshift('border-' + uiiBorderSide(el), 'border-' + uiiBorderSide(el) + '-color');
   for (let i = rules.length - 1; i >= 0; i--) {
-    const n = rules[i].style && uiiVarName(uiiDeclValue(rules[i].style, UII_COLOR_SHORTHAND[prop]));
-    if (n) return n;
+    if (!rules[i].style) continue;
+    for (const h of heads) {
+      const n = uiiVarName(uiiDeclValue(rules[i].style, h));
+      if (n) return n;
+    }
   }
   return '';
 }
 
-// The hex a variable resolves to on this element, '' when it is not a colour.
+// The hex a variable resolves to on this element, '' when it is not a color.
 function uiiVarHex(info, name, el) {
   const v = info.colorVars.find((c) => c.name === name);
   if (v) return v.hex;
@@ -30,7 +48,7 @@ function uiiVarHex(info, name, el) {
 }
 
 // The variable dropdown as a custom list: a native <select> cannot draw a
-// swatch in an option, and a name alone rarely says which colour it is.
+// swatch in an option, and a name alone rarely says which color it is.
 // Same surface as the <select> it replaces: .value, and a 'change' event.
 // The list lives on the shadow root, not in the panel, so the panel's
 // scrolling body does not clip it.
@@ -100,27 +118,27 @@ function uiiCloseVarList() {
   l.remove();
 }
 
-// A colour either sits on the element (#1f2937) or comes from a variable
+// A color either sits on the element (#1f2937) or comes from a variable
 // (var(--bg)). The dropdown says which, and the picker edits whatever the
 // dropdown points at: on a variable it moves that palette entry, so every
-// rule using it follows; on "— none —" the element gets a colour of its own
-// again. Pointing a colour at a different variable is the dropdown alone.
+// rule using it follows; on "— none —" the element gets a color of its own
+// again. Pointing a color at a different variable is the dropdown alone.
 function uiiColorField(info, label, prop) {
   const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
-  const pick = uiiColorSwatch('#000000', (v) => write(v)); // write is defined below, used on click
+  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop]); // write is defined below, used on click
   const box = uiiEl('input');
   box.spellcheck = false;
   const named = uiiColorVarOf(target, prop);
   const names = info.colorVars.map((c) => c.name);
   // A var the palette list missed (it resolves to something uiiColorVars does
-  // not read as a colour) still belongs in the list: it is the current answer.
+  // not read as a color) still belongs in the list: it is the current answer.
   if (named && !names.includes(named)) names.push(named);
   const sel = uiiVarPicker(names, target);
-  sel.title = 'Which variable this colour comes from. Pick one and the swatch'
+  sel.title = 'Which variable this color comes from. Pick one and the swatch'
     + ' edits the variable itself — every element using it changes.';
   sel.value = named;
-  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}$/i.test(v)) pick.value = v; };
+  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; }; 
   show(sel.value ? uiiVarHex(info, sel.value, target) : uiiEditValue(info, prop));
   // One write, two places it can land.
   const write = (v) => {

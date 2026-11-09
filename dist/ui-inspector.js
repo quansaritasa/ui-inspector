@@ -1,11 +1,11 @@
-/*! ui-inspector v0.19.0 — Press a shortcut, hover any control, click to see its name, colours, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.0 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
 'use strict';
 
 const UiiColorPicker = (() => {
-/* Vendored from the color-picker project, dist/color-picker.esm.js @ bec95e3.
+/* Vendored from the color-picker project, dist/color-picker.esm.js @ bb509bf.
  * Local patches (shadow-DOM awareness; every one marks a spot where the
  * library asked the document instead of its own root):
  *   - document.activeElement / .contains / querySelectorAll -> the root node
@@ -71,6 +71,79 @@ function hsvToRgb(h, s, v) {
   else rgb = [c, 0, x];
   return { r: (rgb[0] + m) * 255, g: (rgb[1] + m) * 255, b: (rgb[2] + m) * 255 };
 }
+function rgbToHsl({ r, g, b }) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const d = max - min;
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (d) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === rn) h = (gn - bn) / d % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+function hslToRgb(h, s, l) {
+  const hue = (h % 360 + 360) % 360;
+  const sn = clamp(s, 0, 100) / 100;
+  const ln = clamp(l, 0, 100) / 100;
+  const c = (1 - Math.abs(2 * ln - 1)) * sn;
+  const x = c * (1 - Math.abs(hue / 60 % 2 - 1));
+  const m = ln - c / 2;
+  let rgb;
+  if (hue < 60) rgb = [c, x, 0];
+  else if (hue < 120) rgb = [x, c, 0];
+  else if (hue < 180) rgb = [0, c, x];
+  else if (hue < 240) rgb = [0, x, c];
+  else if (hue < 300) rgb = [x, 0, c];
+  else rgb = [c, 0, x];
+  return { r: (rgb[0] + m) * 255, g: (rgb[1] + m) * 255, b: (rgb[2] + m) * 255 };
+}
+var FORMATS = ["hex", "rgb", "hsl", "hsv"];
+var trim = (n) => String(Math.round(n * 100) / 100);
+function formatColor(color, format = "hex") {
+  if (format === "hex" || !FORMATS.includes(format)) return formatHex(color);
+  const { r, g, b, a = 1 } = color;
+  let parts;
+  if (format === "rgb") parts = [round255(r), round255(g), round255(b)].map(String);
+  else {
+    const m = format === "hsl" ? rgbToHsl({ r, g, b }) : rgbToHsv({ r, g, b });
+    parts = [Math.round(m.h), ...[m.s, m.l ?? m.v].map((n) => `${Math.round(n)}%`)].map(String);
+  }
+  const alpha = a < 0.999;
+  if (alpha) parts.push(trim(a));
+  return `${format}${alpha ? "a" : ""}(${parts.join(", ")})`;
+}
+var FN_RE = /^(rgb|hsl|hsv|hsb)a?\(([^)]*)\)$/i;
+function parseColor(value) {
+  if (typeof value !== "string") return null;
+  const fn = FN_RE.exec(value.trim());
+  if (!fn) return parseHex(value);
+  const args = fn[2].split(/[\s,/]+/).filter(Boolean);
+  if (args.length !== 3 && args.length !== 4) return null;
+  const nums = args.map((s) => /^[+-]?(\d+\.?\d*|\.\d+)(%|deg)?$/i.test(s) ? { n: parseFloat(s), pct: s.endsWith("%") } : null);
+  if (nums.some((x) => !x)) return null;
+  const kind = fn[1].toLowerCase();
+  const alphaArg = nums[3];
+  const a = alphaArg ? clamp(alphaArg.pct ? alphaArg.n / 100 : alphaArg.n, 0, 1) : 1;
+  let rgb;
+  if (kind === "rgb") {
+    rgb = nums.slice(0, 3).map((x) => x.pct ? x.n * 2.55 : x.n);
+    rgb = { r: rgb[0], g: rgb[1], b: rgb[2] };
+  } else {
+    const [h, s, x] = nums;
+    rgb = (kind === "hsl" ? hslToRgb : hsvToRgb)(h.n, s.n, x.n);
+  }
+  return { r: round255(rgb.r), g: round255(rgb.g), b: round255(rgb.b), a };
+}
 
 // src/dom.js
 var SVG_NS = "http://www.w3.org/2000/svg";
@@ -108,6 +181,7 @@ var LABELS = {
   cancel: "Cancel",
   apply: "OK",
   hex: "Hex color value",
+  format: "Color format",
   hue: "Hue",
   opacity: "Opacity",
   sv: "Saturation and brightness",
@@ -133,9 +207,15 @@ function buildTemplate({ slots = [], groups = [], showAlpha = true, labels = {} 
   );
   const compact = button("cp-compact-btn", void 0, { "aria-label": L.compact, title: L.compact, "aria-pressed": "false" });
   compact.append(icon("M8 1.5v4M6 3.5l2 2 2-2M8 14.5v-4M6 12.5l2-2 2 2M2.5 8h11", "cp-icon-compact"));
+  const format = attr(el("select", "cp-format-select"), { "aria-label": L.format });
+  for (const name of FORMATS) {
+    const option = el("option", null, name.toUpperCase());
+    option.value = name;
+    format.append(option);
+  }
   const close = button("cp-close-btn", "\xD7", { "aria-label": L.close, title: L.close });
   const headerActions = el("div", "cp-header-actions");
-  headerActions.append(reset, compact, maximize, close);
+  headerActions.append(format, reset, compact, maximize, close);
   const header = el("header", "cp-picker-header");
   header.append(heading, headerActions);
   let tabs = null;
@@ -233,6 +313,7 @@ function buildTemplate({ slots = [], groups = [], showAlpha = true, labels = {} 
     svThumb,
     preview,
     hex,
+    format,
     hue: hue.input,
     hueValue: hue.value,
     alpha: alpha.input,
@@ -253,7 +334,8 @@ function buildTemplate({ slots = [], groups = [], showAlpha = true, labels = {} 
 // src/editor.js
 var clamp01 = (n) => Math.min(1, Math.max(0, n));
 var round = (n) => Math.min(255, Math.max(0, Math.round(n)));
-function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
+function createEditor(refs, { showAlpha = true, format = "hex", onChange, onStatus } = {}) {
+  let mode = FORMATS.includes(format) ? format : "hex";
   const state = { h: 174, s: 87, v: 46, a: 1 };
   let current = { r: 15, g: 118, b: 110, a: 1 };
   let dragging = false;
@@ -270,7 +352,7 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
     refs.svThumb.style.left = `${state.s}%`;
     refs.svThumb.style.top = `${100 - state.v}%`;
     refs.preview.style.background = `rgba(${round(rgb.r)}, ${round(rgb.g)}, ${round(rgb.b)}, ${state.a})`;
-    if (refs.hex.getRootNode().activeElement !== refs.hex) refs.hex.value = formatHex(current);
+    if (refs.hex.getRootNode().activeElement !== refs.hex) refs.hex.value = formatColor(current, mode);
     refs.hue.value = String(Math.round(state.h));
     refs.hueValue.textContent = `${Math.round(state.h)}\xB0`;
     if (showAlpha) {
@@ -350,11 +432,11 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
     apply();
   };
   const commitHex = (event) => {
-    const parsed = parseHex(event.target.value);
+    const parsed = parseColor(event.target.value);
     if (!parsed) {
-      refs.hex.value = formatHex(current);
+      refs.hex.value = formatColor(current, mode);
       refs.hex.setAttribute("aria-invalid", "true");
-      if (onStatus) onStatus("Enter a valid HEX value.");
+      if (onStatus) onStatus("Enter a valid color value.");
       return;
     }
     refs.hex.removeAttribute("aria-invalid");
@@ -362,6 +444,16 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
     setColor(parsed, { silent: false });
   };
   const onHexChange = (event) => commitHex(event);
+  const onFormat = () => {
+    mode = refs.format.value;
+    refs.hex.removeAttribute("aria-invalid");
+    render();
+  };
+  const setFormat = (next) => {
+    if (!FORMATS.includes(next)) return;
+    refs.format.value = next;
+    onFormat();
+  };
   const onHexKey = (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -377,9 +469,14 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
   refs.alpha.addEventListener("input", onAlpha);
   refs.hex.addEventListener("change", onHexChange);
   refs.hex.addEventListener("keydown", onHexKey);
+  refs.format.addEventListener("change", onFormat);
+  refs.format.value = mode;
   render();
   return {
     setColor,
+    setFormat,
+    /** The color as the field shows it: what Copy puts on the clipboard. */
+    getText: (rgba = current) => formatColor(rgba, mode),
     getColor: () => ({ ...current }),
     destroy() {
       refs.sv.removeEventListener("pointerdown", onPointerDown);
@@ -391,6 +488,7 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
       refs.alpha.removeEventListener("input", onAlpha);
       refs.hex.removeEventListener("change", onHexChange);
       refs.hex.removeEventListener("keydown", onHexKey);
+      refs.format.removeEventListener("change", onFormat);
     }
   };
 }
@@ -485,7 +583,7 @@ var PRESET_SETS = {
     /* Ordered so neighbours look alike: one tint family at a time, dark to light
        within it. `Normal` runs gray, slate, stone, neutral, then its light tail for
        dark surfaces; `#000000` leads it, and the first entry is what `options.js`
-       hands a text slot with no colour of its own. The two coloured tabs walk the
+       hands a text slot with no color of its own. The two colored tabs walk the
        hue wheel; `Highlight` ends with its dark-surface row in the same hue order. */
     Normal: [
       "#000000",
@@ -501,6 +599,18 @@ var PRESET_SETS = {
       "#475569",
       "#64748B",
       "#94A3B8",
+      "#050A18",
+      "#0A1128",
+      "#0D1B2A",
+      "#0B1B3A",
+      "#111B33",
+      "#14213D",
+      "#1B263B",
+      "#1B2A49",
+      "#1E2A44",
+      "#22304A",
+      "#2B3A55",
+      "#364A6B",
       "#1C1917",
       "#292524",
       "#44403C",
@@ -517,71 +627,109 @@ var PRESET_SETS = {
       "#FFFFFF"
     ],
     Heading: [
-      "#4C1D95",
-      "#581C87",
-      "#312E81",
-      "#3730A3",
       "#172554",
+      "#1E3A5F",
+      "#312E81",
       "#1E3A8A",
+      "#3730A3",
       "#1E40AF",
+      "#4338CA",
       "#1D4ED8",
       "#2563EB",
-      "#0C4A6E",
-      "#075985",
-      "#0369A1",
-      "#164E63",
-      "#155E75",
-      "#0E7490",
-      "#134E4A",
-      "#115E59",
-      "#0F766E",
-      "#064E3B",
-      "#065F46",
-      "#047857",
+      "#1E1B4B",
+      "#2E1065",
+      "#3B0764",
+      "#4C1D95",
+      "#581C87",
       "#052E16",
+      "#1A2E05",
+      "#0F5132",
       "#14532D",
-      "#166534",
-      "#15803D",
       "#365314",
-      "#3F6212"
+      "#166534",
+      "#3F6212",
+      "#15803D",
+      "#022C22",
+      "#064E3B",
+      "#134E4A",
+      "#065F46",
+      "#115E59",
+      "#047857",
+      "#0F766E",
+      "#042F2E",
+      "#083344",
+      "#0A3D62",
+      "#0C4A6E",
+      "#164E63",
+      "#075985",
+      "#155E75",
+      "#0369A1",
+      "#0E7490"
     ],
     Highlight: [
-      "#991B1B",
-      "#B91C1C",
-      "#DC2626",
-      "#9A3412",
-      "#C2410C",
-      "#EA580C",
-      "#B45309",
-      "#A16207",
-      "#CA8A04",
-      "#4D7C0F",
-      "#0D9488",
-      "#0891B2",
       "#4F46E5",
+      "#818CF8",
+      "#60A5FA",
       "#5B21B6",
-      "#6D28D9",
-      "#7C3AED",
       "#6B21A8",
+      "#6D28D9",
       "#7E22CE",
+      "#7C3AED",
       "#9333EA",
+      "#A78BFA",
+      "#C084FC",
+      "#701A75",
+      "#86198F",
       "#A21CAF",
       "#C026D3",
+      "#E879F9",
+      "#9D174D",
       "#BE185D",
       "#DB2777",
+      "#F472B6",
+      "#7F1D1D",
+      "#881337",
+      "#991B1B",
+      "#9A3412",
+      "#B91C1C",
       "#BE123C",
+      "#C2410C",
+      "#DC2626",
       "#E11D48",
-      "#FDA4AF",
+      "#EF4444",
       "#F87171",
+      "#78350F",
+      "#92400E",
+      "#854D0E",
+      "#A16207",
+      "#B45309",
+      "#EA580C",
+      "#F97316",
       "#FB923C",
-      "#FBBF24",
-      "#FACC15",
-      "#A3E635",
+      "#CA8A04",
+      "#F59E0B",
+      "#4D7C0F",
+      "#65A30A",
+      "#22C55E",
+      "#84CC16",
+      "#0D9488",
       "#34D399",
-      "#22D3EE",
-      "#60A5FA",
-      "#A78BFA",
-      "#F472B6"
+      "#0891B2",
+      "#38BDF8",
+      "#93C5FD",
+      "#F9A8D4",
+      "#FDA4AF",
+      "#FDBA74",
+      "#FBBF24",
+      "#EAB308",
+      "#FACC15",
+      "#FDE047",
+      "#BEF264",
+      "#A3E635",
+      "#6EE7B7",
+      "#2DD4BF",
+      "#67E8F9",
+      "#22D3EE"
     ]
   },
   background: {
@@ -652,7 +800,7 @@ var PRESET_SETS = {
        badge inks clears 4.5:1 against a mid-tone text like #0F766E, so without a
        pale set the suggestions panel has nothing to offer for such a pair. The
        old six categories are merged and de-duplicated here, with five more washes
-       in the hue gaps and four across red and orange — 43 colours, then 17 more across every hue so it matches
+       in the hue gaps and four across red and orange — 43 colors, then 17 more across every hue so it matches
        `Vivid` at 60. Contrast against #0F766E is what caps the set: a wash light enough to stay useful
        there has little chroma left to spend, so the red/orange four sit at
        3.78-5.00:1, inside the range the merged washes already covered. */
@@ -724,11 +872,11 @@ function mergePalette(base = {}, override = {}) {
   const merged = { ...base, ...override };
   return Object.fromEntries(Object.entries(merged).map(([name, colors]) => {
     if (!Array.isArray(colors)) {
-      throw new TypeError(`ColorPicker: preset category "${name}" must be an array of hex colours.`);
+      throw new TypeError(`ColorPicker: preset category "${name}" must be an array of hex colors.`);
     }
     return [name, colors.map((hex) => {
       const valid = normalizeHex(hex);
-      if (!valid) throw new TypeError(`ColorPicker: preset category "${name}" has an invalid colour ${JSON.stringify(hex)}.`);
+      if (!valid) throw new TypeError(`ColorPicker: preset category "${name}" has an invalid color ${JSON.stringify(hex)}.`);
       return valid;
     })];
   }));
@@ -744,14 +892,14 @@ function shippedPalette(group) {
 }
 var PRESET_GROUPS = {
   text: {
-    label: "Text colour presets",
+    label: "Text color presets",
     /* Short name a slot tab shows as its type; a slot may override it. */
     type: "Text",
     symbol: "Aa",
     hint: "Body copy, headings and highlights, for text and icons."
   },
   background: {
-    label: "Background colour presets",
+    label: "Background color presets",
     type: "Background",
     symbol: "\u25B0",
     hint: "The badge inks and their deep tier, plus the pale washes."
@@ -1146,7 +1294,7 @@ function createTriggers({ picker, target, slots, labels = {} }) {
   bar.className = "cp-triggers";
   bar.dataset.theme = picker.options.theme;
   bar.setAttribute("role", "group");
-  bar.setAttribute("aria-label", labels.triggersLabel || "Colours");
+  bar.setAttribute("aria-label", labels.triggersLabel || "Colors");
   const buttons = {};
   for (const slot of slots) {
     const button2 = document.createElement("button");
@@ -1427,16 +1575,18 @@ function assemble(picker) {
   picker.root.append(built.root);
   picker.root.style.setProperty("--cp-slots", String(slots.length));
   if (options.mode === "popover") picker.root.classList.add("cp-popover");
+  if (options.mode === "inline") picker.root.classList.add("cp-inline");
   host.append(picker.root);
   picker.editor = createEditor(picker.refs, {
     showAlpha: options.showAlpha,
+    format: options.format,
     onChange: (rgba) => picker.commit(rgba),
     onStatus: (message) => picker.setStatus(message)
   });
   picker.copy = createCopy({
     button: picker.refs.copy,
     label: options.labels.copy,
-    getValue: () => picker.colors[picker.activeSlot],
+    getValue: () => picker.editor.getText(parseHex(picker.colors[picker.activeSlot])),
     onStatus: (message) => picker.setStatus(message)
   });
   picker.palettes = {};
@@ -1524,7 +1674,7 @@ function createFocusTrap(root) {
   return {
     /** Remember the opener and start wrapping Tab inside the root. */
     activate(opener) {
-      previous = opener || document.activeElement;
+      previous = opener || root.getRootNode().activeElement;
       document.addEventListener("keydown", onKey, true);
     },
     /** Stop wrapping and restore focus, when the opener is still on the page. */
@@ -1831,7 +1981,7 @@ function bindShell(picker) {
   const toggleCompact = () => {
     const on = refs.panel.classList.toggle("cp-is-compact");
     refs.compact.setAttribute("aria-pressed", String(on));
-    if (window.matchMedia(SHEET5).matches) return;
+    if (picker.options.mode === "inline" || window.matchMedia(SHEET5).matches) return;
     const style = refs.panel.style;
     if (on) {
       restoreBox = { width: style.width, height: style.height };
@@ -1851,6 +2001,7 @@ function bindShell(picker) {
   picker.onDocumentKey = (event) => {
     if (!picker.isOpen) return;
     if (!isTopmostOpen(picker.root)) return;
+    if (picker.options.mode === "inline" && !event.composedPath().includes(picker.root)) return;
     if (event.key === "Escape") {
       picker.dismiss();
       return;
@@ -1912,12 +2063,12 @@ function unbindShell(picker) {
 
 // src/options.js
 var ID_PATTERN = /^[A-Za-z][\w-]*$/;
-var MODES = ["auto", "popover", "modal"];
+var MODES = ["auto", "popover", "modal", "inline"];
 var own = (obj, key) => obj && Object.hasOwn(obj, key) ? obj[key] : void 0;
 var DEFAULT_SLOTS = [
   {
     id: "color",
-    label: "Colour",
+    label: "Color",
     symbol: "\u25CF",
     presetSet: "text",
     color: "#0F766E"
@@ -1929,6 +2080,8 @@ var DEFAULTS = {
   initialColors: null,
   activeSlot: null,
   showAlpha: true,
+  /* How the editor field shows (and Copy copies) the color: 'hex' | 'rgb' | 'hsl' | 'hsv'. */
+  format: "hex",
   showContrastSuggestions: false,
   /* Suggestions measure a pair: `['text', 'background']`. Without one they stay off. */
   contrastPair: null,
@@ -1942,7 +2095,8 @@ var DEFAULTS = {
   triggers: null,
   /* Inputs that *are* the controls (`<input data-color-picker>`); see `fields.js`. */
   fields: null,
-  /* 'auto' = popover when a trigger is rendered, modal otherwise. */
+  /* 'auto' = popover when a trigger is rendered, modal otherwise. 'inline' =
+     always shown, docked in `container`: no scrim, no dismiss, no focus trap. */
   mode: "auto",
   onChange: null,
   onApply: null,
@@ -1964,7 +2118,7 @@ function resolveOptions(options = {}, fieldEntries = null) {
   if (options.fields && !fields.length) {
     console.warn(`ColorPicker: \`fields\` ${JSON.stringify(options.fields)} matched no inputs \u2014 opening as a centred modal.`);
   }
-  const picked = options.mode === "popover" || options.mode === "modal" ? options.mode : options.triggers || fields.length ? "popover" : "modal";
+  const picked = options.mode === "popover" || options.mode === "modal" || options.mode === "inline" ? options.mode : options.triggers || fields.length ? "popover" : "modal";
   const fieldColors = fields.length ? Object.fromEntries(fields.map((field) => [field.id, field.raw])) : null;
   return {
     ...DEFAULTS,
@@ -1972,10 +2126,11 @@ function resolveOptions(options = {}, fieldEntries = null) {
     mode: picked,
     slots: fields.length ? fieldSlots(fields) : options.slots,
     fieldEntries: fields,
-    /* A field's own value is the colour it starts with; `initialColors` wins. */
+    /* A field's own value is the color it starts with; `initialColors` wins. */
     startColors: { ...fieldColors, ...options.initialColors || {} },
-    draggable: options.draggable === void 0 ? DEFAULTS.draggable : Boolean(options.draggable),
-    resizable: options.resizable === void 0 ? DEFAULTS.resizable : Boolean(options.resizable),
+    /* An inline panel is a part of the page, not a box over it: nothing to move. */
+    draggable: picked !== "inline" && (options.draggable === void 0 ? DEFAULTS.draggable : Boolean(options.draggable)),
+    resizable: picked !== "inline" && (options.resizable === void 0 ? DEFAULTS.resizable : Boolean(options.resizable)),
     showAlpha: options.showAlpha === void 0 ? DEFAULTS.showAlpha : Boolean(options.showAlpha),
     labels: { ...DEFAULTS.labels, ...options.labels || {} }
   };
@@ -2063,6 +2218,10 @@ var ColorPicker = class {
     assemble(this);
     bindShell(this);
     syncTabs(this.refs, this.activeSlot);
+    if (this.options.mode === "inline") {
+      this.isOpen = true;
+      this.root.classList.remove("cp-hidden");
+    }
     this.refresh();
   }
   setStatus(message) {
@@ -2159,7 +2318,7 @@ var ColorPicker = class {
     this.emit("onOpen");
   }
   close() {
-    if (!this.isOpen) return;
+    if (!this.isOpen || this.options.mode === "inline") return;
     this.isOpen = false;
     this.anchor = null;
     this.root.classList.add("cp-hidden");
@@ -2174,6 +2333,7 @@ var ColorPicker = class {
    * modal restores the snapshot it opened with.
    */
   dismiss() {
+    if (this.options.mode === "inline") return;
     if (this.options.mode === "popover") this.close();
     else this.cancel();
   }
@@ -2184,7 +2344,7 @@ var ColorPicker = class {
     this.emit("onChange");
   }
   cancel() {
-    if (!this.isOpen) return;
+    if (!this.isOpen || this.options.mode === "inline") return;
     this.colors = { ...this.snapshot };
     this.refresh();
     this.setStatus("Changes discarded.");
@@ -2192,6 +2352,7 @@ var ColorPicker = class {
     this.close();
   }
   apply() {
+    if (this.options.mode === "inline") return;
     this.snapshot = { ...this.colors };
     this.setStatus("Colors applied.");
     this.emit("onApply");
@@ -2211,7 +2372,7 @@ var ColorPicker = class {
 
 return ColorPicker;
 })();
-const UII_CP_CSS = "\n.cp-root{--cp-accent: #2563eb;--cp-accent-strong: #2563eb;--cp-accent-soft: #eff6ff;--cp-accent-line: #bfd3ff;--cp-ink: #172033;--cp-muted: #667085;--cp-subtle: #667085;--cp-line: #e5e9f0;--cp-line-soft: #e7eaf0;--cp-surface: #ffffff;--cp-surface-alt: #f5f7fa;--cp-field-alt: #e9edf5;--cp-track: #eef1f6;--cp-pill-bg: #f7f8fb;--cp-pill-ink: #536075;--cp-btn-line: #dce2eb;--cp-btn-ink: #344054;--cp-hover: #f1f4f8;--cp-canvas: #f4f6fa;--cp-field: #d8dee8;--cp-danger: #b42318;--cp-radius: 22px;--cp-shadow: 0 24px 70px #1d2a441c, 0 3px 12px #1d2a440a;position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px;background:#1018283d;color:var(--cp-ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:13px;line-height:1.4}.cp-root.cp-hidden{display:none}.cp-root[data-theme=dark]{--cp-accent: #60a5fa;--cp-accent-soft: #1c2740;--cp-accent-line: #3b5170;--cp-ink: #e8eefb;--cp-muted: #9aa8bd;--cp-subtle: #8595aa;--cp-line: #263143;--cp-line-soft: #263143;--cp-surface: #151d2c;--cp-surface-alt: #1b2434;--cp-field-alt: #243042;--cp-track: #263143;--cp-pill-bg: #1b2434;--cp-pill-ink: #b9c6d9;--cp-btn-line: #33415a;--cp-btn-ink: #dbe4f0;--cp-hover: #223047;--cp-canvas: #0f1522;--cp-field: #33415a;--cp-danger: #fca5a5;--cp-shadow: 0 24px 70px #00000080, 0 3px 12px #00000040;background:#0509124d}.cp-root *,.cp-root *:before,.cp-root *:after{box-sizing:border-box}.cp-root button,.cp-root input{font:inherit;color:inherit}.cp-root button{cursor:pointer}.cp-root .cp-picker{width:min(100%,500px);max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden;position:relative;background:var(--cp-surface);border:1px solid var(--cp-line-soft);border-radius:var(--cp-radius);box-shadow:var(--cp-shadow)}.cp-root .cp-picker-body{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column}.cp-root .cp-picker-body{scrollbar-width:thin;scrollbar-color:var(--cp-field) transparent}.cp-root .cp-picker-body::-webkit-scrollbar{width:10px}.cp-root .cp-picker-body::-webkit-scrollbar-track{background:transparent}.cp-root .cp-picker-body::-webkit-scrollbar-thumb{background:var(--cp-field);border:3px solid transparent;border-radius:999px;background-clip:content-box}.cp-root .cp-picker-body::-webkit-scrollbar-thumb:hover{background:var(--cp-muted);background-clip:content-box}.cp-root .cp-picker-body>*{flex-shrink:0}.cp-root .cp-picker-body>.cp-editor{flex-grow:1}.cp-root .cp-picker.cp-is-maximized .cp-resize-grip,.cp-root .cp-picker:not(.cp-is-resizable) .cp-resize-grip{display:none}.cp-root .cp-picker-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 9px}.cp-root .cp-picker-header.cp-is-draggable{cursor:grab;touch-action:none;user-select:none}.cp-root .cp-picker.cp-is-dragging .cp-picker-header.cp-is-draggable{cursor:grabbing}.cp-root .cp-picker.cp-is-maximized .cp-picker-header.cp-is-draggable{cursor:default}.cp-root .cp-heading{display:flex;align-items:center;gap:10px}.cp-root .cp-app-icon{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#fff;background:var(--cp-accent-strong);font-size:13px}.cp-root .cp-picker-header h2{margin:0;font-size:14px;letter-spacing:-.03em}.cp-root .cp-close-btn{width:26px;height:26px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);font-size:18px;line-height:1;display:grid;place-items:center;padding:0 0 3px}.cp-root .cp-close-btn:hover{background:var(--cp-hover)}.cp-root .cp-tabs{margin:0 14px;padding:3px;display:grid;grid-template-columns:repeat(var(--cp-slots, 2),minmax(0,1fr));gap:3px;background:var(--cp-surface-alt);border:1px solid var(--cp-line);border-radius:11px}.cp-root .cp-tab{border:0;background:transparent;border-radius:8px;padding:6px 9px;display:flex;align-items:stretch;gap:9px;text-align:left;color:var(--cp-muted);min-width:0}.cp-root .cp-tab-body{display:flex;flex:1 1 auto;flex-direction:column;justify-content:space-between;min-width:0}.cp-root .cp-tab.cp-active{background:var(--cp-surface);color:var(--cp-ink);box-shadow:0 1px 4px #17203312;outline:1px solid var(--cp-line-soft)}.cp-root .cp-tab-symbol{width:22px;height:22px;flex:0 0 22px;align-self:center;display:grid;place-items:center;border-radius:50%;background:var(--cp-field-alt);color:var(--cp-muted);font-weight:750;font-size:12px}.cp-root .cp-tab.cp-active .cp-tab-symbol{background:var(--cp-accent-strong);color:#fff}.cp-root .cp-tab strong{display:block;font-size:12px;font-weight:700}.cp-root .cp-tab small{display:block;margin-top:1px;font-size:10px;color:var(--cp-subtle)}.cp-root .cp-editor{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(176px,1fr);gap:12px;padding:11px 14px}.cp-root .cp-sv-wrap{position:relative;min-height:116px}.cp-root .cp-sv{position:absolute;inset:0;border-radius:10px;overflow:hidden;cursor:crosshair;background-color:#10a294;background-image:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent);border:1px solid var(--cp-field);touch-action:none}.cp-root .cp-sv-thumb{position:absolute;width:15px;height:15px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px #0005;transform:translate(-50%,-50%);pointer-events:none}.cp-root .cp-editor-side{display:flex;flex-direction:column;gap:10px}.cp-root .cp-hex-row{display:flex;align-items:center;gap:9px}.cp-root .cp-color-preview{width:38px;height:38px;flex:0 0 38px;border-radius:9px;border:1px solid #00000012;background-image:repeating-conic-gradient(#d9dee7 0 25%,#fff 0 50%);background-size:10px 10px}.cp-root .cp-hex-field{position:relative;flex:1 1 auto;min-width:0;display:flex}.cp-root .cp-hex-input{width:100%;min-width:0;height:38px;border:1px solid var(--cp-field);border-radius:9px;padding:0 38px 0 10px;font-weight:650;letter-spacing:.02em;outline:none;background:var(--cp-surface)}.cp-root .cp-hex-input:focus{border-color:var(--cp-accent);box-shadow:0 0 0 3px #2563eb18}.cp-root .cp-hex-input[aria-invalid=true]{border-color:var(--cp-danger);box-shadow:0 0 0 3px #b4231818}.cp-root .cp-hex-input[aria-invalid=true]:focus{border-color:var(--cp-danger);box-shadow:0 0 0 3px #b4231824}.cp-root .cp-copy-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);display:grid;place-items:center;padding:0;transition:background .12s ease,color .12s ease}.cp-root .cp-copy-btn:hover{background:var(--cp-hover);color:var(--cp-ink)}.cp-root .cp-copy-btn:focus-visible{outline:2px solid var(--cp-accent);outline-offset:1px}.cp-root .cp-copy-done{display:none;font-size:13px;font-weight:700;line-height:1}.cp-root .cp-copy-btn[data-copied=true]{color:var(--cp-accent-strong)}.cp-root .cp-copy-btn[data-copied=true] svg{display:none}.cp-root .cp-copy-btn[data-copied=true] .cp-copy-done{display:block}.cp-root .cp-range-block{display:grid;gap:7px}.cp-root .cp-range-block[hidden]{display:none}.cp-root .cp-range-label{display:flex;justify-content:space-between;color:var(--cp-muted);font-size:10px;font-weight:650}.cp-root .cp-range-block input[type=range]{appearance:none;width:100%;height:10px;border-radius:99px;outline:none;margin:2px 0;background:var(--cp-track)}.cp-root .cp-range-block input[type=range]:focus-visible{box-shadow:0 0 0 3px #2563eb33}.cp-root .cp-hue-range input[type=range]{background:linear-gradient(90deg,red,#ff0,#0f0,#0ff,#00f,#f0f,red)}.cp-root .cp-alpha-range input[type=range]{background:linear-gradient(90deg,transparent,#1475ef),repeating-conic-gradient(#d9dee7 0 25%,#fff 0 50%) 0/12px 12px}.cp-root .cp-range-block input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:var(--cp-accent);box-shadow:0 1px 5px #17203355}.cp-root .cp-range-block input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:var(--cp-accent);box-shadow:0 1px 5px #17203355}.cp-root .cp-divider{height:1px;background:var(--cp-line);margin:0 14px}.cp-root .cp-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:10px 14px 12px}.cp-root .cp-presets[hidden]{display:none}.cp-root .cp-presets:empty{display:none}.cp-root .cp-preset-section{min-width:0}.cp-root .cp-preset-section .cp-swatches{opacity:1;transition:opacity .15s ease}.cp-root .cp-preset-section:not(.cp-is-emphasis) .cp-swatches{opacity:.55}.cp-root .cp-preset-section+.cp-preset-section{border-left:1px solid var(--cp-line);padding-left:12px}.cp-root .cp-section-title{display:flex;align-items:center;gap:7px;margin-bottom:8px}.cp-root .cp-section-icon{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;background:var(--cp-accent-soft);color:var(--cp-accent);font-size:11px;font-weight:800}.cp-root .cp-section-title strong{font-size:12px;letter-spacing:-.02em}.cp-root .cp-category-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}.cp-root .cp-category{border:1px solid var(--cp-line-soft);background:var(--cp-pill-bg);color:var(--cp-pill-ink);border-radius:7px;padding:4px 8px;font-size:10px;font-weight:600}.cp-root .cp-category.cp-is-active{background:var(--cp-accent-soft);color:var(--cp-accent);border-color:var(--cp-accent-line)}.cp-root .cp-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:5px}.cp-root .cp-swatch{aspect-ratio:1;min-width:0;padding:0;border:1px solid #0000001f;border-radius:7px;position:relative;box-shadow:inset 0 0 0 1px #ffffff35;transition:transform .12s ease}.cp-root .cp-swatch:hover{transform:translateY(-1px)}.cp-root .cp-swatch.cp-is-selected{outline:2px solid var(--cp-accent);outline-offset:1px}.cp-root .cp-swatch.cp-is-selected:after{content:\"\\2713\";position:absolute;inset:0;display:grid;place-items:center;color:var(--cp-check-color, #fff);font-size:12px;font-weight:800;text-shadow:0 1px 3px #0006}.cp-root .cp-section-hint{margin:7px 0 0;color:var(--cp-subtle);font-size:10px}.cp-root .cp-suggestions-band{padding:0 18px}.cp-root .cp-suggestions-band[hidden]{display:none}.cp-root .cp-suggestions{margin-bottom:10px;border:1px solid var(--cp-line);border-radius:10px;background:var(--cp-canvas)}.cp-root .cp-suggestions>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 11px;color:var(--cp-muted);font-size:11px;font-weight:650;cursor:pointer;list-style:none}.cp-root .cp-suggestions>summary::-webkit-details-marker{display:none}.cp-root .cp-sugg-label:before{content:\"\\25b8\";display:inline-block;margin-right:8px;transition:transform .15s ease}.cp-root .cp-suggestions[open]>summary .cp-sugg-label:before{transform:rotate(90deg)}.cp-root .cp-sugg-verdict{display:inline-flex;align-items:center;gap:7px}.cp-root .cp-badge{border-radius:7px;padding:3px 7px;background:var(--cp-pill-bg);color:var(--cp-pill-ink);font-size:10px;font-weight:750;letter-spacing:.02em}.cp-root .cp-badge[data-level=AAA],.cp-root .cp-badge[data-level=AA]{background:#dcfce7;color:#166534}.cp-root .cp-badge[data-level=fail]{background:#fee2e2;color:#991b1b}.cp-root .cp-badge-large{background:#fef3c7;color:#92400e}.cp-root .cp-sugg-ratio{color:var(--cp-ink);font-variant-numeric:tabular-nums;font-weight:700}.cp-root .cp-sugg-hint,.cp-root .cp-sugg-empty{margin:0 11px 8px;color:var(--cp-subtle);font-size:10px}.cp-root .cp-partners{display:flex;flex-wrap:wrap;gap:6px;padding:0 11px 10px}.cp-root .cp-partners[hidden]{display:none}.cp-root .cp-partner{display:inline-flex;align-items:center;gap:6px;padding:4px 7px 4px 5px;border:1px solid var(--cp-line);border-radius:8px;background:var(--cp-surface);color:var(--cp-ink);font-size:10px}.cp-root .cp-partner:hover{border-color:var(--cp-accent)}.cp-root .cp-partner[hidden]{display:none}.cp-root .cp-partner-dot{width:13px;height:13px;border:1px solid #00000014;border-radius:4px}.cp-root .cp-partner-ratio{color:var(--cp-subtle);font-variant-numeric:tabular-nums}.cp-root[data-theme=dark] .cp-badge[data-level=AAA],.cp-root[data-theme=dark] .cp-badge[data-level=AA]{background:#14351f;color:#86efac}.cp-root[data-theme=dark] .cp-badge[data-level=fail]{background:#3f1d1d;color:#fca5a5}.cp-root[data-theme=dark] .cp-badge-large{background:#3a2c12;color:#fcd34d}.cp-root .cp-status{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}.cp-root .cp-footer{border-top:1px solid var(--cp-line);display:flex;align-items:center;justify-content:flex-end;padding:9px 14px 11px;margin-top:auto}.cp-root .cp-header-actions{display:flex;align-items:center;gap:6px}.cp-root .cp-reset-btn{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);font-size:17px;line-height:1;display:grid;place-items:center;padding:0}.cp-root .cp-reset-btn:hover{background:var(--cp-hover);color:var(--cp-ink)}.cp-root .cp-compact-btn,.cp-root .cp-maximize-btn{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);display:grid;place-items:center;padding:0}.cp-root .cp-compact-btn:hover,.cp-root .cp-maximize-btn:hover{background:var(--cp-hover);color:var(--cp-ink)}.cp-root .cp-compact-btn svg,.cp-root .cp-maximize-btn svg{width:15px;height:15px;display:block}.cp-root .cp-compact-btn[aria-pressed=true]{background:var(--cp-hover);color:var(--cp-accent)}.cp-root .cp-picker.cp-is-compact :is(.cp-divider,.cp-presets,.cp-suggestions-band){display:none}.cp-root .cp-maximize-btn .cp-icon-collapse,.cp-root .cp-picker.cp-is-maximized .cp-maximize-btn .cp-icon-expand{display:none}.cp-root .cp-picker.cp-is-maximized .cp-maximize-btn .cp-icon-collapse{display:block}.cp-root .cp-resize-grip{position:absolute;right:0;bottom:0;width:18px;height:18px;z-index:3;cursor:nwse-resize;touch-action:none;border-bottom-right-radius:var(--cp-radius)}.cp-root .cp-resize-grip:after{content:\"\";position:absolute;right:3px;bottom:3px;width:11px;height:11px;background-image:repeating-linear-gradient(135deg,var(--cp-pill-ink) 0 1px,transparent 1px 3.5px);clip-path:polygon(100% 0,100% 100%,0 100%);opacity:.8}.cp-root .cp-resize-grip:hover{background:var(--cp-hover)}.cp-root .cp-resize-grip:hover:after{opacity:1;background-image:repeating-linear-gradient(135deg,var(--cp-ink) 0 1px,transparent 1px 3.5px)}.cp-root .cp-picker.cp-is-resizing{user-select:none}.cp-root .cp-actions{display:flex;gap:7px}.cp-root .cp-secondary-btn{background:var(--cp-surface);border:1px solid var(--cp-btn-line);color:var(--cp-btn-ink);border-radius:9px;padding:8px 15px;font-weight:600}.cp-root .cp-primary-btn{border:0;border-radius:9px;padding:8px 17px;background:var(--cp-accent-strong);color:#fff;font-weight:650;box-shadow:0 4px 12px #2563eb25}.cp-root :focus-visible{outline:2px solid var(--cp-accent);outline-offset:2px}.cp-root .cp-close-btn:focus-visible,.cp-root .cp-reset-btn:focus-visible,.cp-root .cp-compact-btn:focus-visible,.cp-root .cp-maximize-btn:focus-visible,.cp-root .cp-secondary-btn:focus-visible,.cp-root .cp-primary-btn:focus-visible,.cp-root .cp-tab:focus-visible{outline-offset:3px}@media(prefers-reduced-motion:reduce){.cp-root *,.cp-root *:before,.cp-root *:after{transition:none!important;animation:none!important}}@media(max-width:680px){.cp-root{padding:0;align-items:end}.cp-root .cp-picker{width:100%!important;height:auto!important;max-height:92vh;border-width:1px 0 0;border-radius:20px 20px 0 0;transform:none!important}.cp-root .cp-maximize-btn,.cp-root .cp-resize-grip{display:none}.cp-root .cp-picker-header{padding:13px 14px 11px}.cp-root .cp-tabs{margin:0 14px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}.cp-root .cp-tab{padding:8px;gap:8px}.cp-root .cp-tab-symbol{width:26px;height:26px;flex:0 0 26px}.cp-root .cp-tab strong{font-size:12px}.cp-root .cp-tab small{font-size:10px}.cp-root .cp-editor{grid-template-columns:1fr;padding:12px 14px;gap:12px}.cp-root .cp-sv-wrap{min-height:150px}.cp-root .cp-editor-side{display:grid;grid-template-columns:1fr 1fr;align-items:center}.cp-root .cp-hex-row{grid-column:1 / -1}.cp-root .cp-divider{margin:0 14px}.cp-root .cp-presets{grid-template-columns:1fr;gap:14px;padding:12px 14px}.cp-root .cp-preset-section+.cp-preset-section{border-left:0;border-top:1px solid var(--cp-line);padding-left:0;padding-top:14px}.cp-root .cp-swatches{grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}.cp-root .cp-suggestions-band{padding:0 14px}.cp-root .cp-footer{position:sticky;bottom:0;z-index:2;padding:11px 14px calc(14px + env(safe-area-inset-bottom,0px));background:var(--cp-surface)}}.cp-root.cp-popover{background:transparent;padding:0;display:block;pointer-events:none}.cp-root.cp-popover .cp-picker{position:fixed;left:0;top:0;width:min(calc(100vw - 16px),620px);max-height:calc(100vh - 16px);pointer-events:auto}.cp-root.cp-popover .cp-footer,.cp-root.cp-popover.cp-hidden{display:none}@media(max-width:680px){.cp-root.cp-popover .cp-picker{inset:auto 0 0;width:100%;max-height:78vh}}.cp-triggers{--cpt-surface: #ffffff;--cpt-ink: #344054;--cpt-muted: #667085;--cpt-line: #dce2eb;--cpt-accent: #2563eb;--cpt-accent-soft: #eff6ff;display:inline-flex;flex-wrap:wrap;gap:8px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;line-height:1.3}.cp-triggers[data-theme=dark]{--cpt-surface: #151d2c;--cpt-ink: #e8eefb;--cpt-muted: #9aa8bd;--cpt-line: #33415a;--cpt-accent: #60a5fa;--cpt-accent-soft: #1c2740}.cp-triggers .cp-trigger{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;column-gap:8px;padding:5px 12px 5px 5px;border:1px solid var(--cpt-line);border-radius:11px;background:var(--cpt-surface);color:var(--cpt-ink);font:inherit;font-size:12px;text-align:left;cursor:pointer}.cp-triggers .cp-trigger:hover{border-color:var(--cpt-accent)}.cp-triggers .cp-trigger[aria-expanded=true]{border-color:var(--cpt-accent);box-shadow:0 0 0 3px var(--cpt-accent-soft)}.cp-triggers .cp-trigger:focus-visible{outline:2px solid var(--cpt-accent);outline-offset:2px}.cp-triggers .cp-trigger-chip{grid-row:1 / span 2;width:26px;height:26px;border-radius:8px;box-shadow:inset 0 0 0 1px #0000001f;background-image:linear-gradient(var(--cpt-fill, transparent),var(--cpt-fill, transparent)),linear-gradient(45deg,#00000014 25%,transparent 25%,transparent 75%,#00000014 75%);background-size:auto,8px 8px}.cp-triggers .cp-trigger-name{font-weight:600;white-space:nowrap}.cp-triggers .cp-trigger-hex{color:var(--cpt-muted);font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap}\n";
+const UII_CP_CSS = "\n.cp-root{--cp-accent: #2563eb;--cp-accent-strong: #2563eb;--cp-accent-soft: #eff6ff;--cp-accent-line: #bfd3ff;--cp-ink: #172033;--cp-muted: #667085;--cp-subtle: #667085;--cp-line: #e5e9f0;--cp-line-soft: #e7eaf0;--cp-surface: #ffffff;--cp-surface-alt: #f5f7fa;--cp-field-alt: #e9edf5;--cp-track: #eef1f6;--cp-pill-bg: #f7f8fb;--cp-pill-ink: #536075;--cp-btn-line: #dce2eb;--cp-btn-ink: #344054;--cp-hover: #f1f4f8;--cp-canvas: #f4f6fa;--cp-field: #d8dee8;--cp-danger: #b42318;--cp-radius: 22px;--cp-shadow: 0 24px 70px #1d2a441c, 0 3px 12px #1d2a440a;position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px;background:#1018283d;color:var(--cp-ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:13px;line-height:1.4}.cp-root.cp-hidden{display:none}.cp-root[data-theme=dark]{--cp-accent: #60a5fa;--cp-accent-soft: #1c2740;--cp-accent-line: #3b5170;--cp-ink: #e8eefb;--cp-muted: #9aa8bd;--cp-subtle: #8595aa;--cp-line: #263143;--cp-line-soft: #263143;--cp-surface: #151d2c;--cp-surface-alt: #1b2434;--cp-field-alt: #243042;--cp-track: #263143;--cp-pill-bg: #1b2434;--cp-pill-ink: #b9c6d9;--cp-btn-line: #33415a;--cp-btn-ink: #dbe4f0;--cp-hover: #223047;--cp-canvas: #0f1522;--cp-field: #33415a;--cp-danger: #fca5a5;--cp-shadow: 0 24px 70px #00000080, 0 3px 12px #00000040;background:#0509124d}.cp-root *,.cp-root *:before,.cp-root *:after{box-sizing:border-box}.cp-root button,.cp-root input{font:inherit;color:inherit}.cp-root button{cursor:pointer}.cp-root .cp-picker{width:min(100%,500px);max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden;position:relative;background:var(--cp-surface);border:1px solid var(--cp-line-soft);border-radius:var(--cp-radius);box-shadow:var(--cp-shadow)}.cp-root .cp-picker-body{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column}.cp-root .cp-picker-body{scrollbar-width:thin;scrollbar-color:var(--cp-field) transparent}.cp-root .cp-picker-body::-webkit-scrollbar{width:10px}.cp-root .cp-picker-body::-webkit-scrollbar-track{background:transparent}.cp-root .cp-picker-body::-webkit-scrollbar-thumb{background:var(--cp-field);border:3px solid transparent;border-radius:999px;background-clip:content-box}.cp-root .cp-picker-body::-webkit-scrollbar-thumb:hover{background:var(--cp-muted);background-clip:content-box}.cp-root .cp-picker-body>*{flex-shrink:0}.cp-root .cp-picker-body>.cp-editor{flex-grow:1}.cp-root .cp-picker.cp-is-maximized .cp-resize-grip,.cp-root .cp-picker:not(.cp-is-resizable) .cp-resize-grip{display:none}.cp-root .cp-picker-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 9px}.cp-root .cp-picker-header.cp-is-draggable{cursor:grab;touch-action:none;user-select:none}.cp-root .cp-picker.cp-is-dragging .cp-picker-header.cp-is-draggable{cursor:grabbing}.cp-root .cp-picker.cp-is-maximized .cp-picker-header.cp-is-draggable{cursor:default}.cp-root .cp-heading{display:flex;align-items:center;gap:10px}.cp-root .cp-app-icon{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#fff;background:var(--cp-accent-strong);font-size:13px}.cp-root .cp-picker-header h2{margin:0;font-size:14px;letter-spacing:-.03em}.cp-root .cp-close-btn{width:26px;height:26px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);font-size:18px;line-height:1;display:grid;place-items:center;padding:0 0 3px}.cp-root .cp-close-btn:hover{background:var(--cp-hover)}.cp-root .cp-tabs{margin:0 14px;padding:3px;display:grid;grid-template-columns:repeat(var(--cp-slots, 2),minmax(0,1fr));gap:3px;background:var(--cp-surface-alt);border:1px solid var(--cp-line);border-radius:11px}.cp-root .cp-tab{border:0;background:transparent;border-radius:8px;padding:6px 9px;display:flex;align-items:stretch;gap:9px;text-align:left;color:var(--cp-muted);min-width:0}.cp-root .cp-tab-body{display:flex;flex:1 1 auto;flex-direction:column;justify-content:space-between;min-width:0}.cp-root .cp-tab.cp-active{background:var(--cp-surface);color:var(--cp-ink);box-shadow:0 1px 4px #17203312;outline:1px solid var(--cp-line-soft)}.cp-root .cp-tab-symbol{width:22px;height:22px;flex:0 0 22px;align-self:center;display:grid;place-items:center;border-radius:50%;background:var(--cp-field-alt);color:var(--cp-muted);font-weight:750;font-size:12px}.cp-root .cp-tab.cp-active .cp-tab-symbol{background:var(--cp-accent-strong);color:#fff}.cp-root .cp-tab strong{display:block;font-size:12px;font-weight:700}.cp-root .cp-tab small{display:block;margin-top:1px;font-size:10px;color:var(--cp-subtle)}.cp-root .cp-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(232px,.8fr);gap:12px;padding:11px 14px}.cp-root .cp-sv-wrap{position:relative;min-height:116px}.cp-root .cp-sv{position:absolute;inset:0;border-radius:10px;overflow:hidden;cursor:crosshair;background-color:#10a294;background-image:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent);border:1px solid var(--cp-field);touch-action:none}.cp-root .cp-sv-thumb{position:absolute;width:15px;height:15px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px #0005;transform:translate(-50%,-50%);pointer-events:none}@media(min-width:681px){.cp-root .cp-picker.cp-is-maximized .cp-editor{grid-template-columns:minmax(0,1fr) minmax(232px,30vw)}}.cp-root .cp-editor-side{display:flex;flex-direction:column;gap:10px}.cp-root .cp-hex-row{display:flex;align-items:center;gap:9px}.cp-root .cp-color-preview{width:38px;height:38px;flex:0 0 38px;border-radius:9px;border:1px solid #00000012;background-image:repeating-conic-gradient(#d9dee7 0 25%,#fff 0 50%);background-size:10px 10px}.cp-root .cp-format-select{flex:0 0 auto;height:28px;border:1px solid var(--cp-field);border-radius:8px;padding:0 2px;font:inherit;font-size:12px;font-weight:650;color:inherit;background:var(--cp-surface);outline:none;cursor:pointer}.cp-root .cp-format-select:focus-visible{border-color:var(--cp-accent);box-shadow:0 0 0 3px #2563eb18}.cp-root .cp-format-select option{background:var(--cp-surface);color:var(--cp-ink)}@supports (appearance: base-select){.cp-root .cp-format-select,.cp-root .cp-format-select::picker(select){appearance:base-select}.cp-root .cp-format-select{display:flex;align-items:center;gap:5px;padding:0 7px 0 9px;transition:border-color .12s,background .12s}.cp-root .cp-format-select:hover{background:var(--cp-hover)}.cp-root .cp-format-select::picker-icon{font-size:8px;color:var(--cp-subtle);transition:rotate .15s}.cp-root .cp-format-select:open::picker-icon{rotate:180deg}.cp-root .cp-format-select::picker(select){min-width:anchor-size(width);margin-top:4px;padding:4px;border:1px solid var(--cp-line);border-radius:10px;background:var(--cp-surface);color:var(--cp-ink);box-shadow:var(--cp-shadow)}.cp-root .cp-format-select option{padding:6px 10px;border-radius:7px;font-size:12px;font-weight:650;cursor:pointer}.cp-root .cp-format-select option:hover,.cp-root .cp-format-select option:focus-visible{background:var(--cp-hover);outline:none}.cp-root .cp-format-select option:checked{background:var(--cp-accent-soft);color:var(--cp-accent-strong)}.cp-root .cp-format-select option::checkmark{display:none}}.cp-root .cp-hex-field{position:relative;flex:1 1 auto;min-width:0;display:flex}.cp-root .cp-hex-input{width:100%;min-width:0;height:38px;border:1px solid var(--cp-field);border-radius:9px;padding:0 38px 0 10px;font-weight:650;letter-spacing:.02em;outline:none;background:var(--cp-surface)}.cp-root .cp-hex-input:focus{border-color:var(--cp-accent);box-shadow:0 0 0 3px #2563eb18}.cp-root .cp-hex-input[aria-invalid=true]{border-color:var(--cp-danger);box-shadow:0 0 0 3px #b4231818}.cp-root .cp-hex-input[aria-invalid=true]:focus{border-color:var(--cp-danger);box-shadow:0 0 0 3px #b4231824}.cp-root .cp-copy-btn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);display:grid;place-items:center;padding:0;transition:background .12s ease,color .12s ease}.cp-root .cp-copy-btn:hover{background:var(--cp-hover);color:var(--cp-ink)}.cp-root .cp-copy-btn:focus-visible{outline:2px solid var(--cp-accent);outline-offset:1px}.cp-root .cp-copy-done{display:none;font-size:13px;font-weight:700;line-height:1}.cp-root .cp-copy-btn[data-copied=true]{color:var(--cp-accent-strong)}.cp-root .cp-copy-btn[data-copied=true] svg{display:none}.cp-root .cp-copy-btn[data-copied=true] .cp-copy-done{display:block}.cp-root .cp-range-block{display:grid;gap:7px}.cp-root .cp-range-block[hidden]{display:none}.cp-root .cp-range-label{display:flex;justify-content:space-between;color:var(--cp-muted);font-size:10px;font-weight:650}.cp-root .cp-range-block input[type=range]{appearance:none;width:100%;height:10px;border-radius:99px;outline:none;margin:2px 0;background:var(--cp-track)}.cp-root .cp-range-block input[type=range]:focus-visible{box-shadow:0 0 0 3px #2563eb33}.cp-root .cp-hue-range input[type=range]{background:linear-gradient(90deg,red,#ff0,#0f0,#0ff,#00f,#f0f,red)}.cp-root .cp-alpha-range input[type=range]{background:linear-gradient(90deg,transparent,#1475ef),repeating-conic-gradient(#d9dee7 0 25%,#fff 0 50%) 0/12px 12px}.cp-root .cp-range-block input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:var(--cp-accent);box-shadow:0 1px 5px #17203355}.cp-root .cp-range-block input[type=range]::-moz-range-thumb{width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:var(--cp-accent);box-shadow:0 1px 5px #17203355}.cp-root .cp-divider{height:1px;background:var(--cp-line);margin:0 14px}.cp-root .cp-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:10px 14px 12px}.cp-root .cp-presets[hidden]{display:none}.cp-root .cp-presets:empty{display:none}.cp-root .cp-preset-section{min-width:0}.cp-root .cp-preset-section .cp-swatches{opacity:1;transition:opacity .15s ease}.cp-root .cp-preset-section:not(.cp-is-emphasis) .cp-swatches{opacity:.55}.cp-root .cp-preset-section+.cp-preset-section{border-left:1px solid var(--cp-line);padding-left:12px}.cp-root .cp-section-title{display:flex;align-items:center;gap:7px;margin-bottom:8px}.cp-root .cp-section-icon{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;background:var(--cp-accent-soft);color:var(--cp-accent);font-size:11px;font-weight:800}.cp-root .cp-section-title strong{font-size:12px;letter-spacing:-.02em}.cp-root .cp-category-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}.cp-root .cp-category{border:1px solid var(--cp-line-soft);background:var(--cp-pill-bg);color:var(--cp-pill-ink);border-radius:7px;padding:4px 8px;font-size:10px;font-weight:600}.cp-root .cp-category.cp-is-active{background:var(--cp-accent-soft);color:var(--cp-accent);border-color:var(--cp-accent-line)}.cp-root .cp-swatches{display:grid;grid-template-columns:repeat(auto-fill,26px);justify-content:start;gap:5px}.cp-root .cp-swatch{aspect-ratio:1;min-width:0;padding:0;border:1px solid #0000001f;border-radius:7px;position:relative;box-shadow:inset 0 0 0 1px #ffffff35;transition:transform .12s ease}.cp-root .cp-swatch:hover{transform:translateY(-1px)}.cp-root .cp-swatch.cp-is-selected{outline:2px solid var(--cp-accent);outline-offset:1px}.cp-root .cp-swatch.cp-is-selected:after{content:\"\\2713\";position:absolute;inset:0;display:grid;place-items:center;color:var(--cp-check-color, #fff);font-size:12px;font-weight:800;text-shadow:0 1px 3px #0006}.cp-root .cp-section-hint{margin:7px 0 0;color:var(--cp-subtle);font-size:10px}.cp-root .cp-suggestions-band{padding:0 18px}.cp-root .cp-suggestions-band[hidden]{display:none}.cp-root .cp-suggestions{margin-bottom:10px;border:1px solid var(--cp-line);border-radius:10px;background:var(--cp-canvas)}.cp-root .cp-suggestions>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 11px;color:var(--cp-muted);font-size:11px;font-weight:650;cursor:pointer;list-style:none}.cp-root .cp-suggestions>summary::-webkit-details-marker{display:none}.cp-root .cp-sugg-label:before{content:\"\\25b8\";display:inline-block;margin-right:8px;transition:transform .15s ease}.cp-root .cp-suggestions[open]>summary .cp-sugg-label:before{transform:rotate(90deg)}.cp-root .cp-sugg-verdict{display:inline-flex;align-items:center;gap:7px}.cp-root .cp-badge{border-radius:7px;padding:3px 7px;background:var(--cp-pill-bg);color:var(--cp-pill-ink);font-size:10px;font-weight:750;letter-spacing:.02em}.cp-root .cp-badge[data-level=AAA],.cp-root .cp-badge[data-level=AA]{background:#dcfce7;color:#166534}.cp-root .cp-badge[data-level=fail]{background:#fee2e2;color:#991b1b}.cp-root .cp-badge-large{background:#fef3c7;color:#92400e}.cp-root .cp-sugg-ratio{color:var(--cp-ink);font-variant-numeric:tabular-nums;font-weight:700}.cp-root .cp-sugg-hint,.cp-root .cp-sugg-empty{margin:0 11px 8px;color:var(--cp-subtle);font-size:10px}.cp-root .cp-partners{display:flex;flex-wrap:wrap;gap:6px;padding:0 11px 10px}.cp-root .cp-partners[hidden]{display:none}.cp-root .cp-partner{display:inline-flex;align-items:center;gap:6px;padding:4px 7px 4px 5px;border:1px solid var(--cp-line);border-radius:8px;background:var(--cp-surface);color:var(--cp-ink);font-size:10px}.cp-root .cp-partner:hover{border-color:var(--cp-accent)}.cp-root .cp-partner[hidden]{display:none}.cp-root .cp-partner-dot{width:13px;height:13px;border:1px solid #00000014;border-radius:4px}.cp-root .cp-partner-ratio{color:var(--cp-subtle);font-variant-numeric:tabular-nums}.cp-root[data-theme=dark] .cp-badge[data-level=AAA],.cp-root[data-theme=dark] .cp-badge[data-level=AA]{background:#14351f;color:#86efac}.cp-root[data-theme=dark] .cp-badge[data-level=fail]{background:#3f1d1d;color:#fca5a5}.cp-root[data-theme=dark] .cp-badge-large{background:#3a2c12;color:#fcd34d}.cp-root .cp-status{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}.cp-root .cp-footer{border-top:1px solid var(--cp-line);display:flex;align-items:center;justify-content:flex-end;padding:9px 14px 11px;margin-top:auto}.cp-root .cp-header-actions{display:flex;align-items:center;gap:6px}.cp-root .cp-reset-btn{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);font-size:17px;line-height:1;display:grid;place-items:center;padding:0}.cp-root .cp-reset-btn:hover{background:var(--cp-hover);color:var(--cp-ink)}.cp-root .cp-compact-btn,.cp-root .cp-maximize-btn{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:var(--cp-subtle);display:grid;place-items:center;padding:0}.cp-root .cp-compact-btn:hover,.cp-root .cp-maximize-btn:hover{background:var(--cp-hover);color:var(--cp-ink)}.cp-root .cp-compact-btn svg,.cp-root .cp-maximize-btn svg{width:15px;height:15px;display:block}.cp-root .cp-compact-btn[aria-pressed=true]{background:var(--cp-hover);color:var(--cp-accent)}.cp-root .cp-picker.cp-is-compact :is(.cp-divider,.cp-presets,.cp-suggestions-band){display:none}.cp-root .cp-maximize-btn .cp-icon-collapse,.cp-root .cp-picker.cp-is-maximized .cp-maximize-btn .cp-icon-expand{display:none}.cp-root .cp-picker.cp-is-maximized .cp-maximize-btn .cp-icon-collapse{display:block}.cp-root .cp-resize-grip{position:absolute;right:0;bottom:0;width:18px;height:18px;z-index:3;cursor:nwse-resize;touch-action:none;border-bottom-right-radius:var(--cp-radius)}.cp-root .cp-resize-grip:after{content:\"\";position:absolute;right:3px;bottom:3px;width:11px;height:11px;background-image:repeating-linear-gradient(135deg,var(--cp-pill-ink) 0 1px,transparent 1px 3.5px);clip-path:polygon(100% 0,100% 100%,0 100%);opacity:.8}.cp-root .cp-resize-grip:hover{background:var(--cp-hover)}.cp-root .cp-resize-grip:hover:after{opacity:1;background-image:repeating-linear-gradient(135deg,var(--cp-ink) 0 1px,transparent 1px 3.5px)}.cp-root .cp-picker.cp-is-resizing{user-select:none}.cp-root .cp-actions{display:flex;gap:7px}.cp-root .cp-secondary-btn{background:var(--cp-surface);border:1px solid var(--cp-btn-line);color:var(--cp-btn-ink);border-radius:9px;padding:8px 15px;font-weight:600}.cp-root .cp-primary-btn{border:0;border-radius:9px;padding:8px 17px;background:var(--cp-accent-strong);color:#fff;font-weight:650;box-shadow:0 4px 12px #2563eb25}.cp-root :focus-visible{outline:2px solid var(--cp-accent);outline-offset:2px}.cp-root .cp-close-btn:focus-visible,.cp-root .cp-reset-btn:focus-visible,.cp-root .cp-compact-btn:focus-visible,.cp-root .cp-maximize-btn:focus-visible,.cp-root .cp-secondary-btn:focus-visible,.cp-root .cp-primary-btn:focus-visible,.cp-root .cp-tab:focus-visible{outline-offset:3px}@media(prefers-reduced-motion:reduce){.cp-root *,.cp-root *:before,.cp-root *:after{transition:none!important;animation:none!important}}@media(max-width:680px){.cp-root{padding:0;align-items:end}.cp-root .cp-picker{width:100%!important;height:auto!important;max-height:92vh;border-width:1px 0 0;border-radius:20px 20px 0 0;transform:none!important}.cp-root .cp-maximize-btn,.cp-root .cp-resize-grip{display:none}.cp-root .cp-picker-header{padding:13px 14px 11px}.cp-root .cp-tabs{margin:0 14px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}.cp-root .cp-tab{padding:8px;gap:8px}.cp-root .cp-tab-symbol{width:26px;height:26px;flex:0 0 26px}.cp-root .cp-tab strong{font-size:12px}.cp-root .cp-tab small{font-size:10px}.cp-root .cp-editor{grid-template-columns:1fr;padding:12px 14px;gap:12px}.cp-root .cp-sv-wrap{min-height:150px}.cp-root .cp-editor-side{display:grid;grid-template-columns:1fr 1fr;align-items:center}.cp-root .cp-hex-row{grid-column:1 / -1}.cp-root .cp-divider{margin:0 14px}.cp-root .cp-presets{grid-template-columns:1fr;gap:14px;padding:12px 14px}.cp-root .cp-preset-section+.cp-preset-section{border-left:0;border-top:1px solid var(--cp-line);padding-left:0;padding-top:14px}.cp-root .cp-swatches{grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}.cp-root .cp-suggestions-band{padding:0 14px}.cp-root .cp-footer{position:sticky;bottom:0;z-index:2;padding:11px 14px calc(14px + env(safe-area-inset-bottom,0px));background:var(--cp-surface)}}.cp-root.cp-popover{background:transparent;padding:0;display:block;pointer-events:none}.cp-root.cp-popover .cp-picker{position:fixed;left:0;top:0;width:min(calc(100vw - 16px),620px);max-height:calc(100vh - 16px);pointer-events:auto}.cp-root.cp-popover .cp-footer,.cp-root.cp-popover.cp-hidden{display:none}@media(max-width:680px){.cp-root.cp-popover .cp-picker{inset:auto 0 0;width:100%;max-height:78vh}}.cp-root.cp-inline{position:static;inset:auto;z-index:auto;display:block;padding:0;background:transparent}.cp-root.cp-inline .cp-picker{width:100%;max-height:none;border-radius:0;border-width:0 0 1px;box-shadow:none}.cp-root.cp-inline .cp-close-btn,.cp-root.cp-inline .cp-maximize-btn,.cp-root.cp-inline .cp-resize-grip,.cp-root.cp-inline .cp-footer{display:none}.cp-triggers{--cpt-surface: #ffffff;--cpt-ink: #344054;--cpt-muted: #667085;--cpt-line: #dce2eb;--cpt-accent: #2563eb;--cpt-accent-soft: #eff6ff;display:inline-flex;flex-wrap:wrap;gap:8px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;line-height:1.3}.cp-triggers[data-theme=dark]{--cpt-surface: #151d2c;--cpt-ink: #e8eefb;--cpt-muted: #9aa8bd;--cpt-line: #33415a;--cpt-accent: #60a5fa;--cpt-accent-soft: #1c2740}.cp-triggers .cp-trigger{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;column-gap:8px;padding:5px 12px 5px 5px;border:1px solid var(--cpt-line);border-radius:11px;background:var(--cpt-surface);color:var(--cpt-ink);font:inherit;font-size:12px;text-align:left;cursor:pointer}.cp-triggers .cp-trigger:hover{border-color:var(--cpt-accent)}.cp-triggers .cp-trigger[aria-expanded=true]{border-color:var(--cpt-accent);box-shadow:0 0 0 3px var(--cpt-accent-soft)}.cp-triggers .cp-trigger:focus-visible{outline:2px solid var(--cpt-accent);outline-offset:2px}.cp-triggers .cp-trigger-chip{grid-row:1 / span 2;width:26px;height:26px;border-radius:8px;box-shadow:inset 0 0 0 1px #0000001f;background-image:linear-gradient(var(--cpt-fill, transparent),var(--cpt-fill, transparent)),linear-gradient(45deg,#00000014 25%,transparent 25%,transparent 75%,#00000014 75%);background-size:auto,8px 8px}.cp-triggers .cp-trigger-name{font-weight:600;white-space:nowrap}.cp-triggers .cp-trigger-hex{color:var(--cpt-muted);font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap}\n";
 /* ================= shadow-DOM stylesheet =================
    Everything the inspector draws lives inside one shadow root, so host CSS
    cannot restyle the panel and this sheet cannot leak into the host. */
@@ -2325,7 +2486,7 @@ const UII_CSS = `
    has edits, so a name never moves. An element WITH edits wears it at full
    strength — the row where you would reach for it — and one with nothing to
    reset keeps the glyph as a placeholder at a third. Inherits the row's ink,
-   so the pinned (dark) row needs no colour of its own. */
+   so the pinned (dark) row needs no color of its own. */
 .tree .rs { width: 12px; height: 13px; flex: none; padding: 0; border: 0; border-radius: 3px;
   background: none; color: inherit; opacity: .85; cursor: pointer;
   font: 11px/1 ui-monospace, Menlo, monospace; }
@@ -2463,11 +2624,14 @@ const UII_CSS = `
 `;
 
 /* ================= value formatting =================
-   Colour normalisation and the "Copy for AI" text block. */
+   Color normalisation and the "Copy for AI" text block. */
 
 // "rgb(31, 41, 55)" / "rgba(31,41,55,0.5)" -> "#1f2937" / "#1f293780".
 // Anything else (gradients, "transparent") is returned untouched.
 function uiiToHex(v) {
+  // Chrome writes some computed colors as color(srgb 0.94 0.95 0.96 / 0.55): channels 0..1.
+  const c = /^color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(String(v || '').trim());
+  if (c) v = 'rgba(' + [c[1], c[2], c[3]].map((n) => Math.round(n * 255)).join(',') + (c[4] !== undefined ? ',' + c[4] : '') + ')';
   const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)$/.exec(String(v || '').trim());
   if (!m) return v;
   const h = (n) => Math.round(Number(n)).toString(16).padStart(2, '0');
@@ -2481,7 +2645,7 @@ function uiiToHex(v) {
 }
 
 function uiiIsTransparent(v) {
-  return !v || v === 'transparent' || /^rgba?\([^)]*[,/]\s*0\s*\)$/.test(v);
+  return !v || v === 'transparent' || /^(?:rgba?|color)\([^)]*[,/]\s*0\s*\)$/.test(v);
 }
 
 // "Inter, -apple-system, system-ui" -> "Inter (+2 fallbacks)"
@@ -2497,7 +2661,7 @@ function uiiShort(s, n) {
   return t.length > n ? t.slice(0, n - 1) + '…' : t;
 }
 
-// One colour line: "#ffffff (--surface)" or "#ffffff (inherited from #toolbar)".
+// One color line: "#ffffff (--surface)" or "#ffffff (inherited from #toolbar)".
 function uiiColorLine(c) {
   if (!c) return '';
   let s = c.hex;
@@ -2605,7 +2769,7 @@ function uiiChangesBox(body) {
 }
 
 // Multi-line block with the computed look, for when the AI must match or
-// change colours and type rather than just locate the element.
+// change colors and type rather than just locate the element.
 function uiiFormatDetails(info) {
   const L = [];
   L.push('UI component: ' + info.name);
@@ -2631,7 +2795,7 @@ function uiiFormatDetails(info) {
 
 /* ================= stylesheet lookups =================
    Two things the computed style cannot tell you: which --custom-property a
-   colour came from, and which selectors put it there. Both are recovered by
+   color came from, and which selectors put it there. Both are recovered by
    walking document.styleSheets — cross-origin sheets throw on .cssRules and
    are skipped. Runs only on click, so a few hundred rules is fine. */
 
@@ -2707,14 +2871,14 @@ function uiiNormColor(v) {
 }
 
 // [{name, hex}] for every custom property whose value, resolved on this
-// element, is a colour. Vars set on ancestors or :root all resolve here.
-// This is the palette the colour fields offer, so it is sorted by name.
+// element, is a color. Vars set on ancestors or :root all resolve here.
+// This is the palette the color fields offer, so it is sorted by name.
 function uiiColorVars(el, all) {
   const cs = getComputedStyle(el);
   const out = [];
   for (const name of uiiVarNames(all)) {
     const raw = cs.getPropertyValue(name).trim();
-    if (!raw || raw.length > 40) continue; // shadows, font stacks: never a colour
+    if (!raw || raw.length > 40) continue; // shadows, font stacks: never a color
     const rgb = uiiNormColor(raw);
     if (!rgb) continue;
     out.push({ name, hex: uiiToHex(rgb) });
@@ -2857,7 +3021,7 @@ function uiiCssFiles(info) {
    Turns one DOM element into a plain object the panel renders and the
    "Copy for AI" text serialises. No DOM is touched here. */
 
-// Which outline colour an element gets. Order matters: a <button role="tab">
+// Which outline color an element gets. Order matters: a <button role="tab">
 // is still a button.
 function uiiKind(el) {
   const tag = el.tagName.toLowerCase();
@@ -3006,7 +3170,7 @@ function uiiCollect(el) {
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),
-    colorVars, // the palette the colour fields offer (cssvars.js)
+    colorVars, // the palette the color fields offer (cssvars.js)
     all, // every stylesheet rule, reused for the text children's lookups
   };
 }
@@ -3100,7 +3264,7 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>Shift</kbd>+click to pick several, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>I</kbd> colour picker, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>I</kbd> color picker, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.ptrToast = mk('ptrtoast off');
   S.scratch = mk('scratch');
@@ -3182,7 +3346,7 @@ function uiiPointerSay(text) {
 
 // Below-right of the cursor, flipped to the other side near an edge. Called
 // on every pointer move while the toast shows, so it follows the cursor. The
-// colour picker may hold back pointer moves while open; then the toast would
+// color picker may hold back pointer moves while open; then the toast would
 // otherwise stay where the pick started (the 💧 key) instead of the click.
 function uiiPlacePtrToast() {
   const S = uiiState;
@@ -3619,9 +3783,10 @@ function uiiApplyEdit(el, prop, value) {
 
 // While a value is dragged or held, outline redraws wait (each re-measures
 // every control on the page) and run once when it ends.
-function uiiHold(on) {
+// `live` keeps the undo step but lets rules and outlines follow every change.
+function uiiHold(on, live) {
   const S = uiiState;
-  S.holding = on;
+  S.holding = on && !live;
   if (on) uiiUndoBegin(); else uiiUndoEnd();
   // The rules uiiApplyEdit held back, each written once with its last value.
   if (!on && S.ruleLater) {
@@ -3736,7 +3901,7 @@ function uiiSyncResetKeys() {
 }
 
 // The pinned element plus every text child an edit reached (see uiiSet), and
-// every variable edited from the colour fields. A var edit belongs to no
+// every variable edited from the color fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.
 // `el` is null in the palette, which has no element: the variables are then
 // all there is to put back.
@@ -3789,8 +3954,8 @@ function uiiEditValue(info, prop) {
   if (h && prop in h.props) return h.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
-  // One picker sets all four sides; it shows the top one.
-  if (prop === 'border-color') return uiiToHex(getComputedStyle(el).borderTopColor);
+  // One picker sets all four sides; it shows the first one that draws.
+  if (prop === 'border-color') return uiiToHex(getComputedStyle(el).getPropertyValue('border-' + uiiBorderSide(el) + '-color'));
   if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
   const fx = uiiFormula(el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);
@@ -3816,9 +3981,9 @@ function uiiRefreshChanges() {
 const uiiRuleOrig = new Map();
 
 // CSSStyleDeclaration -> cssText before any edit. Restoring the block as a
-// whole, not property by property: a rule whose colour comes from a shorthand
+// whole, not property by property: a rule whose color comes from a shorthand
 // ("background: color-mix(…)") has an empty background-color longhand, and
-// putting that emptiness back would strip the colour out of the shorthand and
+// putting that emptiness back would strip the color out of the shorthand and
 // leave the element painted by some weaker rule.
 const uiiRuleText = new Map();
 
@@ -3861,7 +4026,7 @@ function uiiSyncRules() {
 }
 
 /* ================= live editing: the variables themselves =================
-   A colour field pointed at `--bg` edits the variable rather than the
+   A color field pointed at `--bg` edits the variable rather than the
    element, so every rule that uses it follows in one go — which is what an
    app's palette is for. The declaring rule is rewritten in memory, the way
    "Apply to similar" rewrites a plain one, and Reset puts it back. */
@@ -4190,7 +4355,7 @@ function uiiProbeAll(el, prop, cands) {
 // The rule is put back by its whole cssText, never property by property: a
 // rule that paints through a shorthand ("background: color-mix(…)") reports
 // an empty background-color longhand, so removing the sentinel would take the
-// colour out of the shorthand with it and leave the page quietly restyled by
+// color out of the shorthand with it and leave the page quietly restyled by
 // a probe that was only meant to read.
 function uiiWins(el, prop, style) {
   const iv = el.style.getPropertyValue(prop), ip = el.style.getPropertyPriority(prop);
@@ -4472,8 +4637,8 @@ function uiiScrub(handle, read, apply) {
   });
 }
 
-/* ================= colour picker: the swatch and the one shared panel =========
-   Every place that picks a colour shows a swatch; clicking it opens the
+/* ================= color picker: the swatch and the one shared panel =========
+   Every place that picks a color shows a swatch; clicking it opens the
    vendored color-picker (vendor/) as a popover under that swatch. One picker
    serves them all: opening it for another swatch re-aims it. It lives on the
    shadow root, so the page's CSS cannot reach it. */
@@ -4481,41 +4646,57 @@ function uiiScrub(handle, read, apply) {
 // Over the panel (…003) and its var list (…004).
 const UII_CP_TWEAKS = '.cp-root { z-index: 2147483005; }';
 
+// The Text and Background swatches of the card on screen. Opening either one
+// shows both in the picker (Text tab first), so the pair is tuned together.
+const uiiCpPair = {};
+const UII_CP_SLOTS = [
+  { id: 'text', label: 'Text', symbol: 'Aa', presetSet: 'text' },
+  { id: 'background', label: 'Background', symbol: '■', presetSet: 'background' },
+];
+
 // A swatch with the surface of the <input type=color> it replaces: `.value`
-// reads and writes a #rrggbb; `onPick` gets each colour picked from the panel.
-function uiiColorSwatch(initial, onPick) {
+// reads and writes a #rrggbb; `onPick` gets each color picked from the panel.
+// `slot` ('text' | 'background') enrols it in the pair above.
+function uiiColorSwatch(initial, onPick, slot) {
   const btn = uiiEl('button', 'pick');
   btn.type = 'button';
-  btn.title = 'Pick a colour';
+  btn.title = 'Pick a color';
   let value = '#000000';
   Object.defineProperty(btn, 'value', {
     get: () => value,
     set: (v) => { value = v; btn.style.background = v; },
   });
   btn.value = initial;
-  btn.addEventListener('click', () => uiiOpenPicker(btn, onPick));
+  if (slot) uiiCpPair[slot] = { swatch: btn, onPick };
+  btn.addEventListener('click', () => uiiOpenPicker(btn, onPick, slot));
   return btn;
 }
 
 // Private state: the one picker, what it is aimed at, and whether a pick is held.
 let uiiCp = null;     // the library instance, built on first use
-let uiiCpUse = null;  // { anchor, onPick } of the swatch it serves; null = none, writes ignored
+let uiiCpUse = null;  // { anchor, targets: {slot: {swatch, onPick}}, last } it serves; null = none, writes ignored
+let uiiCpKind = '';   // 'pair' | 'single': the slots the instance was built with
 let uiiCpHeld = false;
 
-function uiiBuildPicker() {
+function uiiBuildPicker(paired) {
   // The library takes an element for a container, not a shadow root.
   const mount = uiiState.shadow.appendChild(uiiEl('div'));
   return new UiiColorPicker({
     container: mount,
     mode: 'popover',
-    showAlpha: false, // the swatch it replaces took #rrggbb alone
-    initialColors: { color: '#000000' },
+    showAlpha: true, // #rrggbb, or #rrggbbaa when translucent
+    ...(paired ? { slots: UII_CP_SLOTS } : { initialColors: { color: '#000000' } }),
     onChange: (c) => {
-      if (!uiiCpUse) return;
+      const use = uiiCpUse;
+      if (!use) return;
       // The whole pick is one undo step and one rule rewrite, like a drag.
-      if (!uiiCpHeld) { uiiCpHeld = true; uiiHold(true); }
-      uiiCpUse.onPick(c.color);
-      uiiCpUse.anchor.value = c.color; // the one place a pick repaints its swatch
+      if (!uiiCpHeld) { uiiCpHeld = true; uiiHold(true, true); }
+      for (const id of Object.keys(use.targets)) {
+        if (c[id] === use.last[id]) continue;
+        use.targets[id].onPick(c[id]);
+        use.targets[id].swatch.value = c[id]; // the one place a pick repaints its swatch
+      }
+      use.last = { ...c };
     },
     onClose: () => {
       if (uiiCpHeld) { uiiCpHeld = false; uiiHold(false); }
@@ -4524,16 +4705,27 @@ function uiiBuildPicker() {
   });
 }
 
-function uiiOpenPicker(anchor, onPick) {
-  if (!uiiCp) uiiCp = uiiBuildPicker();
+function uiiOpenPicker(anchor, onPick, slot) {
+  // Both halves of the pair must be on screen, else this swatch goes alone.
+  const mate = slot === 'text' ? 'background' : 'text';
+  const peer = slot && uiiCpPair[mate];
+  const paired = !!(peer && peer.swatch.isConnected && uiiCpPair[slot].swatch === anchor);
   // A press on an open picker's own swatch closes it (the library lets that
   // press through, see vendor/ header), so the click only has to toggle.
-  if (uiiCp.isOpen && uiiCpUse && uiiCpUse.anchor === anchor) { uiiCp.dismiss(); return; }
-  if (uiiCp.isOpen) uiiCp.close();
+  if (uiiCp && uiiCp.isOpen && uiiCpUse && uiiCpUse.anchor === anchor) { uiiCp.dismiss(); return; }
+  if (uiiCp && uiiCp.isOpen) uiiCp.close();
+  const kind = paired ? 'pair' : 'single';
+  if (uiiCp && uiiCpKind !== kind) { uiiCp.destroy(); uiiCp = null; }
+  if (!uiiCp) { uiiCp = uiiBuildPicker(paired); uiiCpKind = kind; }
   // setColors emits onChange: aim at nothing first, or switching swatches writes.
   uiiCpUse = null;
-  uiiCp.setColors({ color: anchor.value });
-  uiiCpUse = { anchor, onPick };
+  const targets = paired
+    ? { [slot]: { swatch: anchor, onPick }, [mate]: peer }
+    : { color: { swatch: anchor, onPick } };
+  const last = Object.fromEntries(Object.entries(targets).map(([id, t]) => [id, t.swatch.value]));
+  uiiCp.setColors(last);
+  if (paired) uiiCp.setActiveSlot(slot);
+  uiiCpUse = { anchor, targets, last };
   uiiCp.open(anchor);
 }
 
@@ -4544,32 +4736,51 @@ function uiiDestroyColorPicker() {
   if (uiiCpHeld) { uiiCpHeld = false; uiiHold(false); } // never leave an undo step open
   if (uiiCp) uiiCp.destroy();
   uiiCp = uiiCpUse = null;
+  uiiCpKind = '';
 }
 
-/* ================= live editing: colour fields =================
-   A colour either sits on the element or comes from a variable. The picker
+/* ================= live editing: color fields =================
+   A color either sits on the element or comes from a variable. The picker
    below edits whichever the dropdown points at, so moving a palette entry
    moves every rule that reads it. Split out of editfields.js to keep each
    file short. */
 
-// Shorthands that can carry a colour: CSSOM leaves the longhand empty when
+// Shorthands that can carry a color: CSSOM leaves the longhand empty when
 // the shorthand holds a var(), so the var has to be read off the shorthand.
 const UII_COLOR_SHORTHAND = { 'background-color': 'background', 'border-color': 'border' };
 
-// The variable this colour comes from, '' when it is written out in full.
+// Which tab of the shared picker a color field's swatch opens on.
+const UII_PAIR_SLOT = { color: 'text', 'background-color': 'background' };
+
+// The side the border color field speaks for: the first one that draws a
+// line. A rule like `td { border-bottom: 1px solid var(--x) }` leaves the top
+// at currentColor, which is not the color anyone sees.
+function uiiBorderSide(el) {
+  const cs = getComputedStyle(el);
+  const on = ['top', 'right', 'bottom', 'left'].find((s) =>
+    parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
+  return on || 'top';
+}
+
+// The variable this color comes from, '' when it is written out in full.
 function uiiColorVarOf(el, prop) {
   const d = uiiAnyDecl(el, prop, uiiVarName) && uiiRuleDecl(el, prop);
   const named = uiiVarName(d && d.value);
   if (named || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
+  const heads = [UII_COLOR_SHORTHAND[prop]];
+  if (prop === 'border-color') heads.unshift('border-' + uiiBorderSide(el), 'border-' + uiiBorderSide(el) + '-color');
   for (let i = rules.length - 1; i >= 0; i--) {
-    const n = rules[i].style && uiiVarName(uiiDeclValue(rules[i].style, UII_COLOR_SHORTHAND[prop]));
-    if (n) return n;
+    if (!rules[i].style) continue;
+    for (const h of heads) {
+      const n = uiiVarName(uiiDeclValue(rules[i].style, h));
+      if (n) return n;
+    }
   }
   return '';
 }
 
-// The hex a variable resolves to on this element, '' when it is not a colour.
+// The hex a variable resolves to on this element, '' when it is not a color.
 function uiiVarHex(info, name, el) {
   const v = info.colorVars.find((c) => c.name === name);
   if (v) return v.hex;
@@ -4578,7 +4789,7 @@ function uiiVarHex(info, name, el) {
 }
 
 // The variable dropdown as a custom list: a native <select> cannot draw a
-// swatch in an option, and a name alone rarely says which colour it is.
+// swatch in an option, and a name alone rarely says which color it is.
 // Same surface as the <select> it replaces: .value, and a 'change' event.
 // The list lives on the shadow root, not in the panel, so the panel's
 // scrolling body does not clip it.
@@ -4648,27 +4859,27 @@ function uiiCloseVarList() {
   l.remove();
 }
 
-// A colour either sits on the element (#1f2937) or comes from a variable
+// A color either sits on the element (#1f2937) or comes from a variable
 // (var(--bg)). The dropdown says which, and the picker edits whatever the
 // dropdown points at: on a variable it moves that palette entry, so every
-// rule using it follows; on "— none —" the element gets a colour of its own
-// again. Pointing a colour at a different variable is the dropdown alone.
+// rule using it follows; on "— none —" the element gets a color of its own
+// again. Pointing a color at a different variable is the dropdown alone.
 function uiiColorField(info, label, prop) {
   const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
-  const pick = uiiColorSwatch('#000000', (v) => write(v)); // write is defined below, used on click
+  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop]); // write is defined below, used on click
   const box = uiiEl('input');
   box.spellcheck = false;
   const named = uiiColorVarOf(target, prop);
   const names = info.colorVars.map((c) => c.name);
   // A var the palette list missed (it resolves to something uiiColorVars does
-  // not read as a colour) still belongs in the list: it is the current answer.
+  // not read as a color) still belongs in the list: it is the current answer.
   if (named && !names.includes(named)) names.push(named);
   const sel = uiiVarPicker(names, target);
-  sel.title = 'Which variable this colour comes from. Pick one and the swatch'
+  sel.title = 'Which variable this color comes from. Pick one and the swatch'
     + ' edits the variable itself — every element using it changes.';
   sel.value = named;
-  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}$/i.test(v)) pick.value = v; };
+  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; }; 
   show(sel.value ? uiiVarHex(info, sel.value, target) : uiiEditValue(info, prop));
   // One write, two places it can land.
   const write = (v) => {
@@ -4689,10 +4900,10 @@ function uiiColorField(info, label, prop) {
    The palette without an element. Every custom property the sheets declare,
    the value it resolves to, and a box to try another one — for the question
    "what happens to the page if this token moves", which has no one element to
-   click. Edits go through uiiVarApply, the same path the colour fields use,
+   click. Edits go through uiiVarApply, the same path the color fields use,
    so they show at once, land in the Changes box and come back with Reset. */
 
-// [{name, value, hex}] — colours first, a swatch says more than a name; each
+// [{name, value, hex}] — colors first, a swatch says more than a name; each
 // group by name. A var only an inactive theme block sets (`.dark { --bg }`
 // under the light theme) resolves to nothing here and is left out: there is
 // no value to show and editing it would change nothing on screen.
@@ -4707,14 +4918,14 @@ function uiiPageVars(all) {
   return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
 }
 
-// The hex of a value that is a colour, '' when it is not one.
+// The hex of a value that is a color, '' when it is not one.
 function uiiRowHex(value) {
-  const rgb = value && value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
+  const rgb = value && value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a color
   return rgb ? uiiToHex(rgb) : '';
 }
 
-// One row of a value list: the name, a picker when the value is a colour, and
-// a box that writes through `set`. Edited rows carry .on, the mark the colour
+// One row of a value list: the name, a picker when the value is a color, and
+// a box that writes through `set`. Edited rows carry .on, the mark the color
 // list uses for the value in force. Shared by the palette and by the pinned
 // element's own declarations (editprops.js).
 function uiiValueRow(name, value, set, resetName) {
@@ -4731,7 +4942,7 @@ function uiiValueRow(name, value, set, resetName) {
   };
   const hex = uiiRowHex(value);
   if (hex) {
-    // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
+    // A color picker takes #rrggbb alone: an alpha value keeps its text box.
     wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
@@ -4747,7 +4958,7 @@ function uiiValueRow(name, value, set, resetName) {
 
 function uiiVarRow(v) {
   const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement), v.name);
-  // An edit made here or from a colour field, before this list was built.
+  // An edit made here or from a color field, before this list was built.
   const e = uiiVarEdits.get(v.name);
   if (e) { r.box.value = e.to; r.row.classList.add('on'); }
   return r.row;
@@ -4795,7 +5006,7 @@ function uiiRenderVars(body) {
   return vars.length;
 }
 
-/* States: the colours a rule only paints while a state holds — :hover,
+/* States: the colors a rule only paints while a state holds — :hover,
    :focus, :disabled… The list above shows values in force now; these wait
    for a pointer or a key, so they are listed rule by rule, grouped by state.
    Editing one rewrites that rule, through the same records as a variable. */
@@ -4846,7 +5057,7 @@ function uiiRenderStates(body, all) {
       list.appendChild(row);
     }
   }
-  if (!n) list.appendChild(uiiEl('div', 'vnone', 'No colour rules for hover, focus, disabled… in the stylesheets this page lets us read.'));
+  if (!n) list.appendChild(uiiEl('div', 'vnone', 'No color rules for hover, focus, disabled… in the stylesheets this page lets us read.'));
   uiiFindBox(find, list);
   wrap.open = n <= 12 || edited;
   wrap.append(sum, list);
@@ -4956,7 +5167,7 @@ function uiiElementVars(info) {
 
 // Every property the element's matched rules set, with the value to edit:
 // the live edit standing on it, else the last rule's own words (`var(--accent)`
-// is worth more in the box than the colour it resolves to), else computed.
+// is worth more in the box than the color it resolves to), else computed.
 // Custom properties are left to uiiElementVars.
 function uiiDeclaredProps(info) {
   const seen = new Map();
@@ -5030,7 +5241,7 @@ function uiiPropsSection(body, info) {
 
 /* ================= live editing: fields =================
    Design-tool style controls grouped in cards: number boxes (editnum.js), a
-   weight dropdown, a text-align toggle, colour pickers (editcolor.js). All of
+   weight dropdown, a text-align toggle, color pickers (editcolor.js). All of
    them go through uiiSet. */
 
 const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 'Regular'],
@@ -5138,7 +5349,10 @@ function uiiRenderEditRows(body, info) {
   uiiCloseColorPicker();
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
-    uiiCard('Colour', uiiPair(uiiColorField(info, 'Background', 'background-color'), uiiColorField(info, 'Text', 'color'))),
+    uiiCard('Color', uiiPair(uiiColorField(info, 'Text', 'color'), uiiColorField(info, 'Background', 'background-color'))),
+    uiiCard('Border',
+      uiiTextField(info, 'Border', 'border'),
+      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Color', 'border-color'))),
     uiiCard('Size',
       uiiPair(num('Width', 'width'), num('Height', 'height')),
       uiiPair(num('Min width', 'min-width'), num('Min height', 'min-height'))),
@@ -5151,10 +5365,7 @@ function uiiRenderEditRows(body, info) {
       uiiTextField(info, 'Font', 'font-family'),
       uiiPair(num('Size', 'font-size'), num('Space', 'letter-spacing')),
       uiiPair(num('Line height', 'line-height'), uiiWeightField(info)),
-      uiiAlignField(info)),
-    uiiCard('Border',
-      uiiTextField(info, 'Border', 'border'),
-      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
+      uiiAlignField(info)));
   uiiPropsSection(body, info); // everything the cards above do not cover
 }
 
@@ -5591,8 +5802,8 @@ function uiiBuildHead(p) {
   const peek = uiiHeadBtn('👁', 'normal-view',
     'Normal view — hide the overlay and use the page (V)');
   const drop = uiiHeadBtn('💧', 'color-picker',
-    window.EyeDropper ? 'Color picker — click any pixel on screen to copy its colour (I).'
-      + ' Ctrl/Cmd+I copies the hovered colour with no click'
+    window.EyeDropper ? 'Color picker — click any pixel on screen to copy its color (I).'
+      + ' Ctrl/Cmd+I copies the hovered color with no click'
       : 'Color picker — not supported in this browser (Chrome/Edge only)');
   drop.disabled = !window.EyeDropper;
 
@@ -5621,7 +5832,7 @@ function uiiBuildHead(p) {
 }
 
 // The browser's own eyedropper: it samples any pixel on screen, the page's
-// own colours included. The outlines go while it is open so a sample never
+// own colors included. The outlines go while it is open so a sample never
 // lands on the inspector's drawing instead of the page. Esc cancels it.
 function uiiPickColor() {
   const S = uiiState;
@@ -5633,10 +5844,10 @@ function uiiPickColor() {
     .finally(() => { if (hid && S.host) S.host.classList.remove('peek'); });
 }
 
-// Ctrl/Cmd+I: the colour under the pointer, read from CSS, no click. Over a
-// glyph it is the text colour; anywhere else the first background that is
+// Ctrl/Cmd+I: the color under the pointer, read from CSS, no click. Over a
+// glyph it is the text color; anywhere else the first background that is
 // not transparent, walking up — what shows behind the pointer. A background
-// image or gradient is not a colour and is walked past.
+// image or gradient is not a color and is walked past.
 function uiiCopyHoverColor() {
   const S = uiiState;
   if (!S.pos) return;
@@ -5913,7 +6124,7 @@ function uiiKeyMatches(e, k) {
   return key === k.key || code === k.key || code === 'key' + k.key || code === 'digit' + k.key;
 }
 
-// Only boxes that take typing: a focused checkbox or colour swatch must not
+// Only boxes that take typing: a focused checkbox or color swatch must not
 // swallow the shortcuts.
 const UII_TEXT_INPUT = /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week)$/;
 
@@ -5960,17 +6171,17 @@ function uiiOnKey(e) {
     e.preventDefault();
     e.stopPropagation();
     if (box) box.blur(); // fires 'change', so a typed value lands before quitting
-    // First Escape closes an open var list or colour panel.
+    // First Escape closes an open var list or color panel.
     if (S.cvList) uiiCloseVarList(); else if (uiiColorPickerOpen()) uiiDismissColorPicker(); else uiiDisable();
     return;
   }
-  if (uiiColorPickerOpen()) return; // the colour panel owns arrows and letters while it is open
+  if (uiiColorPickerOpen()) return; // the color panel owns arrows and letters while it is open
   if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && S.selected) {
     e.preventDefault(); e.stopPropagation(); uiiWalk(e.key);
     return;
   }
   // The shortcuts with a modifier: Cmd/Ctrl+Z takes back the last edit,
-  // Cmd/Ctrl+I copies the hovered colour with no click. Guarded above, so
+  // Cmd/Ctrl+I copies the hovered color with no click. Guarded above, so
   // inside a text box they stay the browser's own undo and italic.
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
     uiiKeyAction(e, uiiUndo);
@@ -5983,7 +6194,7 @@ function uiiOnKey(e) {
   // Bare letters only: Cmd/Ctrl+C still copies whatever is selected, in the
   // panel or on the page. Each is a panel button without the reach — C the
   // Copy ID line, A the Changes box, V the Normal view toggle, P the page
-  // variables, T the DOM tree, I the colour picker.
+  // variables, T the DOM tree, I the color picker.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
@@ -6005,7 +6216,7 @@ const UII_HINTS = [
   ['dom-tree-toggle', 'T', 'DOM tree'],
   ['vars-mode', 'P', 'page variables'],
   ['normal-view', 'V', 'normal view'],
-  ['color-picker', 'I', 'colour picker'],
+  ['color-picker', 'I', 'color picker'],
   ['copy-id', 'C', 'copy ID'],
   ['copy-for-ai', 'A', 'copy all changes'],
 ];

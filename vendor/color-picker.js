@@ -1,4 +1,4 @@
-/* Vendored from the color-picker project, dist/color-picker.esm.js @ bec95e3.
+/* Vendored from the color-picker project, dist/color-picker.esm.js @ bb509bf.
  * Local patches (shadow-DOM awareness; every one marks a spot where the
  * library asked the document instead of its own root):
  *   - document.activeElement / .contains / querySelectorAll -> the root node
@@ -64,6 +64,79 @@ function hsvToRgb(h, s, v) {
   else rgb = [c, 0, x];
   return { r: (rgb[0] + m) * 255, g: (rgb[1] + m) * 255, b: (rgb[2] + m) * 255 };
 }
+function rgbToHsl({ r, g, b }) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const d = max - min;
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (d) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === rn) h = (gn - bn) / d % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+function hslToRgb(h, s, l) {
+  const hue = (h % 360 + 360) % 360;
+  const sn = clamp(s, 0, 100) / 100;
+  const ln = clamp(l, 0, 100) / 100;
+  const c = (1 - Math.abs(2 * ln - 1)) * sn;
+  const x = c * (1 - Math.abs(hue / 60 % 2 - 1));
+  const m = ln - c / 2;
+  let rgb;
+  if (hue < 60) rgb = [c, x, 0];
+  else if (hue < 120) rgb = [x, c, 0];
+  else if (hue < 180) rgb = [0, c, x];
+  else if (hue < 240) rgb = [0, x, c];
+  else if (hue < 300) rgb = [x, 0, c];
+  else rgb = [c, 0, x];
+  return { r: (rgb[0] + m) * 255, g: (rgb[1] + m) * 255, b: (rgb[2] + m) * 255 };
+}
+var FORMATS = ["hex", "rgb", "hsl", "hsv"];
+var trim = (n) => String(Math.round(n * 100) / 100);
+function formatColor(color, format = "hex") {
+  if (format === "hex" || !FORMATS.includes(format)) return formatHex(color);
+  const { r, g, b, a = 1 } = color;
+  let parts;
+  if (format === "rgb") parts = [round255(r), round255(g), round255(b)].map(String);
+  else {
+    const m = format === "hsl" ? rgbToHsl({ r, g, b }) : rgbToHsv({ r, g, b });
+    parts = [Math.round(m.h), ...[m.s, m.l ?? m.v].map((n) => `${Math.round(n)}%`)].map(String);
+  }
+  const alpha = a < 0.999;
+  if (alpha) parts.push(trim(a));
+  return `${format}${alpha ? "a" : ""}(${parts.join(", ")})`;
+}
+var FN_RE = /^(rgb|hsl|hsv|hsb)a?\(([^)]*)\)$/i;
+function parseColor(value) {
+  if (typeof value !== "string") return null;
+  const fn = FN_RE.exec(value.trim());
+  if (!fn) return parseHex(value);
+  const args = fn[2].split(/[\s,/]+/).filter(Boolean);
+  if (args.length !== 3 && args.length !== 4) return null;
+  const nums = args.map((s) => /^[+-]?(\d+\.?\d*|\.\d+)(%|deg)?$/i.test(s) ? { n: parseFloat(s), pct: s.endsWith("%") } : null);
+  if (nums.some((x) => !x)) return null;
+  const kind = fn[1].toLowerCase();
+  const alphaArg = nums[3];
+  const a = alphaArg ? clamp(alphaArg.pct ? alphaArg.n / 100 : alphaArg.n, 0, 1) : 1;
+  let rgb;
+  if (kind === "rgb") {
+    rgb = nums.slice(0, 3).map((x) => x.pct ? x.n * 2.55 : x.n);
+    rgb = { r: rgb[0], g: rgb[1], b: rgb[2] };
+  } else {
+    const [h, s, x] = nums;
+    rgb = (kind === "hsl" ? hslToRgb : hsvToRgb)(h.n, s.n, x.n);
+  }
+  return { r: round255(rgb.r), g: round255(rgb.g), b: round255(rgb.b), a };
+}
 
 // src/dom.js
 var SVG_NS = "http://www.w3.org/2000/svg";
@@ -101,6 +174,7 @@ var LABELS = {
   cancel: "Cancel",
   apply: "OK",
   hex: "Hex color value",
+  format: "Color format",
   hue: "Hue",
   opacity: "Opacity",
   sv: "Saturation and brightness",
@@ -126,9 +200,15 @@ function buildTemplate({ slots = [], groups = [], showAlpha = true, labels = {} 
   );
   const compact = button("cp-compact-btn", void 0, { "aria-label": L.compact, title: L.compact, "aria-pressed": "false" });
   compact.append(icon("M8 1.5v4M6 3.5l2 2 2-2M8 14.5v-4M6 12.5l2-2 2 2M2.5 8h11", "cp-icon-compact"));
+  const format = attr(el("select", "cp-format-select"), { "aria-label": L.format });
+  for (const name of FORMATS) {
+    const option = el("option", null, name.toUpperCase());
+    option.value = name;
+    format.append(option);
+  }
   const close = button("cp-close-btn", "\xD7", { "aria-label": L.close, title: L.close });
   const headerActions = el("div", "cp-header-actions");
-  headerActions.append(reset, compact, maximize, close);
+  headerActions.append(format, reset, compact, maximize, close);
   const header = el("header", "cp-picker-header");
   header.append(heading, headerActions);
   let tabs = null;
@@ -226,6 +306,7 @@ function buildTemplate({ slots = [], groups = [], showAlpha = true, labels = {} 
     svThumb,
     preview,
     hex,
+    format,
     hue: hue.input,
     hueValue: hue.value,
     alpha: alpha.input,
@@ -246,7 +327,8 @@ function buildTemplate({ slots = [], groups = [], showAlpha = true, labels = {} 
 // src/editor.js
 var clamp01 = (n) => Math.min(1, Math.max(0, n));
 var round = (n) => Math.min(255, Math.max(0, Math.round(n)));
-function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
+function createEditor(refs, { showAlpha = true, format = "hex", onChange, onStatus } = {}) {
+  let mode = FORMATS.includes(format) ? format : "hex";
   const state = { h: 174, s: 87, v: 46, a: 1 };
   let current = { r: 15, g: 118, b: 110, a: 1 };
   let dragging = false;
@@ -263,7 +345,7 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
     refs.svThumb.style.left = `${state.s}%`;
     refs.svThumb.style.top = `${100 - state.v}%`;
     refs.preview.style.background = `rgba(${round(rgb.r)}, ${round(rgb.g)}, ${round(rgb.b)}, ${state.a})`;
-    if (refs.hex.getRootNode().activeElement !== refs.hex) refs.hex.value = formatHex(current);
+    if (refs.hex.getRootNode().activeElement !== refs.hex) refs.hex.value = formatColor(current, mode);
     refs.hue.value = String(Math.round(state.h));
     refs.hueValue.textContent = `${Math.round(state.h)}\xB0`;
     if (showAlpha) {
@@ -343,11 +425,11 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
     apply();
   };
   const commitHex = (event) => {
-    const parsed = parseHex(event.target.value);
+    const parsed = parseColor(event.target.value);
     if (!parsed) {
-      refs.hex.value = formatHex(current);
+      refs.hex.value = formatColor(current, mode);
       refs.hex.setAttribute("aria-invalid", "true");
-      if (onStatus) onStatus("Enter a valid HEX value.");
+      if (onStatus) onStatus("Enter a valid color value.");
       return;
     }
     refs.hex.removeAttribute("aria-invalid");
@@ -355,6 +437,16 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
     setColor(parsed, { silent: false });
   };
   const onHexChange = (event) => commitHex(event);
+  const onFormat = () => {
+    mode = refs.format.value;
+    refs.hex.removeAttribute("aria-invalid");
+    render();
+  };
+  const setFormat = (next) => {
+    if (!FORMATS.includes(next)) return;
+    refs.format.value = next;
+    onFormat();
+  };
   const onHexKey = (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -370,9 +462,14 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
   refs.alpha.addEventListener("input", onAlpha);
   refs.hex.addEventListener("change", onHexChange);
   refs.hex.addEventListener("keydown", onHexKey);
+  refs.format.addEventListener("change", onFormat);
+  refs.format.value = mode;
   render();
   return {
     setColor,
+    setFormat,
+    /** The color as the field shows it: what Copy puts on the clipboard. */
+    getText: (rgba = current) => formatColor(rgba, mode),
     getColor: () => ({ ...current }),
     destroy() {
       refs.sv.removeEventListener("pointerdown", onPointerDown);
@@ -384,6 +481,7 @@ function createEditor(refs, { showAlpha = true, onChange, onStatus } = {}) {
       refs.alpha.removeEventListener("input", onAlpha);
       refs.hex.removeEventListener("change", onHexChange);
       refs.hex.removeEventListener("keydown", onHexKey);
+      refs.format.removeEventListener("change", onFormat);
     }
   };
 }
@@ -478,7 +576,7 @@ var PRESET_SETS = {
     /* Ordered so neighbours look alike: one tint family at a time, dark to light
        within it. `Normal` runs gray, slate, stone, neutral, then its light tail for
        dark surfaces; `#000000` leads it, and the first entry is what `options.js`
-       hands a text slot with no colour of its own. The two coloured tabs walk the
+       hands a text slot with no color of its own. The two colored tabs walk the
        hue wheel; `Highlight` ends with its dark-surface row in the same hue order. */
     Normal: [
       "#000000",
@@ -494,6 +592,18 @@ var PRESET_SETS = {
       "#475569",
       "#64748B",
       "#94A3B8",
+      "#050A18",
+      "#0A1128",
+      "#0D1B2A",
+      "#0B1B3A",
+      "#111B33",
+      "#14213D",
+      "#1B263B",
+      "#1B2A49",
+      "#1E2A44",
+      "#22304A",
+      "#2B3A55",
+      "#364A6B",
       "#1C1917",
       "#292524",
       "#44403C",
@@ -510,71 +620,109 @@ var PRESET_SETS = {
       "#FFFFFF"
     ],
     Heading: [
-      "#4C1D95",
-      "#581C87",
-      "#312E81",
-      "#3730A3",
       "#172554",
+      "#1E3A5F",
+      "#312E81",
       "#1E3A8A",
+      "#3730A3",
       "#1E40AF",
+      "#4338CA",
       "#1D4ED8",
       "#2563EB",
-      "#0C4A6E",
-      "#075985",
-      "#0369A1",
-      "#164E63",
-      "#155E75",
-      "#0E7490",
-      "#134E4A",
-      "#115E59",
-      "#0F766E",
-      "#064E3B",
-      "#065F46",
-      "#047857",
+      "#1E1B4B",
+      "#2E1065",
+      "#3B0764",
+      "#4C1D95",
+      "#581C87",
       "#052E16",
+      "#1A2E05",
+      "#0F5132",
       "#14532D",
-      "#166534",
-      "#15803D",
       "#365314",
-      "#3F6212"
+      "#166534",
+      "#3F6212",
+      "#15803D",
+      "#022C22",
+      "#064E3B",
+      "#134E4A",
+      "#065F46",
+      "#115E59",
+      "#047857",
+      "#0F766E",
+      "#042F2E",
+      "#083344",
+      "#0A3D62",
+      "#0C4A6E",
+      "#164E63",
+      "#075985",
+      "#155E75",
+      "#0369A1",
+      "#0E7490"
     ],
     Highlight: [
-      "#991B1B",
-      "#B91C1C",
-      "#DC2626",
-      "#9A3412",
-      "#C2410C",
-      "#EA580C",
-      "#B45309",
-      "#A16207",
-      "#CA8A04",
-      "#4D7C0F",
-      "#0D9488",
-      "#0891B2",
       "#4F46E5",
+      "#818CF8",
+      "#60A5FA",
       "#5B21B6",
-      "#6D28D9",
-      "#7C3AED",
       "#6B21A8",
+      "#6D28D9",
       "#7E22CE",
+      "#7C3AED",
       "#9333EA",
+      "#A78BFA",
+      "#C084FC",
+      "#701A75",
+      "#86198F",
       "#A21CAF",
       "#C026D3",
+      "#E879F9",
+      "#9D174D",
       "#BE185D",
       "#DB2777",
+      "#F472B6",
+      "#7F1D1D",
+      "#881337",
+      "#991B1B",
+      "#9A3412",
+      "#B91C1C",
       "#BE123C",
+      "#C2410C",
+      "#DC2626",
       "#E11D48",
-      "#FDA4AF",
+      "#EF4444",
       "#F87171",
+      "#78350F",
+      "#92400E",
+      "#854D0E",
+      "#A16207",
+      "#B45309",
+      "#EA580C",
+      "#F97316",
       "#FB923C",
-      "#FBBF24",
-      "#FACC15",
-      "#A3E635",
+      "#CA8A04",
+      "#F59E0B",
+      "#4D7C0F",
+      "#65A30A",
+      "#22C55E",
+      "#84CC16",
+      "#0D9488",
       "#34D399",
-      "#22D3EE",
-      "#60A5FA",
-      "#A78BFA",
-      "#F472B6"
+      "#0891B2",
+      "#38BDF8",
+      "#93C5FD",
+      "#F9A8D4",
+      "#FDA4AF",
+      "#FDBA74",
+      "#FBBF24",
+      "#EAB308",
+      "#FACC15",
+      "#FDE047",
+      "#BEF264",
+      "#A3E635",
+      "#6EE7B7",
+      "#2DD4BF",
+      "#67E8F9",
+      "#22D3EE"
     ]
   },
   background: {
@@ -645,7 +793,7 @@ var PRESET_SETS = {
        badge inks clears 4.5:1 against a mid-tone text like #0F766E, so without a
        pale set the suggestions panel has nothing to offer for such a pair. The
        old six categories are merged and de-duplicated here, with five more washes
-       in the hue gaps and four across red and orange — 43 colours, then 17 more across every hue so it matches
+       in the hue gaps and four across red and orange — 43 colors, then 17 more across every hue so it matches
        `Vivid` at 60. Contrast against #0F766E is what caps the set: a wash light enough to stay useful
        there has little chroma left to spend, so the red/orange four sit at
        3.78-5.00:1, inside the range the merged washes already covered. */
@@ -717,11 +865,11 @@ function mergePalette(base = {}, override = {}) {
   const merged = { ...base, ...override };
   return Object.fromEntries(Object.entries(merged).map(([name, colors]) => {
     if (!Array.isArray(colors)) {
-      throw new TypeError(`ColorPicker: preset category "${name}" must be an array of hex colours.`);
+      throw new TypeError(`ColorPicker: preset category "${name}" must be an array of hex colors.`);
     }
     return [name, colors.map((hex) => {
       const valid = normalizeHex(hex);
-      if (!valid) throw new TypeError(`ColorPicker: preset category "${name}" has an invalid colour ${JSON.stringify(hex)}.`);
+      if (!valid) throw new TypeError(`ColorPicker: preset category "${name}" has an invalid color ${JSON.stringify(hex)}.`);
       return valid;
     })];
   }));
@@ -737,14 +885,14 @@ function shippedPalette(group) {
 }
 var PRESET_GROUPS = {
   text: {
-    label: "Text colour presets",
+    label: "Text color presets",
     /* Short name a slot tab shows as its type; a slot may override it. */
     type: "Text",
     symbol: "Aa",
     hint: "Body copy, headings and highlights, for text and icons."
   },
   background: {
-    label: "Background colour presets",
+    label: "Background color presets",
     type: "Background",
     symbol: "\u25B0",
     hint: "The badge inks and their deep tier, plus the pale washes."
@@ -1139,7 +1287,7 @@ function createTriggers({ picker, target, slots, labels = {} }) {
   bar.className = "cp-triggers";
   bar.dataset.theme = picker.options.theme;
   bar.setAttribute("role", "group");
-  bar.setAttribute("aria-label", labels.triggersLabel || "Colours");
+  bar.setAttribute("aria-label", labels.triggersLabel || "Colors");
   const buttons = {};
   for (const slot of slots) {
     const button2 = document.createElement("button");
@@ -1420,16 +1568,18 @@ function assemble(picker) {
   picker.root.append(built.root);
   picker.root.style.setProperty("--cp-slots", String(slots.length));
   if (options.mode === "popover") picker.root.classList.add("cp-popover");
+  if (options.mode === "inline") picker.root.classList.add("cp-inline");
   host.append(picker.root);
   picker.editor = createEditor(picker.refs, {
     showAlpha: options.showAlpha,
+    format: options.format,
     onChange: (rgba) => picker.commit(rgba),
     onStatus: (message) => picker.setStatus(message)
   });
   picker.copy = createCopy({
     button: picker.refs.copy,
     label: options.labels.copy,
-    getValue: () => picker.colors[picker.activeSlot],
+    getValue: () => picker.editor.getText(parseHex(picker.colors[picker.activeSlot])),
     onStatus: (message) => picker.setStatus(message)
   });
   picker.palettes = {};
@@ -1517,7 +1667,7 @@ function createFocusTrap(root) {
   return {
     /** Remember the opener and start wrapping Tab inside the root. */
     activate(opener) {
-      previous = opener || document.activeElement;
+      previous = opener || root.getRootNode().activeElement;
       document.addEventListener("keydown", onKey, true);
     },
     /** Stop wrapping and restore focus, when the opener is still on the page. */
@@ -1824,7 +1974,7 @@ function bindShell(picker) {
   const toggleCompact = () => {
     const on = refs.panel.classList.toggle("cp-is-compact");
     refs.compact.setAttribute("aria-pressed", String(on));
-    if (window.matchMedia(SHEET5).matches) return;
+    if (picker.options.mode === "inline" || window.matchMedia(SHEET5).matches) return;
     const style = refs.panel.style;
     if (on) {
       restoreBox = { width: style.width, height: style.height };
@@ -1844,6 +1994,7 @@ function bindShell(picker) {
   picker.onDocumentKey = (event) => {
     if (!picker.isOpen) return;
     if (!isTopmostOpen(picker.root)) return;
+    if (picker.options.mode === "inline" && !event.composedPath().includes(picker.root)) return;
     if (event.key === "Escape") {
       picker.dismiss();
       return;
@@ -1905,12 +2056,12 @@ function unbindShell(picker) {
 
 // src/options.js
 var ID_PATTERN = /^[A-Za-z][\w-]*$/;
-var MODES = ["auto", "popover", "modal"];
+var MODES = ["auto", "popover", "modal", "inline"];
 var own = (obj, key) => obj && Object.hasOwn(obj, key) ? obj[key] : void 0;
 var DEFAULT_SLOTS = [
   {
     id: "color",
-    label: "Colour",
+    label: "Color",
     symbol: "\u25CF",
     presetSet: "text",
     color: "#0F766E"
@@ -1922,6 +2073,8 @@ var DEFAULTS = {
   initialColors: null,
   activeSlot: null,
   showAlpha: true,
+  /* How the editor field shows (and Copy copies) the color: 'hex' | 'rgb' | 'hsl' | 'hsv'. */
+  format: "hex",
   showContrastSuggestions: false,
   /* Suggestions measure a pair: `['text', 'background']`. Without one they stay off. */
   contrastPair: null,
@@ -1935,7 +2088,8 @@ var DEFAULTS = {
   triggers: null,
   /* Inputs that *are* the controls (`<input data-color-picker>`); see `fields.js`. */
   fields: null,
-  /* 'auto' = popover when a trigger is rendered, modal otherwise. */
+  /* 'auto' = popover when a trigger is rendered, modal otherwise. 'inline' =
+     always shown, docked in `container`: no scrim, no dismiss, no focus trap. */
   mode: "auto",
   onChange: null,
   onApply: null,
@@ -1957,7 +2111,7 @@ function resolveOptions(options = {}, fieldEntries = null) {
   if (options.fields && !fields.length) {
     console.warn(`ColorPicker: \`fields\` ${JSON.stringify(options.fields)} matched no inputs \u2014 opening as a centred modal.`);
   }
-  const picked = options.mode === "popover" || options.mode === "modal" ? options.mode : options.triggers || fields.length ? "popover" : "modal";
+  const picked = options.mode === "popover" || options.mode === "modal" || options.mode === "inline" ? options.mode : options.triggers || fields.length ? "popover" : "modal";
   const fieldColors = fields.length ? Object.fromEntries(fields.map((field) => [field.id, field.raw])) : null;
   return {
     ...DEFAULTS,
@@ -1965,10 +2119,11 @@ function resolveOptions(options = {}, fieldEntries = null) {
     mode: picked,
     slots: fields.length ? fieldSlots(fields) : options.slots,
     fieldEntries: fields,
-    /* A field's own value is the colour it starts with; `initialColors` wins. */
+    /* A field's own value is the color it starts with; `initialColors` wins. */
     startColors: { ...fieldColors, ...options.initialColors || {} },
-    draggable: options.draggable === void 0 ? DEFAULTS.draggable : Boolean(options.draggable),
-    resizable: options.resizable === void 0 ? DEFAULTS.resizable : Boolean(options.resizable),
+    /* An inline panel is a part of the page, not a box over it: nothing to move. */
+    draggable: picked !== "inline" && (options.draggable === void 0 ? DEFAULTS.draggable : Boolean(options.draggable)),
+    resizable: picked !== "inline" && (options.resizable === void 0 ? DEFAULTS.resizable : Boolean(options.resizable)),
     showAlpha: options.showAlpha === void 0 ? DEFAULTS.showAlpha : Boolean(options.showAlpha),
     labels: { ...DEFAULTS.labels, ...options.labels || {} }
   };
@@ -2056,6 +2211,10 @@ var ColorPicker = class {
     assemble(this);
     bindShell(this);
     syncTabs(this.refs, this.activeSlot);
+    if (this.options.mode === "inline") {
+      this.isOpen = true;
+      this.root.classList.remove("cp-hidden");
+    }
     this.refresh();
   }
   setStatus(message) {
@@ -2152,7 +2311,7 @@ var ColorPicker = class {
     this.emit("onOpen");
   }
   close() {
-    if (!this.isOpen) return;
+    if (!this.isOpen || this.options.mode === "inline") return;
     this.isOpen = false;
     this.anchor = null;
     this.root.classList.add("cp-hidden");
@@ -2167,6 +2326,7 @@ var ColorPicker = class {
    * modal restores the snapshot it opened with.
    */
   dismiss() {
+    if (this.options.mode === "inline") return;
     if (this.options.mode === "popover") this.close();
     else this.cancel();
   }
@@ -2177,7 +2337,7 @@ var ColorPicker = class {
     this.emit("onChange");
   }
   cancel() {
-    if (!this.isOpen) return;
+    if (!this.isOpen || this.options.mode === "inline") return;
     this.colors = { ...this.snapshot };
     this.refresh();
     this.setStatus("Changes discarded.");
@@ -2185,6 +2345,7 @@ var ColorPicker = class {
     this.close();
   }
   apply() {
+    if (this.options.mode === "inline") return;
     this.snapshot = { ...this.colors };
     this.setStatus("Colors applied.");
     this.emit("onApply");

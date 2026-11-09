@@ -43,8 +43,8 @@ function uiiBuildHead(p) {
   const peek = uiiHeadBtn('👁', 'normal-view',
     'Normal view — hide the overlay and use the page (V)');
   const drop = uiiHeadBtn('💧', 'color-picker',
-    window.EyeDropper ? 'Color picker — click any pixel on screen to copy its colour (I).'
-      + ' Ctrl/Cmd+I copies the hovered colour with no click'
+    window.EyeDropper ? 'Color picker — click any pixel on screen to copy its color (I).'
+      + ' Ctrl/Cmd+I copies the hovered color with no click'
       : 'Color picker — not supported in this browser (Chrome/Edge only)');
   drop.disabled = !window.EyeDropper;
 
@@ -73,7 +73,7 @@ function uiiBuildHead(p) {
 }
 
 // The browser's own eyedropper: it samples any pixel on screen, the page's
-// own colours included. The outlines go while it is open so a sample never
+// own colors included. The outlines go while it is open so a sample never
 // lands on the inspector's drawing instead of the page. Esc cancels it.
 function uiiPickColor() {
   const S = uiiState;
@@ -85,10 +85,10 @@ function uiiPickColor() {
     .finally(() => { if (hid && S.host) S.host.classList.remove('peek'); });
 }
 
-// Ctrl/Cmd+I: the colour under the pointer, read from CSS, no click. Over a
-// glyph it is the text colour; anywhere else the first background that is
+// Ctrl/Cmd+I: the color under the pointer, read from CSS, no click. Over a
+// glyph it is the text color; anywhere else the first background that is
 // not transparent, walking up — what shows behind the pointer. A background
-// image or gradient is not a colour and is walked past.
+// image or gradient is not a color and is walked past.
 function uiiCopyHoverColor() {
   const S = uiiState;
   if (!S.pos) return;

@@ -21,7 +21,7 @@ function uiiMount() {
   S.spv = mk('spv');
   S.badge = mk('badge');
   S.badge.innerHTML = 'Inspect — click to pin, <kbd>Shift</kbd>+click to pick several, <kbd>C</kbd> copies it for an AI, <kbd>A</kbd> copies all changes,'
-    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>I</kbd> colour picker, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
+    + ' <kbd>V</kbd> normal view, <kbd>P</kbd> page variables, <kbd>I</kbd> color picker, <kbd>T</kbd> DOM tree, <kbd>Ctrl/Cmd+Z</kbd> undo, <kbd>Alt</kbd> for exact element, <kbd>↑↓←→</kbd> to walk, <kbd>Esc</kbd> to quit';
   S.badgeHtml = S.badge.innerHTML;
   S.ptrToast = mk('ptrtoast off');
   S.scratch = mk('scratch');
@@ -103,7 +103,7 @@ function uiiPointerSay(text) {
 
 // Below-right of the cursor, flipped to the other side near an edge. Called
 // on every pointer move while the toast shows, so it follows the cursor. The
-// colour picker may hold back pointer moves while open; then the toast would
+// color picker may hold back pointer moves while open; then the toast would
 // otherwise stay where the pick started (the 💧 key) instead of the click.
 function uiiPlacePtrToast() {
   const S = uiiState;

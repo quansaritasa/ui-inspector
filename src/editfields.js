@@ -1,6 +1,6 @@
 /* ================= live editing: fields =================
    Design-tool style controls grouped in cards: number boxes (editnum.js), a
-   weight dropdown, a text-align toggle, colour pickers (editcolor.js). All of
+   weight dropdown, a text-align toggle, color pickers (editcolor.js). All of
    them go through uiiSet. */
 
 const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 'Regular'],
@@ -108,7 +108,10 @@ function uiiRenderEditRows(body, info) {
   uiiCloseColorPicker();
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
-    uiiCard('Colour', uiiPair(uiiColorField(info, 'Background', 'background-color'), uiiColorField(info, 'Text', 'color'))),
+    uiiCard('Color', uiiPair(uiiColorField(info, 'Text', 'color'), uiiColorField(info, 'Background', 'background-color'))),
+    uiiCard('Border',
+      uiiTextField(info, 'Border', 'border'),
+      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Color', 'border-color'))),
     uiiCard('Size',
       uiiPair(num('Width', 'width'), num('Height', 'height')),
       uiiPair(num('Min width', 'min-width'), num('Min height', 'min-height'))),
@@ -121,9 +124,6 @@ function uiiRenderEditRows(body, info) {
       uiiTextField(info, 'Font', 'font-family'),
       uiiPair(num('Size', 'font-size'), num('Space', 'letter-spacing')),
       uiiPair(num('Line height', 'line-height'), uiiWeightField(info)),
-      uiiAlignField(info)),
-    uiiCard('Border',
-      uiiTextField(info, 'Border', 'border'),
-      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Colour', 'border-color'))));
+      uiiAlignField(info)));
   uiiPropsSection(body, info); // everything the cards above do not cover
 }

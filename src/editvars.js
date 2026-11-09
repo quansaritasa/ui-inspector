@@ -2,10 +2,10 @@
    The palette without an element. Every custom property the sheets declare,
    the value it resolves to, and a box to try another one — for the question
    "what happens to the page if this token moves", which has no one element to
-   click. Edits go through uiiVarApply, the same path the colour fields use,
+   click. Edits go through uiiVarApply, the same path the color fields use,
    so they show at once, land in the Changes box and come back with Reset. */
 
-// [{name, value, hex}] — colours first, a swatch says more than a name; each
+// [{name, value, hex}] — colors first, a swatch says more than a name; each
 // group by name. A var only an inactive theme block sets (`.dark { --bg }`
 // under the light theme) resolves to nothing here and is left out: there is
 // no value to show and editing it would change nothing on screen.
@@ -20,14 +20,14 @@ function uiiPageVars(all) {
   return out.sort((a, b) => (a.hex ? 0 : 1) - (b.hex ? 0 : 1) || a.name.localeCompare(b.name));
 }
 
-// The hex of a value that is a colour, '' when it is not one.
+// The hex of a value that is a color, '' when it is not one.
 function uiiRowHex(value) {
-  const rgb = value && value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a colour
+  const rgb = value && value.length <= 40 ? uiiNormColor(value) : null; // shadows, font stacks: never a color
   return rgb ? uiiToHex(rgb) : '';
 }
 
-// One row of a value list: the name, a picker when the value is a colour, and
-// a box that writes through `set`. Edited rows carry .on, the mark the colour
+// One row of a value list: the name, a picker when the value is a color, and
+// a box that writes through `set`. Edited rows carry .on, the mark the color
 // list uses for the value in force. Shared by the palette and by the pinned
 // element's own declarations (editprops.js).
 function uiiValueRow(name, value, set, resetName) {
@@ -44,7 +44,7 @@ function uiiValueRow(name, value, set, resetName) {
   };
   const hex = uiiRowHex(value);
   if (hex) {
-    // A colour picker takes #rrggbb alone: an alpha value keeps its text box.
+    // A color picker takes #rrggbb alone: an alpha value keeps its text box.
     wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
@@ -60,7 +60,7 @@ function uiiValueRow(name, value, set, resetName) {
 
 function uiiVarRow(v) {
   const r = uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, document.documentElement), v.name);
-  // An edit made here or from a colour field, before this list was built.
+  // An edit made here or from a color field, before this list was built.
   const e = uiiVarEdits.get(v.name);
   if (e) { r.box.value = e.to; r.row.classList.add('on'); }
   return r.row;
@@ -108,7 +108,7 @@ function uiiRenderVars(body) {
   return vars.length;
 }
 
-/* States: the colours a rule only paints while a state holds — :hover,
+/* States: the colors a rule only paints while a state holds — :hover,
    :focus, :disabled… The list above shows values in force now; these wait
    for a pointer or a key, so they are listed rule by rule, grouped by state.
    Editing one rewrites that rule, through the same records as a variable. */
@@ -159,7 +159,7 @@ function uiiRenderStates(body, all) {
       list.appendChild(row);
     }
   }
-  if (!n) list.appendChild(uiiEl('div', 'vnone', 'No colour rules for hover, focus, disabled… in the stylesheets this page lets us read.'));
+  if (!n) list.appendChild(uiiEl('div', 'vnone', 'No color rules for hover, focus, disabled… in the stylesheets this page lets us read.'));
   uiiFindBox(find, list);
   wrap.open = n <= 12 || edited;
   wrap.append(sum, list);

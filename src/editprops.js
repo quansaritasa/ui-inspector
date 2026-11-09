@@ -48,7 +48,7 @@ function uiiElementVars(info) {
 
 // Every property the element's matched rules set, with the value to edit:
 // the live edit standing on it, else the last rule's own words (`var(--accent)`
-// is worth more in the box than the colour it resolves to), else computed.
+// is worth more in the box than the color it resolves to), else computed.
 // Custom properties are left to uiiElementVars.
 function uiiDeclaredProps(info) {
   const seen = new Map();

@@ -139,7 +139,7 @@ function uiiProbeAll(el, prop, cands) {
 // The rule is put back by its whole cssText, never property by property: a
 // rule that paints through a shorthand ("background: color-mix(…)") reports
 // an empty background-color longhand, so removing the sentinel would take the
-// colour out of the shorthand with it and leave the page quietly restyled by
+// color out of the shorthand with it and leave the page quietly restyled by
 // a probe that was only meant to read.
 function uiiWins(el, prop, style) {
   const iv = el.style.getPropertyValue(prop), ip = el.style.getPropertyPriority(prop);

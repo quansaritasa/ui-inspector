@@ -1,9 +1,9 @@
 # ui-inspector
 
 A tiny, dependency-free overlay for any web page or Electron renderer. Press a
-shortcut, and every control on screen gets a coloured outline. Hover to see its
+shortcut, and every control on screen gets a colored outline. Hover to see its
 name, click to pin it, and a panel shows the details you need to describe the
-component to a person or an AI: selector, colours (with the CSS variable they
+component to a person or an AI: selector, colors (with the CSS variable they
 come from), font, spacing, and the stylesheet rules that match it. One button copies a one-line locator for an AI
 prompt; another copies the full details.
 
@@ -85,7 +85,7 @@ files, and browsers block that fetch from `file://`.
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
 | `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
 | **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet files)]`, e.g. `[#edit-btn.btn (edit.js:12 · style.css)]` — an element with an id also carries its classes, the part that greps in the source |
-| Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a colour, font size or padding without touching the code |
+| Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a color, font size or padding without touching the code |
 | **↺** in front of a field, or of a **Declared** row | Put back that one value: the inline edit and the rule the same change rewrote, and nothing else on the element. Dim until the value is actually changed |
 | `↑` `↓` in a number box (`Shift` = ×10), or drag its label | Step the value live |
 | **📋 Copy for AI** on **Changes** | Copy the control's location plus each edited rule with its final value |
@@ -93,8 +93,8 @@ files, and browsers block that fetch from `file://`.
 | **Declared** at the foot of the **Style** section | Every property the pinned element's own rules set, and every variable they read, each with its value in a box. The last row adds any other property or variable the rules do not mention yet |
 | `T`, or **🌳** in the panel header | DOM tree: a column down the left of the panel listing every element on the page. Hover a row to outline that element, click it to pin it, click a twisty to open a branch. Only open branches are built, so the cost is what you opened, not what the page holds |
 | **↺** in front of a DOM-tree row | Reset that element alone: the edits made to it go back, while variables and every other element's edits stay. Dim when that element has nothing to reset |
-| `I`, or **💧** in the panel header | Colour picker: the browser's eyedropper opens with a magnifier at the pointer. Click any pixel to copy its hex code; `Esc` cancels. Chrome and Edge only |
-| `Ctrl/Cmd + I` | Copy the hovered colour with no click: the text colour when the pointer is on a letter, otherwise the first non-transparent background behind it. Read from CSS, so a gradient or image is skipped |
+| `I`, or **💧** in the panel header | Color picker: the browser's eyedropper opens with a magnifier at the pointer. Click any pixel to copy its hex code; `Esc` cancels. Chrome and Edge only |
+| `Ctrl/Cmd + I` | Copy the hovered color with no click: the text color when the pointer is on a letter, otherwise the first non-transparent background behind it. Read from CSS, so a gradient or image is skipped |
 | `P`, or **🎨** in the panel header | Page variables: the panel lists every custom property the stylesheets declare, with its value in a box — edit the palette with nothing pinned. Press again to go back to the pinned element, or to close the panel when nothing is pinned |
 | `V`, or **👁** in the panel header | Normal view: hide every overlay and give the pointer back to the page, so an edit can be judged on the real screen. The panel, its edits and the pinned element stay; press again to go back to inspecting |
 | **↶**, or `Ctrl/Cmd+Z` | Take back the last edit and leave the rest standing. One press is one thing you did: a whole drag of a label, a retyped label, a size that scaled three nested spans |
@@ -118,7 +118,7 @@ The hint at the top fades out two seconds after inspect mode opens — long
 enough to read, short enough not to sit over the page. It comes back for a
 moment to confirm a copy.
 
-Outline colours: blue for buttons, green for inputs, purple for links, orange
+Outline colors: blue for buttons, green for inputs, purple for links, orange
 for other named blocks.
 
 ## How an element is named
@@ -183,7 +183,7 @@ UIInspector.init({
 | `select(element)` | Enable and pin a specific element. |
 | `info()` | The data object for the pinned element, or `null`. |
 | `formatForAI(info)` | The one-line locator for any info object (`info.code` is filled asynchronously after `select`). |
-| `formatDetails(info)` | The multi-line block with computed colours, font and spacing. |
+| `formatDetails(info)` | The multi-line block with computed colors, font and spacing. |
 | `isCovered(element)` | `true` when a fixed layer on screen (a popup and its backdrop) paints over the element — the rule that keeps it unoutlined. |
 | `editCount()` | How many live style edits the Changes box lists — they stay on screen after inspect mode closes, so the host can say so. |
 | `destroy()` | Disable and unbind the shortcut. |
@@ -202,7 +202,7 @@ apply, so the Changes box stays CSS.
 The cards cover the properties worth a dedicated control. **Declared**, folded
 in under them, is the rest: every property the element's matched rules actually
 set — as the stylesheet writes it, so `background: var(--accent)` stays a
-variable and not the colour it resolves to — and above them every variable
+variable and not the color it resolves to — and above them every variable
 those rules read, editable here as in the palette. A filter narrows a long
 list, and the last row takes any property the rules do not mention yet: a name,
 a value, Enter. A name opening with `--` edits that variable instead. A value
@@ -212,7 +212,7 @@ already carries an edit.
 
 **Page variables** (`P`, or **🎨**) answers the other half of the question —
 what the page looks like if a design token moves. The panel lists every custom
-property the readable stylesheets declare, resolved on `:root`: colours first,
+property the readable stylesheets declare, resolved on `:root`: colors first,
 each with a swatch and a picker, then sizes, fonts and everything else, with a
 filter box for a palette that runs long. Type a value and the whole page
 follows at once, the row is marked as edited, and the change joins the Changes
@@ -222,9 +222,9 @@ sets (`.dark { --bg }` while the light theme is on) resolves to nothing here
 and is left out: there would be no value to show and editing it would change
 nothing on screen.
 
-The **Style** section groups fields in cards — Colour, Size, Spacing (padding
+The **Style** section groups fields in cards — Color, Border, Size, Spacing (padding
 and margin, one field per side ↑ ↓ ← →), Typography (font, size, letter
-spacing, line height, weight, align) and Border. Type a value and press Enter, step a
+spacing, line height, weight, align). Type a value and press Enter, step a
 number with `↑` `↓` or its ▲▼ buttons (hold to repeat; `Shift` for ×10), or
 drag a field's label sideways to scrub it. The unit is the one the stylesheet
 wrote when it is a plain value (`0.9em`), else computed px; click it to switch
@@ -235,12 +235,12 @@ the new factor so the variable keeps working. A bare number keeps
 the shown unit. Every change is written to the
 element's inline style, so the page shows it right away.
 
-Each colour field carries the variable it comes from in a dropdown beside the
+Each color field carries the variable it comes from in a dropdown beside the
 swatch — `--btn-bg` for `background: var(--btn-bg)`, read off a shorthand or a
 fallback chain too. The dropdown lists every custom property that resolves to
-a colour on this element, each with its swatch and hex on the right, so picking another one points the colour at it
+a color on this element, each with its swatch and hex on the right, so picking another one points the color at it
 (`background-color: var(--accent)`), and picking `— none —` gives the element
-a colour of its own again. While a variable is selected the swatch edits **the
+a color of its own again. While a variable is selected the swatch edits **the
 variable**, not the element: every rule using it moves at once, and the
 Changes box names the rule that declares it
 (`style.css :root { --accent: #00ff00; }`). ↺ Reset puts the palette back.
@@ -261,7 +261,7 @@ names a rule that already targets
 the element and marks the declaration `/* add */`; only with no such rule does
 it fall back to the element's classes (its id or path only when it has none,
 since a runtime id changes with a label), marked `/* new rule */`. Text properties
-the children only inherit are set once, on the pinned element. Text properties (colour,
+the children only inherit are set once, on the pinned element. Text properties (color,
 font, size, weight, line height, spacing) follow the text: pin a cell and
 change its size, and the title span inside it changes too — the field shows
 the main text's value, other text scales in proportion, and the log lists a

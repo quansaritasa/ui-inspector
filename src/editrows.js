@@ -44,9 +44,10 @@ function uiiApplyEdit(el, prop, value) {
 
 // While a value is dragged or held, outline redraws wait (each re-measures
 // every control on the page) and run once when it ends.
-function uiiHold(on) {
+// `live` keeps the undo step but lets rules and outlines follow every change.
+function uiiHold(on, live) {
   const S = uiiState;
-  S.holding = on;
+  S.holding = on && !live;
   if (on) uiiUndoBegin(); else uiiUndoEnd();
   // The rules uiiApplyEdit held back, each written once with its last value.
   if (!on && S.ruleLater) {
@@ -161,7 +162,7 @@ function uiiSyncResetKeys() {
 }
 
 // The pinned element plus every text child an edit reached (see uiiSet), and
-// every variable edited from the colour fields. A var edit belongs to no
+// every variable edited from the color fields. A var edit belongs to no
 // element, so this button is the only place that can take it back.
 // `el` is null in the palette, which has no element: the variables are then
 // all there is to put back.
@@ -214,8 +215,8 @@ function uiiEditValue(info, prop) {
   if (h && prop in h.props) return h.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
-  // One picker sets all four sides; it shows the top one.
-  if (prop === 'border-color') return uiiToHex(getComputedStyle(el).borderTopColor);
+  // One picker sets all four sides; it shows the first one that draws.
+  if (prop === 'border-color') return uiiToHex(getComputedStyle(el).getPropertyValue('border-' + uiiBorderSide(el) + '-color'));
   if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
   const fx = uiiFormula(el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);

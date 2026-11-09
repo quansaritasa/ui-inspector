@@ -80,7 +80,7 @@ function png(size, rgba) {
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
   ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // colour type: RGBA
+  ihdr[9] = 6; // color type: RGBA
   const stride = size * 4 + 1;
   const raw = Buffer.alloc(size * stride);
   for (let y = 0; y < size; y++) {

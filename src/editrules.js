@@ -8,9 +8,9 @@
 const uiiRuleOrig = new Map();
 
 // CSSStyleDeclaration -> cssText before any edit. Restoring the block as a
-// whole, not property by property: a rule whose colour comes from a shorthand
+// whole, not property by property: a rule whose color comes from a shorthand
 // ("background: color-mix(…)") has an empty background-color longhand, and
-// putting that emptiness back would strip the colour out of the shorthand and
+// putting that emptiness back would strip the color out of the shorthand and
 // leave the element painted by some weaker rule.
 const uiiRuleText = new Map();
 
@@ -53,7 +53,7 @@ function uiiSyncRules() {
 }
 
 /* ================= live editing: the variables themselves =================
-   A colour field pointed at `--bg` edits the variable rather than the
+   A color field pointed at `--bg` edits the variable rather than the
    element, so every rule that uses it follows in one go — which is what an
    app's palette is for. The declaring rule is rewritten in memory, the way
    "Apply to similar" rewrites a plain one, and Reset puts it back. */
