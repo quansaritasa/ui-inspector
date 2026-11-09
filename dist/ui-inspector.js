@@ -2673,9 +2673,9 @@ const Bounce = (() => {
     const s = o.scale, t0 = performance.now();
     const hold = el.animate([{ transform: 'scale(1)' }, { transform: `scale(${s})` }],
       { duration: o.press, easing: 'ease-out', fill: 'forwards' });
-    let spring, timer, released = false;
+    let spring, released = false;
     const drop = () => {
-      clearTimeout(timer); hold.cancel(); if (spring) spring.cancel();
+      hold.cancel(); if (spring) spring.cancel();
       if (running.get(el) === drop) running.delete(el);
     };
     running.set(el, drop);
@@ -2683,17 +2683,16 @@ const Bounce = (() => {
       if (released) return;
       released = true;
       // A tap shorter than the dip would snap: let the dip finish, then spring.
-      const wait = Math.max(0, o.press - (performance.now() - t0));
-      timer = setTimeout(() => {
-        spring = el.animate([
-          { transform: `scale(${s})` },
-          { transform: `scale(${1 + o.over})`, offset: 0.45 },
-          { transform: `scale(${1 - o.over / 3})`, offset: 0.75 },
-          { transform: 'scale(1)' },
-        ], { duration: o.release, easing: 'ease-out' });
-        hold.cancel(); // the spring is newer, so it already wins; this drops the held dip
-        spring.onfinish = () => { if (running.get(el) === drop) running.delete(el); };
-      }, wait);
+      // The wait is the animation's own delay, not a timer: a click handler that
+      // blocks the main thread right after release must not hold the spring back.
+      spring = el.animate([
+        { transform: `scale(${s})` },
+        { transform: `scale(${1 + o.over})`, offset: 0.45 },
+        { transform: `scale(${1 - o.over / 3})`, offset: 0.75 },
+        { transform: 'scale(1)' },
+      ], { delay: Math.max(0, o.press - (performance.now() - t0)), duration: o.release, easing: 'ease-out', fill: 'forwards' });
+      // Both fills hold scale(1) or the dip until here, so neither flashes if this runs late.
+      spring.onfinish = () => { hold.cancel(); spring.cancel(); if (running.get(el) === drop) running.delete(el); };
     };
     return { up, drop };
   }
