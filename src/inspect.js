@@ -147,7 +147,7 @@ function uiiCollect(el) {
     lineHeight: cs.lineHeight,
     padding: cs.padding,
     margin: cs.margin,
-    border: cs.borderWidth === '0px' ? 'none' : cs.borderWidth + ' ' + cs.borderStyle + ' ' + uiiToHex(cs.borderColor),
+    border: uiiBorderSides(el).length ? uiiBorderText(el) : 'none',
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),

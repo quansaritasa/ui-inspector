@@ -14,10 +14,16 @@ const UII_PAIR_SLOT = { color: 'text', 'background-color': 'background' };
 // The side the border color field speaks for: the first one that draws a
 // line. A rule like `td { border-bottom: 1px solid var(--x) }` leaves the top
 // at currentColor, which is not the color anyone sees.
-function uiiBorderDrawnSide(el) {
+function uiiBorderSides(el) {
   const cs = getComputedStyle(el);
-  return ['top', 'right', 'bottom', 'left'].find((s) =>
+  return ['top', 'right', 'bottom', 'left'].filter((s) =>
     parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
+}
+function uiiBorderDrawnSide(el) { return uiiBorderSides(el)[0]; }
+// The border as one copyable line, from the side the fields speak for.
+function uiiBorderText(el) {
+  const cs = getComputedStyle(el), s = 'border-' + uiiBorderSide(el);
+  return cs.getPropertyValue(s + '-width') + ' ' + cs.getPropertyValue(s + '-style') + ' ' + uiiToHex(cs.getPropertyValue(s + '-color'));
 }
 function uiiBorderSide(el) { return uiiBorderDrawnSide(el) || 'top'; }
 
@@ -66,14 +72,16 @@ function uiiVarHex(info, name, el) {
 // Same surface as the <select> it replaces: .value, and a 'change' event.
 // The list lives on the shadow root, not in the panel, so the panel's
 // scrolling body does not clip it.
-function uiiVarPicker(names, target) {
+// `kind` 'line': the same list for border styles — no "none" entry, a stroke
+// of the style where a color swatch would be.
+function uiiVarPicker(names, target, kind) {
   const S = uiiState;
   const btn = uiiEl('button', 'cv');
   btn.type = 'button';
   let value = '';
   Object.defineProperty(btn, 'value', {
     get: () => value,
-    set: (v) => { value = v; btn.textContent = v || '— none —'; },
+    set: (v) => { value = v; btn.textContent = v || (kind ? '' : '— none —'); },
   });
   // Read live: a variable edited through the swatch has moved since collect.
   const hexOf = (n) => {
@@ -86,12 +94,16 @@ function uiiVarPicker(names, target) {
     if (mine) return; // second click on the button closes it
     const list = uiiEl('div', 'cvl');
     list.owner = btn;
-    for (const n of ['', ...names]) {
+    for (const n of kind ? names : ['', ...names]) {
       const it = list.appendChild(uiiEl('button', n === value ? 'on' : ''));
       it.type = 'button';
       it.appendChild(uiiEl('span', 'n', n || '— none —'));
-      const hex = n && hexOf(n);
-      if (hex) {
+      const hex = !kind && n && hexOf(n);
+      if (kind) {
+        const ln = uiiEl('i', 'ln');
+        ln.style.borderTopStyle = n;
+        it.appendChild(ln);
+      } else if (hex) {
         const sw = uiiEl('i');
         sw.style.background = hex;
         it.append(sw, uiiEl('span', 'h', hex));

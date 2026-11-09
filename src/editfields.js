@@ -15,6 +15,7 @@ const UII_SHORTHAND = { 'background-color': ['background'], 'font-size': ['font'
 for (const side of ['top', 'right', 'bottom', 'left']) {
   UII_SHORTHAND['padding-' + side] = ['padding'];
   UII_SHORTHAND['margin-' + side] = ['margin'];
+  for (const k of ['width', 'style']) UII_SHORTHAND['border-' + side + '-' + k] = ['border-' + side, 'border', 'border-' + k];
 }
 
 // How the page's CSS writes `prop` on `el`: the last matched rule that sets it,
@@ -51,7 +52,7 @@ function uiiFld(label, control, props, el) {
     // rewrites (uiiNumField). One line either way, so nothing shifts when a
     // value is edited and the key lights up.
     const lw = uiiEl('div', 'lw');
-    lw.append(uiiResetKey([].concat(props)[0]), lab);
+    lw.append(uiiResetKey([].concat(props).join(',')), lab);
     f.append(lw, control);
   } else f.append(lab, control);
   const fm = el && props && uiiDeclared(el, [].concat(props)[0]);
@@ -93,6 +94,52 @@ function uiiTextField(info, label, prop) {
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
   uiiEnterKeeps(box);
   return uiiFld(label, box, prop, uiiTargetEl(info, prop)).f;
+}
+
+// Border = three parts and the line they add up to. Width and style write the
+// sides that draw (all four when none or all do); color is its own field. The
+// Border box is the whole value, to copy or to type over: it rebuilds the card.
+const UII_BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted', 'double', 'groove', 'ridge', 'inset', 'outset', 'hidden'];
+function uiiBorderCard(info) {
+  const el = uiiTargetEl(info, 'border');
+  const sides = uiiBorderSides(el);
+  const part = sides.length && sides.length < 4 ? sides : ['top', 'right', 'bottom', 'left'];
+  const props = (k) => part.map((s) => 'border-' + s + '-' + k);
+  const side = 'border-' + uiiBorderSide(el);
+  const sel = uiiVarPicker(UII_BORDER_STYLES, el, 'line');
+  sel.classList.add('pl');
+  sel.value = getComputedStyle(el).getPropertyValue(side + '-style');
+  const selWrap = uiiEl('span', 'nf');
+  selWrap.appendChild(sel);
+  sel.addEventListener('change', () => { for (const p of props('style')) uiiSet(info, p, sel.value); });
+  const box = uiiEl('input', 'tf');
+  box.spellcheck = false;
+  const sync = () => {
+    box.value = uiiBorderText(el);
+    box.title = sides.length && sides.length < 4 ? 'Only the ' + sides.join(', ') + ' side draws; this reads that one.' : '';
+  };
+  sync();
+  box.addEventListener('change', () => {
+    const typed = box.value.trim(); // before the resets below refresh this box
+    // The shorthand speaks for every side: longhand edits made before it are void.
+    const sides = ['top', 'right', 'bottom', 'left'], e = uiiEditsFor(el, false);
+    for (const p of ['border-color'].concat(...sides.map((x) => ['width', 'style', 'color'].map((k) => 'border-' + x + '-' + k))))
+      if (e && p in e.props) uiiResetProp(el, p);
+    uiiSet(uiiState.info, 'border', typed);
+    const old = uiiState.panel.borderCard;
+    uiiCloseColorPicker();
+    const fresh = uiiBorderCard(uiiState.info);
+    old.replaceWith(fresh);
+    fresh.querySelector('.tf').focus();
+  });
+  uiiEnterKeeps(box);
+  const card = uiiCard('Border',
+    uiiFld('Border', box, 'border', el).f,
+    uiiPair(uiiNumField(info, 'Border width', props('width')).f, uiiFld('Border style', selWrap, props('style'), el).f),
+    uiiPair(uiiNumField(info, 'Radius', 'border-radius').f, uiiColorField(info, 'Color', 'border-color')));
+  uiiState.panel.borderCard = card;
+  uiiState.panel.borderSync = sync;
+  return card;
 }
 
 function uiiWeightField(info) {
@@ -153,9 +200,7 @@ function uiiRenderEditRows(body, info) {
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
     uiiCard('Color', uiiPair(uiiColorField(info, 'Text', 'color'), uiiColorField(info, 'Background', 'background-color'))),
-    uiiCard('Border',
-      uiiTextField(info, 'Border', 'border'),
-      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Color', 'border-color'))),
+    uiiBorderCard(info),
     uiiCard('Size',
       uiiPair(num('Width', 'width'), num('Height', 'height')),
       uiiPair(num('Min width', 'min-width'), num('Min height', 'min-height'))),

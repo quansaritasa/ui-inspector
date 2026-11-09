@@ -182,6 +182,12 @@ const UII_CSS = `
 .nf button.cv { border: 0; background: none; color: #0f766e; font: inherit; font-size: 10px; max-width: 46%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; cursor: pointer; }
 .nf button.cv::after { content: ' ▾'; color: #9ca3af; }
+/* Border style: the same button and list, a stroke of the style in each row. */
+.nf button.cv.pl { flex: 1; max-width: none; height: 100%; color: #374151; font: 12px ui-monospace, Menlo, monospace;
+  text-align: left; padding: 0 6px; }
+.nf button.cv.pl::after { float: right; }
+.cvl i.ln { width: 28px; height: 0; border: 0 solid #374151; border-top-width: 4px; border-radius: 0; background: none; }
+.cvl button.on i.ln { border-color: #0f766e; }
 .cvl { position: fixed; z-index: 2147483004; min-width: 180px; max-width: 320px; max-height: 240px; overflow: auto;
   background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 3px;
   pointer-events: auto; font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; } /* outside .panel: own font */

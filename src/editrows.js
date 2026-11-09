@@ -145,7 +145,8 @@ function uiiResetVarOne(name) {
 function uiiResetValue(name) {
   const n = String(name || '');
   if (n.startsWith('--')) return uiiResetVarOne(n);
-  return uiiState.info ? uiiResetProp(uiiState.info.el, n) : false;
+  // A field that writes several properties (the border sides) lists them all.
+  return uiiState.info ? n.split(',').map((p) => uiiResetProp(uiiState.info.el, p)).some(Boolean) : false;
 }
 
 // A key is live only while its own value is changed, so a panel of keys reads
@@ -157,7 +158,7 @@ function uiiSyncResetKeys() {
   for (const b of P.body.querySelectorAll('.rs')) {
     const n = b.dataset.prop;
     if (!n) continue;
-    b.disabled = n.startsWith('--') ? !uiiVarEdits.has(n) : !(e && n in e.props);
+    b.disabled = n.startsWith('--') ? !uiiVarEdits.has(n) : !(e && n.split(',').some((p) => p in e.props));
   }
 }
 
@@ -217,7 +218,6 @@ function uiiEditValue(info, prop) {
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
   // One picker sets all four sides; it shows the first one that draws.
   if (prop === 'border-color') return uiiToHex(getComputedStyle(el).getPropertyValue('border-' + uiiBorderSide(el) + '-color'));
-  if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
   const fx = uiiFormula(el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
@@ -229,5 +229,6 @@ function uiiEditValue(info, prop) {
 function uiiRefreshChanges() {
   const P = uiiState.panel;
   if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
+  if (P && P.borderSync && uiiState.info) P.borderSync();
   uiiSyncResetKeys();
 }

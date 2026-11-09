@@ -2557,6 +2557,12 @@ const UII_CSS = `
 .nf button.cv { border: 0; background: none; color: #0f766e; font: inherit; font-size: 10px; max-width: 46%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; cursor: pointer; }
 .nf button.cv::after { content: ' ▾'; color: #9ca3af; }
+/* Border style: the same button and list, a stroke of the style in each row. */
+.nf button.cv.pl { flex: 1; max-width: none; height: 100%; color: #374151; font: 12px ui-monospace, Menlo, monospace;
+  text-align: left; padding: 0 6px; }
+.nf button.cv.pl::after { float: right; }
+.cvl i.ln { width: 28px; height: 0; border: 0 solid #374151; border-top-width: 4px; border-radius: 0; background: none; }
+.cvl button.on i.ln { border-color: #0f766e; }
 .cvl { position: fixed; z-index: 2147483004; min-width: 180px; max-width: 320px; max-height: 240px; overflow: auto;
   background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 3px;
   pointer-events: auto; font: 12px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; } /* outside .panel: own font */
@@ -3168,7 +3174,7 @@ function uiiCollect(el) {
     lineHeight: cs.lineHeight,
     padding: cs.padding,
     margin: cs.margin,
-    border: cs.borderWidth === '0px' ? 'none' : cs.borderWidth + ' ' + cs.borderStyle + ' ' + uiiToHex(cs.borderColor),
+    border: uiiBorderSides(el).length ? uiiBorderText(el) : 'none',
     borderRadius: cs.borderRadius,
     display: cs.display,
     rules: uiiMatchedRules(el, all).slice(-30),
@@ -3888,7 +3894,8 @@ function uiiResetVarOne(name) {
 function uiiResetValue(name) {
   const n = String(name || '');
   if (n.startsWith('--')) return uiiResetVarOne(n);
-  return uiiState.info ? uiiResetProp(uiiState.info.el, n) : false;
+  // A field that writes several properties (the border sides) lists them all.
+  return uiiState.info ? n.split(',').map((p) => uiiResetProp(uiiState.info.el, p)).some(Boolean) : false;
 }
 
 // A key is live only while its own value is changed, so a panel of keys reads
@@ -3900,7 +3907,7 @@ function uiiSyncResetKeys() {
   for (const b of P.body.querySelectorAll('.rs')) {
     const n = b.dataset.prop;
     if (!n) continue;
-    b.disabled = n.startsWith('--') ? !uiiVarEdits.has(n) : !(e && n in e.props);
+    b.disabled = n.startsWith('--') ? !uiiVarEdits.has(n) : !(e && n.split(',').some((p) => p in e.props));
   }
 }
 
@@ -3960,7 +3967,6 @@ function uiiEditValue(info, prop) {
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
   // One picker sets all four sides; it shows the first one that draws.
   if (prop === 'border-color') return uiiToHex(getComputedStyle(el).getPropertyValue('border-' + uiiBorderSide(el) + '-color'));
-  if (prop === 'border') return info.border === 'none' ? 'none' : info.border;
   const fx = uiiFormula(el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
@@ -3972,6 +3978,7 @@ function uiiEditValue(info, prop) {
 function uiiRefreshChanges() {
   const P = uiiState.panel;
   if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
+  if (P && P.borderSync && uiiState.info) P.borderSync();
   uiiSyncResetKeys();
 }
 
@@ -4789,10 +4796,16 @@ const UII_PAIR_SLOT = { color: 'text', 'background-color': 'background' };
 // The side the border color field speaks for: the first one that draws a
 // line. A rule like `td { border-bottom: 1px solid var(--x) }` leaves the top
 // at currentColor, which is not the color anyone sees.
-function uiiBorderDrawnSide(el) {
+function uiiBorderSides(el) {
   const cs = getComputedStyle(el);
-  return ['top', 'right', 'bottom', 'left'].find((s) =>
+  return ['top', 'right', 'bottom', 'left'].filter((s) =>
     parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
+}
+function uiiBorderDrawnSide(el) { return uiiBorderSides(el)[0]; }
+// The border as one copyable line, from the side the fields speak for.
+function uiiBorderText(el) {
+  const cs = getComputedStyle(el), s = 'border-' + uiiBorderSide(el);
+  return cs.getPropertyValue(s + '-width') + ' ' + cs.getPropertyValue(s + '-style') + ' ' + uiiToHex(cs.getPropertyValue(s + '-color'));
 }
 function uiiBorderSide(el) { return uiiBorderDrawnSide(el) || 'top'; }
 
@@ -4841,14 +4854,16 @@ function uiiVarHex(info, name, el) {
 // Same surface as the <select> it replaces: .value, and a 'change' event.
 // The list lives on the shadow root, not in the panel, so the panel's
 // scrolling body does not clip it.
-function uiiVarPicker(names, target) {
+// `kind` 'line': the same list for border styles — no "none" entry, a stroke
+// of the style where a color swatch would be.
+function uiiVarPicker(names, target, kind) {
   const S = uiiState;
   const btn = uiiEl('button', 'cv');
   btn.type = 'button';
   let value = '';
   Object.defineProperty(btn, 'value', {
     get: () => value,
-    set: (v) => { value = v; btn.textContent = v || '— none —'; },
+    set: (v) => { value = v; btn.textContent = v || (kind ? '' : '— none —'); },
   });
   // Read live: a variable edited through the swatch has moved since collect.
   const hexOf = (n) => {
@@ -4861,12 +4876,16 @@ function uiiVarPicker(names, target) {
     if (mine) return; // second click on the button closes it
     const list = uiiEl('div', 'cvl');
     list.owner = btn;
-    for (const n of ['', ...names]) {
+    for (const n of kind ? names : ['', ...names]) {
       const it = list.appendChild(uiiEl('button', n === value ? 'on' : ''));
       it.type = 'button';
       it.appendChild(uiiEl('span', 'n', n || '— none —'));
-      const hex = n && hexOf(n);
-      if (hex) {
+      const hex = !kind && n && hexOf(n);
+      if (kind) {
+        const ln = uiiEl('i', 'ln');
+        ln.style.borderTopStyle = n;
+        it.appendChild(ln);
+      } else if (hex) {
         const sw = uiiEl('i');
         sw.style.background = hex;
         it.append(sw, uiiEl('span', 'h', hex));
@@ -5309,6 +5328,7 @@ const UII_SHORTHAND = { 'background-color': ['background'], 'font-size': ['font'
 for (const side of ['top', 'right', 'bottom', 'left']) {
   UII_SHORTHAND['padding-' + side] = ['padding'];
   UII_SHORTHAND['margin-' + side] = ['margin'];
+  for (const k of ['width', 'style']) UII_SHORTHAND['border-' + side + '-' + k] = ['border-' + side, 'border', 'border-' + k];
 }
 
 // How the page's CSS writes `prop` on `el`: the last matched rule that sets it,
@@ -5345,7 +5365,7 @@ function uiiFld(label, control, props, el) {
     // rewrites (uiiNumField). One line either way, so nothing shifts when a
     // value is edited and the key lights up.
     const lw = uiiEl('div', 'lw');
-    lw.append(uiiResetKey([].concat(props)[0]), lab);
+    lw.append(uiiResetKey([].concat(props).join(',')), lab);
     f.append(lw, control);
   } else f.append(lab, control);
   const fm = el && props && uiiDeclared(el, [].concat(props)[0]);
@@ -5387,6 +5407,52 @@ function uiiTextField(info, label, prop) {
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
   uiiEnterKeeps(box);
   return uiiFld(label, box, prop, uiiTargetEl(info, prop)).f;
+}
+
+// Border = three parts and the line they add up to. Width and style write the
+// sides that draw (all four when none or all do); color is its own field. The
+// Border box is the whole value, to copy or to type over: it rebuilds the card.
+const UII_BORDER_STYLES = ['none', 'solid', 'dashed', 'dotted', 'double', 'groove', 'ridge', 'inset', 'outset', 'hidden'];
+function uiiBorderCard(info) {
+  const el = uiiTargetEl(info, 'border');
+  const sides = uiiBorderSides(el);
+  const part = sides.length && sides.length < 4 ? sides : ['top', 'right', 'bottom', 'left'];
+  const props = (k) => part.map((s) => 'border-' + s + '-' + k);
+  const side = 'border-' + uiiBorderSide(el);
+  const sel = uiiVarPicker(UII_BORDER_STYLES, el, 'line');
+  sel.classList.add('pl');
+  sel.value = getComputedStyle(el).getPropertyValue(side + '-style');
+  const selWrap = uiiEl('span', 'nf');
+  selWrap.appendChild(sel);
+  sel.addEventListener('change', () => { for (const p of props('style')) uiiSet(info, p, sel.value); });
+  const box = uiiEl('input', 'tf');
+  box.spellcheck = false;
+  const sync = () => {
+    box.value = uiiBorderText(el);
+    box.title = sides.length && sides.length < 4 ? 'Only the ' + sides.join(', ') + ' side draws; this reads that one.' : '';
+  };
+  sync();
+  box.addEventListener('change', () => {
+    const typed = box.value.trim(); // before the resets below refresh this box
+    // The shorthand speaks for every side: longhand edits made before it are void.
+    const sides = ['top', 'right', 'bottom', 'left'], e = uiiEditsFor(el, false);
+    for (const p of ['border-color'].concat(...sides.map((x) => ['width', 'style', 'color'].map((k) => 'border-' + x + '-' + k))))
+      if (e && p in e.props) uiiResetProp(el, p);
+    uiiSet(uiiState.info, 'border', typed);
+    const old = uiiState.panel.borderCard;
+    uiiCloseColorPicker();
+    const fresh = uiiBorderCard(uiiState.info);
+    old.replaceWith(fresh);
+    fresh.querySelector('.tf').focus();
+  });
+  uiiEnterKeeps(box);
+  const card = uiiCard('Border',
+    uiiFld('Border', box, 'border', el).f,
+    uiiPair(uiiNumField(info, 'Border width', props('width')).f, uiiFld('Border style', selWrap, props('style'), el).f),
+    uiiPair(uiiNumField(info, 'Radius', 'border-radius').f, uiiColorField(info, 'Color', 'border-color')));
+  uiiState.panel.borderCard = card;
+  uiiState.panel.borderSync = sync;
+  return card;
 }
 
 function uiiWeightField(info) {
@@ -5447,9 +5513,7 @@ function uiiRenderEditRows(body, info) {
   const num = (label, props) => uiiNumField(info, label, props).f;
   body.append(
     uiiCard('Color', uiiPair(uiiColorField(info, 'Text', 'color'), uiiColorField(info, 'Background', 'background-color'))),
-    uiiCard('Border',
-      uiiTextField(info, 'Border', 'border'),
-      uiiPair(num('Radius', 'border-radius'), uiiColorField(info, 'Color', 'border-color'))),
+    uiiBorderCard(info),
     uiiCard('Size',
       uiiPair(num('Width', 'width'), num('Height', 'height')),
       uiiPair(num('Min width', 'min-width'), num('Min height', 'min-height'))),
