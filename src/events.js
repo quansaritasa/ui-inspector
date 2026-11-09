@@ -76,7 +76,9 @@ function uiiOnMove(e) {
 function uiiOnBlock(e) {
   // A drag that starts in the panel (scrub, resize, move) and ends outside it
   // makes the browser click the common ancestor — <html> — which would re-pin.
-  if (e.type === 'mousedown') uiiState.downInPanel = uiiFromPanel(e);
+  // pointerdown too: cancelling it below stops the browser sending mousedown,
+  // so a stale flag from the last panel press would eat the next page click.
+  if (e.type === 'mousedown' || e.type === 'pointerdown') uiiState.downInPanel = uiiFromPanel(e);
   if (uiiFromPanel(e)) return;
   e.preventDefault();
   e.stopPropagation();

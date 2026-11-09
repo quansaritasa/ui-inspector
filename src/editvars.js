@@ -48,7 +48,7 @@ function uiiValueRow(name, value, set, resetName) {
     wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+  uiiEnterKeeps(box);
   wrap.appendChild(box);
   row.append(uiiEl('span', 'n', name), wrap);
   // A row that writes exactly one property or variable gets a key for it; a

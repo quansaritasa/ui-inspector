@@ -9,7 +9,38 @@ const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 
 // Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
 // also names the pair for scripts: the field is "field-size", the control
 // inside it "size" (see uiiEl — each name is written as id and data-ui).
-function uiiFld(label, control, props) {
+// Shorthands a longhand can hide in, so "padding-top" finds `padding: 1px 8px`.
+const UII_SHORTHAND = { 'background-color': ['background'], 'font-size': ['font'], 'line-height': ['font'],
+  'font-weight': ['font'], 'font-family': ['font'] };
+for (const side of ['top', 'right', 'bottom', 'left']) {
+  UII_SHORTHAND['padding-' + side] = ['padding'];
+  UII_SHORTHAND['margin-' + side] = ['margin'];
+}
+
+// How the page's CSS writes `prop` on `el`: the last matched rule that sets it,
+// longhand or shorthand, as { code: 'font-size: 0.9rem', src: 'file.css .sel' }.
+// null when no rule does (inherited, a default, or only inline). The panel
+// shows the computed result; this is the source behind it.
+function uiiDeclared(el, prop) {
+  const heads = [prop, ...(UII_SHORTHAND[prop] || [])];
+  if (prop === 'border-color') {
+    const side = 'border-' + uiiBorderSide(el);
+    heads.push('border', side + '-color', side);
+  }
+  const rules = uiiRulesOf(el);
+  for (let i = rules.length - 1; i >= 0; i--) {
+    if (!rules[i].style) continue;
+    for (const h of heads) {
+      const v = uiiDeclValue(rules[i].style, h);
+      if (v) return { code: h + ': ' + v, src: (rules[i].file || '').split('/').pop() + ' ' + rules[i].selector };
+    }
+  }
+  return null;
+}
+
+// `el` (optional) is the element the field speaks for: its source line goes
+// under the control.
+function uiiFld(label, control, props, el) {
   const name = uiiSlug(label);
   const f = uiiEl('div', 'fld', undefined, 'field-' + name);
   const lab = uiiEl('span', 'lab', label);
@@ -23,6 +54,12 @@ function uiiFld(label, control, props) {
     lw.append(uiiResetKey([].concat(props)[0]), lab);
     f.append(lw, control);
   } else f.append(lab, control);
+  const fm = el && props && uiiDeclared(el, [].concat(props)[0]);
+  // Unless the control already spells it out (the border and font-family boxes).
+  if (fm && fm.code.slice(fm.code.indexOf(': ') + 2) !== control.value) {
+    const line = f.appendChild(uiiEl('div', 'fml', fm.code));
+    line.title = fm.src;
+  }
   return { f, lab };
 }
 
@@ -42,13 +79,20 @@ function uiiResetKey(name) {
   return b;
 }
 
+// Enter commits and the box keeps focus. Browsers fire `change` on Enter in a
+// text box on their own (as long as keydown is not cancelled); the keyup then
+// selects the text so the next typing replaces it.
+function uiiEnterKeeps(box) {
+  box.addEventListener('keyup', (e) => { if (e.key === 'Enter') box.select(); });
+}
+
 function uiiTextField(info, label, prop) {
   const box = uiiEl('input', 'tf');
   box.spellcheck = false;
   box.value = uiiEditValue(info, prop);
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  return uiiFld(label, box, prop).f;
+  uiiEnterKeeps(box);
+  return uiiFld(label, box, prop, uiiTargetEl(info, prop)).f;
 }
 
 function uiiWeightField(info) {
@@ -86,7 +130,7 @@ function uiiAlignField(info) {
     });
     seg.appendChild(b);
   }
-  return uiiFld('Align', seg, 'text-align').f;
+  return uiiFld('Align', seg, 'text-align', uiiTargetEl(info, 'text-align')).f;
 }
 
 function uiiCard(title, ...rows) {

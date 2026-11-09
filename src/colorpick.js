@@ -5,7 +5,12 @@
    shadow root, so the page's CSS cannot reach it. */
 
 // Over the panel (…003) and its var list (…004).
-const UII_CP_TWEAKS = '.cp-root { z-index: 2147483005; }';
+const UII_CP_TWEAKS = '.cp-root { z-index: 2147483005; }'
+  + ' .cp-root .cpf { margin: 0 14px 4px; padding: 6px 9px; border-radius: 8px; background: var(--cp-surface-alt);'
+  + ' border: 1px solid var(--cp-line); font-size: 11px; line-height: 1.45; }'
+  + ' .cp-root .cpf code { display: block; font: 11px ui-monospace, Consolas, monospace; color: var(--cp-ink);'
+  + ' word-break: break-all; user-select: text; }'
+  + ' .cp-root .cpf small { display: block; color: var(--cp-subtle); font-size: 10px; }';
 
 // The Text and Background swatches of the card on screen. Opening either one
 // shows both in the picker (Text tab first), so the pair is tuned together.
@@ -17,8 +22,9 @@ const UII_CP_SLOTS = [
 
 // A swatch with the surface of the <input type=color> it replaces: `.value`
 // reads and writes a #rrggbb; `onPick` gets each color picked from the panel.
-// `slot` ('text' | 'background') enrols it in the pair above.
-function uiiColorSwatch(initial, onPick, slot) {
+// `slot` ('text' | 'background') enrols it in the pair above. `formula()`
+// answers { code, src }: how the page's CSS writes this color, shown in the popup.
+function uiiColorSwatch(initial, onPick, slot, formula) {
   const btn = uiiEl('button', 'pick');
   btn.type = 'button';
   btn.title = 'Pick a color';
@@ -28,8 +34,9 @@ function uiiColorSwatch(initial, onPick, slot) {
     set: (v) => { value = v; btn.style.background = v; },
   });
   btn.value = initial;
-  if (slot) uiiCpPair[slot] = { swatch: btn, onPick };
-  btn.addEventListener('click', () => uiiOpenPicker(btn, onPick, slot));
+  const me = { swatch: btn, onPick, formula };
+  if (slot) uiiCpPair[slot] = me;
+  btn.addEventListener('click', () => uiiOpenPicker(btn, me, slot));
   return btn;
 }
 
@@ -38,11 +45,23 @@ let uiiCp = null;     // the library instance, built on first use
 let uiiCpUse = null;  // { anchor, targets: {slot: {swatch, onPick}}, last } it serves; null = none, writes ignored
 let uiiCpKind = '';   // 'pair' | 'single': the slots the instance was built with
 let uiiCpHeld = false;
+let uiiCpFormula = null; // the line in the popup that says how the CSS writes the color
+
+// Fill the formula line for the tab in view.
+function uiiShowFormula() {
+  if (!uiiCp || !uiiCpFormula || !uiiCpUse) return;
+  const f = uiiCpUse.formulas[uiiCp.activeSlot];
+  uiiCpFormula.replaceChildren();
+  uiiCpFormula.hidden = !f;
+  if (!f) return;
+  uiiCpFormula.append(uiiEl('code', '', f.code));
+  if (f.src) uiiCpFormula.append(uiiEl('small', '', f.src));
+}
 
 function uiiBuildPicker(paired) {
   // The library takes an element for a container, not a shadow root.
   const mount = uiiState.shadow.appendChild(uiiEl('div'));
-  return new UiiColorPicker({
+  const picker = new UiiColorPicker({
     container: mount,
     mode: 'popover',
     showAlpha: true, // #rrggbb, or #rrggbbaa when translucent
@@ -64,9 +83,17 @@ function uiiBuildPicker(paired) {
       uiiCpUse = null;
     },
   });
+  // Above the editor, where it reads with the tabs; follows a tab change.
+  uiiCpFormula = uiiEl('div', 'cpf');
+  picker.root.querySelector('.cp-editor').before(uiiCpFormula);
+  const later = () => setTimeout(uiiShowFormula, 0);
+  picker.root.addEventListener('click', later);
+  picker.root.addEventListener('keyup', later);
+  return picker;
 }
 
-function uiiOpenPicker(anchor, onPick, slot) {
+function uiiOpenPicker(anchor, me, slot) {
+  const onPick = me.onPick;
   // Both halves of the pair must be on screen, else this swatch goes alone.
   const mate = slot === 'text' ? 'background' : 'text';
   const peer = slot && uiiCpPair[mate];
@@ -76,18 +103,21 @@ function uiiOpenPicker(anchor, onPick, slot) {
   if (uiiCp && uiiCp.isOpen && uiiCpUse && uiiCpUse.anchor === anchor) { uiiCp.dismiss(); return; }
   if (uiiCp && uiiCp.isOpen) uiiCp.close();
   const kind = paired ? 'pair' : 'single';
-  if (uiiCp && uiiCpKind !== kind) { uiiCp.destroy(); uiiCp = null; }
+  if (uiiCp && uiiCpKind !== kind) { uiiCp.destroy(); uiiCp = uiiCpFormula = null; }
   if (!uiiCp) { uiiCp = uiiBuildPicker(paired); uiiCpKind = kind; }
   // setColors emits onChange: aim at nothing first, or switching swatches writes.
   uiiCpUse = null;
   const targets = paired
-    ? { [slot]: { swatch: anchor, onPick }, [mate]: peer }
-    : { color: { swatch: anchor, onPick } };
+    ? { [slot]: me, [mate]: peer }
+    : { color: me };
   const last = Object.fromEntries(Object.entries(targets).map(([id, t]) => [id, t.swatch.value]));
   uiiCp.setColors(last);
   if (paired) uiiCp.setActiveSlot(slot);
-  uiiCpUse = { anchor, targets, last };
+  const formulas = {};
+  for (const id of Object.keys(targets)) formulas[id] = targets[id].formula && targets[id].formula();
+  uiiCpUse = { anchor, targets, last, formulas };
   uiiCp.open(anchor);
+  uiiShowFormula();
 }
 
 function uiiColorPickerOpen() { return !!uiiCp && uiiCp.isOpen; }
@@ -96,6 +126,6 @@ function uiiCloseColorPicker() { if (uiiColorPickerOpen()) uiiCp.close(); }
 function uiiDestroyColorPicker() {
   if (uiiCpHeld) { uiiCpHeld = false; uiiHold(false); } // never leave an undo step open
   if (uiiCp) uiiCp.destroy();
-  uiiCp = uiiCpUse = null;
+  uiiCp = uiiCpUse = uiiCpFormula = null;
   uiiCpKind = '';
 }

@@ -71,8 +71,8 @@ function uiiNumWriter(c) {
     if (!isNaN(start)) write(String(Math.max(min, Math.round((start + steps * step()) * 1000) / 1000)));
   };
   box.addEventListener('change', () => write(box.value));
+  uiiEnterKeeps(box);
   box.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); box.blur(); }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       nudge(cur(), (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1));
@@ -119,7 +119,7 @@ function uiiNumField(info, label, props, opt) {
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
     : conv(sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
-  const fld = uiiFld(label, wrap, props);
+  const fld = uiiFld(label, wrap, props, target);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));

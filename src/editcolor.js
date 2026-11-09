@@ -14,17 +14,31 @@ const UII_PAIR_SLOT = { color: 'text', 'background-color': 'background' };
 // The side the border color field speaks for: the first one that draws a
 // line. A rule like `td { border-bottom: 1px solid var(--x) }` leaves the top
 // at currentColor, which is not the color anyone sees.
-function uiiBorderSide(el) {
+function uiiBorderDrawnSide(el) {
   const cs = getComputedStyle(el);
-  const on = ['top', 'right', 'bottom', 'left'].find((s) =>
+  return ['top', 'right', 'bottom', 'left'].find((s) =>
     parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
-  return on || 'top';
+}
+function uiiBorderSide(el) { return uiiBorderDrawnSide(el) || 'top'; }
+
+// Like uiiVarName, but only a var() that IS the color (or a token of a
+// shorthand): one inside color-mix(), rgb(from …) and the like only feeds a
+// derived color, and the field would show the variable's, not the result.
+function uiiColorVarName(v) {
+  const s = String(v || '');
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    else if (depth === 0 && s.startsWith('var(', i) && !/[\w-]/.test(s[i - 1] || '')) return uiiVarName(s.slice(i));
+  }
+  return '';
 }
 
 // The variable this color comes from, '' when it is written out in full.
 function uiiColorVarOf(el, prop) {
-  const d = uiiAnyDecl(el, prop, uiiVarName) && uiiRuleDecl(el, prop);
-  const named = uiiVarName(d && d.value);
+  const d = uiiAnyDecl(el, prop, uiiColorVarName) && uiiRuleDecl(el, prop);
+  const named = uiiColorVarName(d && d.value);
   if (named || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
   const heads = [UII_COLOR_SHORTHAND[prop]];
@@ -32,7 +46,7 @@ function uiiColorVarOf(el, prop) {
   for (let i = rules.length - 1; i >= 0; i--) {
     if (!rules[i].style) continue;
     for (const h of heads) {
-      const n = uiiVarName(uiiDeclValue(rules[i].style, h));
+      const n = uiiColorVarName(uiiDeclValue(rules[i].style, h));
       if (n) return n;
     }
   }
@@ -126,7 +140,7 @@ function uiiCloseVarList() {
 function uiiColorField(info, label, prop) {
   const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
-  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop]); // write is defined below, used on click
+  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop], () => uiiDeclared(target, prop)); // write is defined below, used on click
   const box = uiiEl('input');
   box.spellcheck = false;
   const named = uiiColorVarOf(target, prop);
@@ -146,11 +160,16 @@ function uiiColorField(info, label, prop) {
     show(v);
   };
   box.addEventListener('change', () => write(box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+  uiiEnterKeeps(box);
   sel.addEventListener('change', () => {
     uiiSet(info, prop, sel.value ? 'var(' + sel.value + ')' : box.value.trim());
     if (sel.value) show(uiiVarHex(info, sel.value, target));
   });
   wrap.append(pick, box, sel);
-  return uiiFld(label, wrap, prop).f;
+  // No side draws a line: the color is real but invisible. Still editable.
+  if (prop === 'border-color' && !uiiBorderDrawnSide(target)) {
+    wrap.classList.add('idle');
+    wrap.title = 'No border is drawn (style none or width 0), so this color is not visible yet';
+  }
+  return uiiFld(label, wrap, prop, target).f;
 }

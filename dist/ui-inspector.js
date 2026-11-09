@@ -2539,11 +2539,13 @@ const UII_CSS = `
 .fld .rs:disabled, .vr .rs:disabled { opacity: .38; cursor: default; }
 .fld .rs:not(:disabled), .vr .rs:not(:disabled) { opacity: .9; color: #0f766e; }
 .fld .lab { color: #6b7280; font-size: 11px; user-select: none; }
+.fld .fml { font: 10px/1.4 ui-monospace, Consolas, monospace; color: #6b7280; word-break: break-all; user-select: text; }
 .fld .lab.scrub { cursor: ew-resize; }
 .nf, .tf, .seg { height: 26px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
 .nf { display: flex; align-items: center; gap: 4px; padding: 0 6px; min-width: 0; }
 .nf:focus-within, .tf:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
 .nf input, .tf { flex: 1; min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #111827; }
+.nf.idle input, .nf.idle .pick { opacity: .5; }
 .nf input { border: 0; background: none; outline: none; padding: 0; }
 .tf { flex: none; padding: 0 6px; }
 .nf select.u { appearance: none; color: #9ca3af; font-size: 10px; text-transform: uppercase; max-width: 45%; text-overflow: ellipsis; padding: 0 2px; }
@@ -3643,7 +3645,9 @@ function uiiOnMove(e) {
 function uiiOnBlock(e) {
   // A drag that starts in the panel (scrub, resize, move) and ends outside it
   // makes the browser click the common ancestor — <html> — which would re-pin.
-  if (e.type === 'mousedown') uiiState.downInPanel = uiiFromPanel(e);
+  // pointerdown too: cancelling it below stops the browser sending mousedown,
+  // so a stale flag from the last panel press would eat the next page click.
+  if (e.type === 'mousedown' || e.type === 'pointerdown') uiiState.downInPanel = uiiFromPanel(e);
   if (uiiFromPanel(e)) return;
   e.preventDefault();
   e.stopPropagation();
@@ -4520,8 +4524,8 @@ function uiiNumWriter(c) {
     if (!isNaN(start)) write(String(Math.max(min, Math.round((start + steps * step()) * 1000) / 1000)));
   };
   box.addEventListener('change', () => write(box.value));
+  uiiEnterKeeps(box);
   box.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); box.blur(); }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       nudge(cur(), (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1));
@@ -4568,7 +4572,7 @@ function uiiNumField(info, label, props, opt) {
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
     : conv(sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
-  const fld = uiiFld(label, wrap, props);
+  const fld = uiiFld(label, wrap, props, target);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));
@@ -4644,7 +4648,12 @@ function uiiScrub(handle, read, apply) {
    shadow root, so the page's CSS cannot reach it. */
 
 // Over the panel (…003) and its var list (…004).
-const UII_CP_TWEAKS = '.cp-root { z-index: 2147483005; }';
+const UII_CP_TWEAKS = '.cp-root { z-index: 2147483005; }'
+  + ' .cp-root .cpf { margin: 0 14px 4px; padding: 6px 9px; border-radius: 8px; background: var(--cp-surface-alt);'
+  + ' border: 1px solid var(--cp-line); font-size: 11px; line-height: 1.45; }'
+  + ' .cp-root .cpf code { display: block; font: 11px ui-monospace, Consolas, monospace; color: var(--cp-ink);'
+  + ' word-break: break-all; user-select: text; }'
+  + ' .cp-root .cpf small { display: block; color: var(--cp-subtle); font-size: 10px; }';
 
 // The Text and Background swatches of the card on screen. Opening either one
 // shows both in the picker (Text tab first), so the pair is tuned together.
@@ -4656,8 +4665,9 @@ const UII_CP_SLOTS = [
 
 // A swatch with the surface of the <input type=color> it replaces: `.value`
 // reads and writes a #rrggbb; `onPick` gets each color picked from the panel.
-// `slot` ('text' | 'background') enrols it in the pair above.
-function uiiColorSwatch(initial, onPick, slot) {
+// `slot` ('text' | 'background') enrols it in the pair above. `formula()`
+// answers { code, src }: how the page's CSS writes this color, shown in the popup.
+function uiiColorSwatch(initial, onPick, slot, formula) {
   const btn = uiiEl('button', 'pick');
   btn.type = 'button';
   btn.title = 'Pick a color';
@@ -4667,8 +4677,9 @@ function uiiColorSwatch(initial, onPick, slot) {
     set: (v) => { value = v; btn.style.background = v; },
   });
   btn.value = initial;
-  if (slot) uiiCpPair[slot] = { swatch: btn, onPick };
-  btn.addEventListener('click', () => uiiOpenPicker(btn, onPick, slot));
+  const me = { swatch: btn, onPick, formula };
+  if (slot) uiiCpPair[slot] = me;
+  btn.addEventListener('click', () => uiiOpenPicker(btn, me, slot));
   return btn;
 }
 
@@ -4677,11 +4688,23 @@ let uiiCp = null;     // the library instance, built on first use
 let uiiCpUse = null;  // { anchor, targets: {slot: {swatch, onPick}}, last } it serves; null = none, writes ignored
 let uiiCpKind = '';   // 'pair' | 'single': the slots the instance was built with
 let uiiCpHeld = false;
+let uiiCpFormula = null; // the line in the popup that says how the CSS writes the color
+
+// Fill the formula line for the tab in view.
+function uiiShowFormula() {
+  if (!uiiCp || !uiiCpFormula || !uiiCpUse) return;
+  const f = uiiCpUse.formulas[uiiCp.activeSlot];
+  uiiCpFormula.replaceChildren();
+  uiiCpFormula.hidden = !f;
+  if (!f) return;
+  uiiCpFormula.append(uiiEl('code', '', f.code));
+  if (f.src) uiiCpFormula.append(uiiEl('small', '', f.src));
+}
 
 function uiiBuildPicker(paired) {
   // The library takes an element for a container, not a shadow root.
   const mount = uiiState.shadow.appendChild(uiiEl('div'));
-  return new UiiColorPicker({
+  const picker = new UiiColorPicker({
     container: mount,
     mode: 'popover',
     showAlpha: true, // #rrggbb, or #rrggbbaa when translucent
@@ -4703,9 +4726,17 @@ function uiiBuildPicker(paired) {
       uiiCpUse = null;
     },
   });
+  // Above the editor, where it reads with the tabs; follows a tab change.
+  uiiCpFormula = uiiEl('div', 'cpf');
+  picker.root.querySelector('.cp-editor').before(uiiCpFormula);
+  const later = () => setTimeout(uiiShowFormula, 0);
+  picker.root.addEventListener('click', later);
+  picker.root.addEventListener('keyup', later);
+  return picker;
 }
 
-function uiiOpenPicker(anchor, onPick, slot) {
+function uiiOpenPicker(anchor, me, slot) {
+  const onPick = me.onPick;
   // Both halves of the pair must be on screen, else this swatch goes alone.
   const mate = slot === 'text' ? 'background' : 'text';
   const peer = slot && uiiCpPair[mate];
@@ -4715,18 +4746,21 @@ function uiiOpenPicker(anchor, onPick, slot) {
   if (uiiCp && uiiCp.isOpen && uiiCpUse && uiiCpUse.anchor === anchor) { uiiCp.dismiss(); return; }
   if (uiiCp && uiiCp.isOpen) uiiCp.close();
   const kind = paired ? 'pair' : 'single';
-  if (uiiCp && uiiCpKind !== kind) { uiiCp.destroy(); uiiCp = null; }
+  if (uiiCp && uiiCpKind !== kind) { uiiCp.destroy(); uiiCp = uiiCpFormula = null; }
   if (!uiiCp) { uiiCp = uiiBuildPicker(paired); uiiCpKind = kind; }
   // setColors emits onChange: aim at nothing first, or switching swatches writes.
   uiiCpUse = null;
   const targets = paired
-    ? { [slot]: { swatch: anchor, onPick }, [mate]: peer }
-    : { color: { swatch: anchor, onPick } };
+    ? { [slot]: me, [mate]: peer }
+    : { color: me };
   const last = Object.fromEntries(Object.entries(targets).map(([id, t]) => [id, t.swatch.value]));
   uiiCp.setColors(last);
   if (paired) uiiCp.setActiveSlot(slot);
-  uiiCpUse = { anchor, targets, last };
+  const formulas = {};
+  for (const id of Object.keys(targets)) formulas[id] = targets[id].formula && targets[id].formula();
+  uiiCpUse = { anchor, targets, last, formulas };
   uiiCp.open(anchor);
+  uiiShowFormula();
 }
 
 function uiiColorPickerOpen() { return !!uiiCp && uiiCp.isOpen; }
@@ -4735,7 +4769,7 @@ function uiiCloseColorPicker() { if (uiiColorPickerOpen()) uiiCp.close(); }
 function uiiDestroyColorPicker() {
   if (uiiCpHeld) { uiiCpHeld = false; uiiHold(false); } // never leave an undo step open
   if (uiiCp) uiiCp.destroy();
-  uiiCp = uiiCpUse = null;
+  uiiCp = uiiCpUse = uiiCpFormula = null;
   uiiCpKind = '';
 }
 
@@ -4755,17 +4789,31 @@ const UII_PAIR_SLOT = { color: 'text', 'background-color': 'background' };
 // The side the border color field speaks for: the first one that draws a
 // line. A rule like `td { border-bottom: 1px solid var(--x) }` leaves the top
 // at currentColor, which is not the color anyone sees.
-function uiiBorderSide(el) {
+function uiiBorderDrawnSide(el) {
   const cs = getComputedStyle(el);
-  const on = ['top', 'right', 'bottom', 'left'].find((s) =>
+  return ['top', 'right', 'bottom', 'left'].find((s) =>
     parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
-  return on || 'top';
+}
+function uiiBorderSide(el) { return uiiBorderDrawnSide(el) || 'top'; }
+
+// Like uiiVarName, but only a var() that IS the color (or a token of a
+// shorthand): one inside color-mix(), rgb(from …) and the like only feeds a
+// derived color, and the field would show the variable's, not the result.
+function uiiColorVarName(v) {
+  const s = String(v || '');
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    else if (depth === 0 && s.startsWith('var(', i) && !/[\w-]/.test(s[i - 1] || '')) return uiiVarName(s.slice(i));
+  }
+  return '';
 }
 
 // The variable this color comes from, '' when it is written out in full.
 function uiiColorVarOf(el, prop) {
-  const d = uiiAnyDecl(el, prop, uiiVarName) && uiiRuleDecl(el, prop);
-  const named = uiiVarName(d && d.value);
+  const d = uiiAnyDecl(el, prop, uiiColorVarName) && uiiRuleDecl(el, prop);
+  const named = uiiColorVarName(d && d.value);
   if (named || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
   const heads = [UII_COLOR_SHORTHAND[prop]];
@@ -4773,7 +4821,7 @@ function uiiColorVarOf(el, prop) {
   for (let i = rules.length - 1; i >= 0; i--) {
     if (!rules[i].style) continue;
     for (const h of heads) {
-      const n = uiiVarName(uiiDeclValue(rules[i].style, h));
+      const n = uiiColorVarName(uiiDeclValue(rules[i].style, h));
       if (n) return n;
     }
   }
@@ -4867,7 +4915,7 @@ function uiiCloseVarList() {
 function uiiColorField(info, label, prop) {
   const target = uiiTargetEl(info, prop);
   const wrap = uiiEl('span', 'nf');
-  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop]); // write is defined below, used on click
+  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop], () => uiiDeclared(target, prop)); // write is defined below, used on click
   const box = uiiEl('input');
   box.spellcheck = false;
   const named = uiiColorVarOf(target, prop);
@@ -4887,13 +4935,18 @@ function uiiColorField(info, label, prop) {
     show(v);
   };
   box.addEventListener('change', () => write(box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+  uiiEnterKeeps(box);
   sel.addEventListener('change', () => {
     uiiSet(info, prop, sel.value ? 'var(' + sel.value + ')' : box.value.trim());
     if (sel.value) show(uiiVarHex(info, sel.value, target));
   });
   wrap.append(pick, box, sel);
-  return uiiFld(label, wrap, prop).f;
+  // No side draws a line: the color is real but invisible. Still editable.
+  if (prop === 'border-color' && !uiiBorderDrawnSide(target)) {
+    wrap.classList.add('idle');
+    wrap.title = 'No border is drawn (style none or width 0), so this color is not visible yet';
+  }
+  return uiiFld(label, wrap, prop, target).f;
 }
 
 /* ================= the page's variables =================
@@ -4946,7 +4999,7 @@ function uiiValueRow(name, value, set, resetName) {
     wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
+  uiiEnterKeeps(box);
   wrap.appendChild(box);
   row.append(uiiEl('span', 'n', name), wrap);
   // A row that writes exactly one property or variable gets a key for it; a
@@ -5250,7 +5303,38 @@ const UII_WEIGHTS = [[100, 'Thin'], [200, 'Extra Light'], [300, 'Light'], [400, 
 // Labelled field: <div.fld><span.lab>Size</span>{control}</div>. The label
 // also names the pair for scripts: the field is "field-size", the control
 // inside it "size" (see uiiEl — each name is written as id and data-ui).
-function uiiFld(label, control, props) {
+// Shorthands a longhand can hide in, so "padding-top" finds `padding: 1px 8px`.
+const UII_SHORTHAND = { 'background-color': ['background'], 'font-size': ['font'], 'line-height': ['font'],
+  'font-weight': ['font'], 'font-family': ['font'] };
+for (const side of ['top', 'right', 'bottom', 'left']) {
+  UII_SHORTHAND['padding-' + side] = ['padding'];
+  UII_SHORTHAND['margin-' + side] = ['margin'];
+}
+
+// How the page's CSS writes `prop` on `el`: the last matched rule that sets it,
+// longhand or shorthand, as { code: 'font-size: 0.9rem', src: 'file.css .sel' }.
+// null when no rule does (inherited, a default, or only inline). The panel
+// shows the computed result; this is the source behind it.
+function uiiDeclared(el, prop) {
+  const heads = [prop, ...(UII_SHORTHAND[prop] || [])];
+  if (prop === 'border-color') {
+    const side = 'border-' + uiiBorderSide(el);
+    heads.push('border', side + '-color', side);
+  }
+  const rules = uiiRulesOf(el);
+  for (let i = rules.length - 1; i >= 0; i--) {
+    if (!rules[i].style) continue;
+    for (const h of heads) {
+      const v = uiiDeclValue(rules[i].style, h);
+      if (v) return { code: h + ': ' + v, src: (rules[i].file || '').split('/').pop() + ' ' + rules[i].selector };
+    }
+  }
+  return null;
+}
+
+// `el` (optional) is the element the field speaks for: its source line goes
+// under the control.
+function uiiFld(label, control, props, el) {
   const name = uiiSlug(label);
   const f = uiiEl('div', 'fld', undefined, 'field-' + name);
   const lab = uiiEl('span', 'lab', label);
@@ -5264,6 +5348,12 @@ function uiiFld(label, control, props) {
     lw.append(uiiResetKey([].concat(props)[0]), lab);
     f.append(lw, control);
   } else f.append(lab, control);
+  const fm = el && props && uiiDeclared(el, [].concat(props)[0]);
+  // Unless the control already spells it out (the border and font-family boxes).
+  if (fm && fm.code.slice(fm.code.indexOf(': ') + 2) !== control.value) {
+    const line = f.appendChild(uiiEl('div', 'fml', fm.code));
+    line.title = fm.src;
+  }
   return { f, lab };
 }
 
@@ -5283,13 +5373,20 @@ function uiiResetKey(name) {
   return b;
 }
 
+// Enter commits and the box keeps focus. Browsers fire `change` on Enter in a
+// text box on their own (as long as keydown is not cancelled); the keyup then
+// selects the text so the next typing replaces it.
+function uiiEnterKeeps(box) {
+  box.addEventListener('keyup', (e) => { if (e.key === 'Enter') box.select(); });
+}
+
 function uiiTextField(info, label, prop) {
   const box = uiiEl('input', 'tf');
   box.spellcheck = false;
   box.value = uiiEditValue(info, prop);
   box.addEventListener('change', () => uiiSet(info, prop, box.value.trim()));
-  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } });
-  return uiiFld(label, box, prop).f;
+  uiiEnterKeeps(box);
+  return uiiFld(label, box, prop, uiiTargetEl(info, prop)).f;
 }
 
 function uiiWeightField(info) {
@@ -5327,7 +5424,7 @@ function uiiAlignField(info) {
     });
     seg.appendChild(b);
   }
-  return uiiFld('Align', seg, 'text-align').f;
+  return uiiFld('Align', seg, 'text-align', uiiTargetEl(info, 'text-align')).f;
 }
 
 function uiiCard(title, ...rows) {

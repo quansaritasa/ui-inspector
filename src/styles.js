@@ -164,11 +164,13 @@ const UII_CSS = `
 .fld .rs:disabled, .vr .rs:disabled { opacity: .38; cursor: default; }
 .fld .rs:not(:disabled), .vr .rs:not(:disabled) { opacity: .9; color: #0f766e; }
 .fld .lab { color: #6b7280; font-size: 11px; user-select: none; }
+.fld .fml { font: 10px/1.4 ui-monospace, Consolas, monospace; color: #6b7280; word-break: break-all; user-select: text; }
 .fld .lab.scrub { cursor: ew-resize; }
 .nf, .tf, .seg { height: 26px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
 .nf { display: flex; align-items: center; gap: 4px; padding: 0 6px; min-width: 0; }
 .nf:focus-within, .tf:focus { outline: 2px solid #3b82f6; outline-offset: -1px; }
 .nf input, .tf { flex: 1; min-width: 0; font: 12px ui-monospace, Menlo, monospace; color: #111827; }
+.nf.idle input, .nf.idle .pick { opacity: .5; }
 .nf input { border: 0; background: none; outline: none; padding: 0; }
 .tf { flex: none; padding: 0 6px; }
 .nf select.u { appearance: none; color: #9ca3af; font-size: 10px; text-transform: uppercase; max-width: 45%; text-overflow: ellipsis; padding: 0 2px; }
