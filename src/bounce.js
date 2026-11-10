@@ -18,7 +18,10 @@
      element was just selected).
    opts: scale (dip depth, .92), over (overshoot, .06), press (dip ms, 70),
      release (spring ms, 360), to (attach only: (matched) => element to animate,
-     e.g. press a label, bounce the tiny checkbox inside it).
+     e.g. press a label, bounce the tiny checkbox inside it), eager (false: play
+     dip and spring from the press at once instead of holding the dip until
+     release; for controls whose click handler does heavy synchronous work, which
+     would otherwise delay a spring that only starts at release).
 
    Use as <script src="bounce.js"> (global `Bounce`), require('./bounce'), or
    inlined by build.js (everything above the marker below). */
@@ -46,18 +49,30 @@ const Bounce = (() => {
       if (running.get(el) === drop) running.delete(el);
     };
     running.set(el, drop);
+    const springAt = (delay) => el.animate([
+      { transform: `scale(${s})` },
+      { transform: `scale(${1 + o.over})`, offset: 0.45 },
+      { transform: `scale(${1 - o.over / 3})`, offset: 0.75 },
+      { transform: 'scale(1)' },
+    ], { delay, duration: o.release, easing: 'ease-out', fill: 'forwards' });
+    if (o.eager) {
+      // Dip and the same spring, both started now, the spring delayed by the dip.
+      // Created at release the spring could not start before the frame after the
+      // click handler, and a handler that re-renders synchronously holds that
+      // frame back: the spring then looks late. Started here it is already
+      // running when the handler blocks, and it is the very curve a held press
+      // gets, so the motion is no less smooth.
+      spring = springAt(o.press);
+      spring.onfinish = () => { hold.cancel(); spring.cancel(); if (running.get(el) === drop) running.delete(el); };
+      return { up() {}, drop };
+    }
     const up = () => {
       if (released) return;
       released = true;
       // A tap shorter than the dip would snap: let the dip finish, then spring.
       // The wait is the animation's own delay, not a timer: a click handler that
       // blocks the main thread right after release must not hold the spring back.
-      spring = el.animate([
-        { transform: `scale(${s})` },
-        { transform: `scale(${1 + o.over})`, offset: 0.45 },
-        { transform: `scale(${1 - o.over / 3})`, offset: 0.75 },
-        { transform: 'scale(1)' },
-      ], { delay: Math.max(0, o.press - (performance.now() - t0)), duration: o.release, easing: 'ease-out', fill: 'forwards' });
+      spring = springAt(Math.max(0, o.press - (performance.now() - t0)));
       // Both fills hold scale(1) or the dip until here, so neither flashes if this runs late.
       spring.onfinish = () => { hold.cancel(); spring.cancel(); if (running.get(el) === drop) running.delete(el); };
     };
