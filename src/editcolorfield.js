@@ -18,7 +18,7 @@ function uiiColorField(info, label, prop, own, compact) {
   const put = (v) => (own ? uiiSetOwn(info.el, prop, v) : painter ? uiiSetOwn(painter, prop, v) : uiiSet(info, prop, v));
   const cur = () => {
     // On screen: read live, an edit elsewhere may or may not reach this element.
-    if (!own && prop === 'background-color') return uiiToHex(uiiEffectiveBg(info.el).rgb);
+    if (!own && prop === 'background-color') return uiiAtRest(info.el, info.hoverDecls, () => uiiToHex(uiiEffectiveBg(info.el).rgb));
     if (!own && prop === 'color') return uiiToHex(getComputedStyle(target).color);
     if (!own) return uiiEditValue(info, prop);
     const e = uiiEditsFor(info.el, false);
@@ -78,10 +78,25 @@ function uiiColorSlot(info, label, prop, same) {
   return f;
 }
 
+// Read-only: the color a :hover / :active rule paints. Edit it in the States box.
+function uiiStateRow(state, c) {
+  const row = uiiEl('div', 'nf hv');
+  const chip = uiiEl('i', 'hvchip');
+  chip.style.background = c.hex;
+  const txt = uiiEl('span', 'hvtxt', c.hex + (c.vars.length ? ' · ' + c.vars[0] : ''));
+  row.title = 'On ' + state + ' — ' + c.selector;
+  row.append(uiiEl('span', 'os', '↳ ' + state), chip, txt);
+  return row;
+}
+
 function uiiColorCard(info) {
   uiiSyncReset();
   const text = uiiTargetEl(info, 'color');
+  // At rest: the variable the Background picker names is the one that paints
+  // without the pointer, not the :hover one that wins while it is over.
+  const bg = uiiAtRest(info.el, info.hoverDecls, () => uiiColorSlot(info, 'Background', 'background-color', !info.bg.from));
+  for (const state of ['hover', 'active']) if (info.bgStates[state]) bg.appendChild(uiiStateRow(state, info.bgStates[state]));
   return uiiCard('Color', uiiPair(
     uiiColorSlot(info, 'Text', 'color', getComputedStyle(info.el).color === getComputedStyle(text).color),
-    uiiColorSlot(info, 'Background', 'background-color', !info.bg.from)));
+    bg));
 }
