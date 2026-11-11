@@ -12,14 +12,21 @@ function uiiKey(el) {
   return uiiSlug(el.localName + (cls ? '-' + cls : ''));
 }
 
+// Position of every element under `up` among those of its kind, one pass.
+function uiiKindIndex(up) {
+  const seen = {}, at = new Map();
+  for (const o of up.querySelectorAll('*')) { const k = uiiKey(o); at.set(o, seen[k] = (seen[k] || 0) + 1); }
+  return at;
+}
+
 function uiiAutoId(sh) {
   const run = () => {
+    const idx = new Map();
     for (const el of sh.querySelectorAll(UII_ID_ROOTS.split(', ').map((r) => r + ' *:not([id])').join(', '))) {
       const up = el.parentElement.closest('[id]');
       const key = uiiKey(el);
-      let n = 1;
-      for (const o of up.querySelectorAll('*')) { if (o === el) break; if (uiiKey(o) === key) n++; }
-      let id = up.id + '-' + key + '-' + n;
+      if (!idx.has(up)) idx.set(up, uiiKindIndex(up));
+      let id = up.id + '-' + key + '-' + idx.get(up).get(el);
       while (sh.getElementById(id)) id += '-x';
       el.id = id;
       el.setAttribute('data-ui', id);

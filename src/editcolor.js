@@ -146,9 +146,16 @@ function uiiCloseVarList() {
 
 // Typing a color string applies it on the spot; Enter is no longer needed.
 // Half-typed text ("#1f", "rgb(") is not a color yet and is left alone.
+// One burst of typing is one undo step, closed 600ms after the last key.
 function uiiLiveColor(box, write) {
+  let timer = 0;
+  const end = () => { if (timer) { clearTimeout(timer); timer = 0; uiiUndoEnd(); } };
+  box.addEventListener('change', end);
   box.addEventListener('input', () => {
     const v = box.value.trim();
-    if (v && CSS.supports('color', v)) write(v);
+    if (!v || !CSS.supports('color', v)) return;
+    if (timer) clearTimeout(timer); else uiiUndoBegin();
+    timer = setTimeout(end, 600);
+    write(v);
   });
 }

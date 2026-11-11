@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.0 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.1 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -2559,6 +2559,11 @@ const UII_CSS = `
 .st button:hover { color: #111827; background: #e5e7eb; }
 .nf button.cv { border: 0; background: none; color: #0f766e; font: inherit; font-size: 10px; max-width: 46%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; cursor: pointer; }
+`;
+
+/* ================= shadow-DOM stylesheet, part 2 ================= */
+
+const UII_CSS2 = `
 .nf button.cv::after { content: ' ▾'; color: #9ca3af; }
 /* Border style: the same button and list, a stroke of the style in each row. */
 .nf button.cv.pl { flex: 1; max-width: none; height: 100%; color: #374151; font: 12px ui-monospace, Menlo, monospace;
@@ -2886,6 +2891,7 @@ function uiiEditCount() {
 //   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
 function uiiFormatChanges() {
   const L = ['Apply these CSS changes (final values) by editing each rule in place.'
+    + ' A declaration with no marker replaces the value already in the rule;'
     + ' /* add */ = add the line; /* new rule */ = create the rule.'
     + ' Keep var()/calc() as written.'];
   for (const [head, decls] of uiiChangeLines()) L.push(head + ' { ' + decls.join('; ') + '; }');
@@ -3404,7 +3410,7 @@ function uiiMount() {
   host.setAttribute('data-uii', '');
   const sh = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = UII_CSS + UII_CP_CSS + UII_CP_TWEAKS;
+  style.textContent = UII_CSS + UII_CSS2 + UII_CP_CSS + UII_CP_TWEAKS;
   sh.appendChild(style);
   const mk = (cls) => { const d = document.createElement('div'); d.className = cls; sh.appendChild(d); return d; };
   S.layer = mk('layer');
@@ -3470,80 +3476,6 @@ function uiiOpenAtPointer() {
   const el = uiiSnap(document.elementFromPoint(S.mx, S.my), false);
   if (!el || el === document.body || el === document.documentElement || S.host.contains(el)) return;
   uiiSelect(el);
-}
-
-// Say something in the badge for a moment, then let it fade back out. The
-// badge is the one piece of chrome on screen whether the panel is open,
-// minimised or closed, so it is where a keyboard action reports itself.
-function uiiFlash(text) {
-  const S = uiiState;
-  if (!S.badge) return;
-  clearTimeout(S.badgeTimer);
-  S.badge.textContent = text;
-  S.badge.classList.remove('off');
-  S.badgeTimer = setTimeout(() => {
-    if (!S.badge) return;
-    S.badge.innerHTML = S.badgeHtml;
-    S.badge.classList.add('off');
-  }, 1200);
-}
-
-// The same kind of message beside the pointer, where the eye already is —
-// a button or the badge can sit far from the click or key press.
-function uiiPointerSay(text) {
-  const S = uiiState;
-  const t = S.ptrToast;
-  if (!t || !S.pos) return;
-  t.textContent = text;
-  t.classList.remove('off');
-  uiiPlacePtrToast();
-  clearTimeout(S.ptrTimer);
-  S.ptrTimer = setTimeout(() => { if (S.ptrToast) S.ptrToast.classList.add('off'); }, 1200);
-}
-
-// Below-right of the cursor, flipped to the other side near an edge. Called
-// on every pointer move while the toast shows, so it follows the cursor. The
-// color picker may hold back pointer moves while open; then the toast would
-// otherwise stay where the pick started (the 💧 key) instead of the click.
-function uiiPlacePtrToast() {
-  const S = uiiState;
-  const t = S.ptrToast;
-  t.style.left = S.mx + 14 + 'px';
-  t.style.top = S.my + 18 + 'px';
-  const r = t.getBoundingClientRect();
-  if (r.right > innerWidth) t.style.left = Math.max(0, S.mx - 8 - r.width) + 'px';
-  if (r.bottom > innerHeight) t.style.top = Math.max(0, S.my - 8 - r.height) + 'px';
-}
-
-// Normal view: hide every outline and band, and hand the pointer back to the
-// page, so a live edit can be judged on the real screen. The panel stays open
-// with its edits, so the next press returns to a pinned element, not a blank
-// one. Entering it unbinds the capture listeners — that is what makes the app
-// clickable again — so nothing redraws until it is left.
-function uiiPeek(on) {
-  const S = uiiState;
-  if (!S.on) return;
-  const want = on === undefined ? !S.peek : !!on;
-  if (want === S.peek) return;
-  S.peek = want;
-  S.host.classList.toggle('peek', want);
-  if (want) {
-    uiiUnbindEvents();
-    if (S.raf) cancelAnimationFrame(S.raf);
-    clearTimeout(S.drawTimer);
-    S.raf = 0;
-    uiiSetHover(null);
-  } else {
-    uiiBindEvents();
-    uiiDrawOutlines();
-    // The page may have scrolled or re-rendered while the overlay was off.
-    if (S.selected && S.selected.isConnected) uiiDrawSpacing(S.selected);
-    uiiDrawPicks();
-  }
-  const P = S.panel;
-  if (!P || !P.peek) return;
-  P.peek.classList.toggle('on', want);
-  P.peek.title = want ? 'Back to inspect (V)' : 'Normal view — hide the overlay and use the page (V)';
 }
 
 function uiiFromPanel(e) {
@@ -3655,6 +3587,80 @@ function uiiScheduleDraw() {
   };
   const wait = (S.drawEnd || 0) + 3 * (S.drawMs || 0) - performance.now();
   if (wait > 0) { S.raf = -1; S.drawTimer = setTimeout(go, wait); } else go();
+}
+
+// Say something in the badge for a moment, then let it fade back out. The
+// badge is the one piece of chrome on screen whether the panel is open,
+// minimised or closed, so it is where a keyboard action reports itself.
+function uiiFlash(text) {
+  const S = uiiState;
+  if (!S.badge) return;
+  clearTimeout(S.badgeTimer);
+  S.badge.textContent = text;
+  S.badge.classList.remove('off');
+  S.badgeTimer = setTimeout(() => {
+    if (!S.badge) return;
+    S.badge.innerHTML = S.badgeHtml;
+    S.badge.classList.add('off');
+  }, 1200);
+}
+
+// The same kind of message beside the pointer, where the eye already is —
+// a button or the badge can sit far from the click or key press.
+function uiiPointerSay(text) {
+  const S = uiiState;
+  const t = S.ptrToast;
+  if (!t || !S.pos) return;
+  t.textContent = text;
+  t.classList.remove('off');
+  uiiPlacePtrToast();
+  clearTimeout(S.ptrTimer);
+  S.ptrTimer = setTimeout(() => { if (S.ptrToast) S.ptrToast.classList.add('off'); }, 1200);
+}
+
+// Below-right of the cursor, flipped to the other side near an edge. Called
+// on every pointer move while the toast shows, so it follows the cursor. The
+// color picker may hold back pointer moves while open; then the toast would
+// otherwise stay where the pick started (the 💧 key) instead of the click.
+function uiiPlacePtrToast() {
+  const S = uiiState;
+  const t = S.ptrToast;
+  t.style.left = S.mx + 14 + 'px';
+  t.style.top = S.my + 18 + 'px';
+  const r = t.getBoundingClientRect();
+  if (r.right > innerWidth) t.style.left = Math.max(0, S.mx - 8 - r.width) + 'px';
+  if (r.bottom > innerHeight) t.style.top = Math.max(0, S.my - 8 - r.height) + 'px';
+}
+
+// Normal view: hide every outline and band, and hand the pointer back to the
+// page, so a live edit can be judged on the real screen. The panel stays open
+// with its edits, so the next press returns to a pinned element, not a blank
+// one. Entering it unbinds the capture listeners — that is what makes the app
+// clickable again — so nothing redraws until it is left.
+function uiiPeek(on) {
+  const S = uiiState;
+  if (!S.on) return;
+  const want = on === undefined ? !S.peek : !!on;
+  if (want === S.peek) return;
+  S.peek = want;
+  S.host.classList.toggle('peek', want);
+  if (want) {
+    uiiUnbindEvents();
+    if (S.raf) cancelAnimationFrame(S.raf);
+    clearTimeout(S.drawTimer);
+    S.raf = 0;
+    uiiSetHover(null);
+  } else {
+    uiiBindEvents();
+    uiiDrawOutlines();
+    // The page may have scrolled or re-rendered while the overlay was off.
+    if (S.selected && S.selected.isConnected) uiiDrawSpacing(S.selected);
+    uiiDrawPicks();
+  }
+  const P = S.panel;
+  if (!P || !P.peek) return;
+  P.peek.classList.toggle('on', want);
+  P.peek.title = want ? 'Back to inspect (V)' : 'Normal view — hide the overlay and use the page (V)';
 }
 
 /* ================= overlay: padding and margin =================
@@ -4079,6 +4085,16 @@ function uiiResetEdits(el) {
   if (el) uiiSelect(el); else uiiVarsPanel();
 }
 
+// Refill the Changes box from the pinned element's edits, and from the
+// variable edits, which belong to no element: the palette has a box of its
+// own and nothing need be pinned to fill it.
+function uiiRefreshChanges() {
+  const P = uiiState.panel;
+  if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
+  if (P && P.borderSync && uiiState.info) P.borderSync();
+  uiiSyncResetKeys();
+}
+
 // "font-size: 14px; color: #fff" or '' when the element is untouched.
 function uiiEditsText(el) {
   const e = uiiEditsFor(el, false);
@@ -4123,15 +4139,6 @@ function uiiEditValue(info, prop, own) {
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
 }
 
-// Refill the Changes box from the pinned element's edits, and from the
-// variable edits, which belong to no element: the palette has a box of its
-// own and nothing need be pinned to fill it.
-function uiiRefreshChanges() {
-  const P = uiiState.panel;
-  if (P && P.changes && (uiiState.info || uiiState.varsMode)) P.changes.value = uiiFormatChanges();
-  if (P && P.borderSync && uiiState.info) P.borderSync();
-  uiiSyncResetKeys();
-}
 
 /* ================= live editing: apply to similar =================
    With "Apply to similar" on, an edit also rewrites the CSS rule that sets
@@ -5131,10 +5138,17 @@ function uiiCloseVarList() {
 
 // Typing a color string applies it on the spot; Enter is no longer needed.
 // Half-typed text ("#1f", "rgb(") is not a color yet and is left alone.
+// One burst of typing is one undo step, closed 600ms after the last key.
 function uiiLiveColor(box, write) {
+  let timer = 0;
+  const end = () => { if (timer) { clearTimeout(timer); timer = 0; uiiUndoEnd(); } };
+  box.addEventListener('change', end);
   box.addEventListener('input', () => {
     const v = box.value.trim();
-    if (v && CSS.supports('color', v)) write(v);
+    if (!v || !CSS.supports('color', v)) return;
+    if (timer) clearTimeout(timer); else uiiUndoBegin();
+    timer = setTimeout(end, 600);
+    write(v);
   });
 }
 
@@ -5154,7 +5168,8 @@ function uiiLiveColor(box, write) {
 function uiiColorField(info, label, prop, own, compact) {
   const painter = !own && prop === 'background-color' && info.bg.from && info.bg.el;
   const target = own ? info.el : painter || uiiTargetEl(info, prop);
-  const put = (v) => (own ? uiiSetOwn(info.el, prop, v) : uiiSet(info, prop, v));
+  // The ↳ row of a transparent element edits the ancestor that paints it.
+  const put = (v) => (own ? uiiSetOwn(info.el, prop, v) : painter ? uiiSetOwn(painter, prop, v) : uiiSet(info, prop, v));
   const cur = () => {
     // On screen: read live, an edit elsewhere may or may not reach this element.
     if (!own && prop === 'background-color') return uiiToHex(uiiEffectiveBg(info.el).rgb);
@@ -6552,14 +6567,21 @@ function uiiKey(el) {
   return uiiSlug(el.localName + (cls ? '-' + cls : ''));
 }
 
+// Position of every element under `up` among those of its kind, one pass.
+function uiiKindIndex(up) {
+  const seen = {}, at = new Map();
+  for (const o of up.querySelectorAll('*')) { const k = uiiKey(o); at.set(o, seen[k] = (seen[k] || 0) + 1); }
+  return at;
+}
+
 function uiiAutoId(sh) {
   const run = () => {
+    const idx = new Map();
     for (const el of sh.querySelectorAll(UII_ID_ROOTS.split(', ').map((r) => r + ' *:not([id])').join(', '))) {
       const up = el.parentElement.closest('[id]');
       const key = uiiKey(el);
-      let n = 1;
-      for (const o of up.querySelectorAll('*')) { if (o === el) break; if (uiiKey(o) === key) n++; }
-      let id = up.id + '-' + key + '-' + n;
+      if (!idx.has(up)) idx.set(up, uiiKindIndex(up));
+      let id = up.id + '-' + key + '-' + idx.get(up).get(el);
       while (sh.getElementById(id)) id += '-x';
       el.id = id;
       el.setAttribute('data-ui', id);

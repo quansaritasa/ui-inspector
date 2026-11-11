@@ -116,6 +116,7 @@ function uiiEditCount() {
 //   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
 function uiiFormatChanges() {
   const L = ['Apply these CSS changes (final values) by editing each rule in place.'
+    + ' A declaration with no marker replaces the value already in the rule;'
     + ' /* add */ = add the line; /* new rule */ = create the rule.'
     + ' Keep var()/calc() as written.'];
   for (const [head, decls] of uiiChangeLines()) L.push(head + ' { ' + decls.join('; ') + '; }');

@@ -14,7 +14,8 @@
 function uiiColorField(info, label, prop, own, compact) {
   const painter = !own && prop === 'background-color' && info.bg.from && info.bg.el;
   const target = own ? info.el : painter || uiiTargetEl(info, prop);
-  const put = (v) => (own ? uiiSetOwn(info.el, prop, v) : uiiSet(info, prop, v));
+  // The ↳ row of a transparent element edits the ancestor that paints it.
+  const put = (v) => (own ? uiiSetOwn(info.el, prop, v) : painter ? uiiSetOwn(painter, prop, v) : uiiSet(info, prop, v));
   const cur = () => {
     // On screen: read live, an edit elsewhere may or may not reach this element.
     if (!own && prop === 'background-color') return uiiToHex(uiiEffectiveBg(info.el).rgb);
