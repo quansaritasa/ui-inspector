@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.1 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.2 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -4163,6 +4163,12 @@ function uiiDeclValue(style, prop) {
   return (o ? o.v : style.getPropertyValue(prop)).trim();
 }
 
+// uiiDeclValue, or the shorthand's when the longhand reads empty: CSSOM blanks
+// `background-color` when the rule writes `background: var(--x)`.
+function uiiDeclOrShort(style, prop) {
+  return uiiDeclValue(style, prop) || (UII_COLOR_SHORTHAND[prop] ? uiiDeclValue(style, UII_COLOR_SHORTHAND[prop]) : '');
+}
+
 // Returns the rule it rewrote, so a caller can replay it once the element is
 // gone (a detached element has no computed style to find the rule by).
 function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
@@ -4454,7 +4460,7 @@ function uiiLastSeg(selector) {
 
 function uiiFindDecl(el, prop) {
   const rules = uiiRulesOf(el);
-  const sets = rules.filter((r) => r.style && r.style.getPropertyValue(prop));
+  const sets = rules.filter((r) => r.style && uiiDeclOrShort(r.style, prop));
   // One matched rule sets it, unconditionally, with no `*` rule beside it
   // (an `!important` reset could still beat it): nothing can override it,
   // so it wins without the probe, which restyles the whole page. Not when
@@ -4468,7 +4474,7 @@ function uiiFindDecl(el, prop) {
   // (measured: 2 such probes = 82 of the 389 ms one panel render cost on a
   // 5,000-element page).
   const cands = sets.filter((r) => uiiLastSeg(r.selector) !== '*').reverse();
-  const out = (r) => ({ file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style });
+  const out = (r) => ({ file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclOrShort(r.style, prop), style: r.style });
   if (sure) return out(cands[0]);
   const w = cands.length > 1 ? uiiProbeAll(el, prop, cands) : null;
   if (w) return out(w);
@@ -4572,7 +4578,7 @@ function uiiFindEditRule(el, prop) {
 // element page, two dozen per panel): when no candidate could give the
 // answer, which one wins does not matter.
 function uiiAnyDecl(el, prop, test) {
-  return uiiRulesOf(el).some((r) => r.style && test(uiiDeclValue(r.style, prop)));
+  return uiiRulesOf(el).some((r) => r.style && test(uiiDeclOrShort(r.style, prop)));
 }
 
 // The rule's variable factor for `prop` before any edit, or null.
@@ -5011,7 +5017,12 @@ function uiiBorderSides(el) {
   return ['top', 'right', 'bottom', 'left'].filter((s) =>
     parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
 }
-function uiiBorderDrawnSide(el) { return uiiBorderSides(el)[0]; }
+// A transparent side (the grid's 18px panel gap on a sprint header cell) draws
+// nothing anyone sees, so a visible side comes first.
+function uiiBorderDrawnSide(el) {
+  const cs = getComputedStyle(el), sides = uiiBorderSides(el);
+  return sides.find((s) => !uiiIsTransparent(cs.getPropertyValue('border-' + s + '-color'))) || sides[0];
+}
 // The border as one copyable line, from the side the fields speak for.
 function uiiBorderText(el) {
   const cs = getComputedStyle(el), s = 'border-' + uiiBorderSide(el);
@@ -5037,7 +5048,9 @@ function uiiColorVarName(v) {
 function uiiColorVarOf(el, prop) {
   const d = uiiAnyDecl(el, prop, uiiColorVarName) && uiiRuleDecl(el, prop);
   const named = uiiColorVarName(d && d.value);
-  if (named || !UII_COLOR_SHORTHAND[prop]) return named;
+  // A winner that is not a var ("transparent", a hex) is the answer: the sheet-order scan below
+  // would name a losing rule's var instead.
+  if (named || d || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
   const heads = [UII_COLOR_SHORTHAND[prop]];
   if (prop === 'border-color') heads.unshift('border-' + uiiBorderSide(el), 'border-' + uiiBorderSide(el) + '-color');

@@ -68,7 +68,7 @@ function uiiLastSeg(selector) {
 
 function uiiFindDecl(el, prop) {
   const rules = uiiRulesOf(el);
-  const sets = rules.filter((r) => r.style && r.style.getPropertyValue(prop));
+  const sets = rules.filter((r) => r.style && uiiDeclOrShort(r.style, prop));
   // One matched rule sets it, unconditionally, with no `*` rule beside it
   // (an `!important` reset could still beat it): nothing can override it,
   // so it wins without the probe, which restyles the whole page. Not when
@@ -82,7 +82,7 @@ function uiiFindDecl(el, prop) {
   // (measured: 2 such probes = 82 of the 389 ms one panel render cost on a
   // 5,000-element page).
   const cands = sets.filter((r) => uiiLastSeg(r.selector) !== '*').reverse();
-  const out = (r) => ({ file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclValue(r.style, prop), style: r.style });
+  const out = (r) => ({ file: r.file.split('/').pop(), selector: r.selector, value: uiiDeclOrShort(r.style, prop), style: r.style });
   if (sure) return out(cands[0]);
   const w = cands.length > 1 ? uiiProbeAll(el, prop, cands) : null;
   if (w) return out(w);
@@ -186,7 +186,7 @@ function uiiFindEditRule(el, prop) {
 // element page, two dozen per panel): when no candidate could give the
 // answer, which one wins does not matter.
 function uiiAnyDecl(el, prop, test) {
-  return uiiRulesOf(el).some((r) => r.style && test(uiiDeclValue(r.style, prop)));
+  return uiiRulesOf(el).some((r) => r.style && test(uiiDeclOrShort(r.style, prop)));
 }
 
 // The rule's variable factor for `prop` before any edit, or null.
