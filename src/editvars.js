@@ -44,8 +44,8 @@ function uiiValueRow(name, value, set, resetName) {
   };
   const hex = uiiRowHex(value);
   if (hex) {
-    // A color picker takes #rrggbb alone: an alpha value keeps its text box.
-    wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
+    // The picker takes #rrggbb[aa]; "transparent" shows hollow. Anything else falls back to black.
+    wrap.appendChild(uiiColorSwatch(hex === 'transparent' || /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
   if (hex) uiiLiveColor(box, write);

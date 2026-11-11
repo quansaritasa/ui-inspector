@@ -38,7 +38,7 @@ function uiiColorField(info, label, prop, own, compact) {
   sel.title = 'Which variable this color comes from. Pick one and the swatch'
     + ' edits the variable itself — every element using it changes.';
   sel.value = named;
-  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; };
+  const show = (v) => { box.value = v; if (v === 'transparent' || /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; };
   const refresh = () => show(sel.value ? uiiVarHex(info, sel.value, target) : cur());
   refresh();
   if (prop !== 'border-color') uiiSyncAdd(refresh);

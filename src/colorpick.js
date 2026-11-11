@@ -31,7 +31,13 @@ function uiiColorSwatch(initial, onPick, slot, formula) {
   let value = '#000000';
   Object.defineProperty(btn, 'value', {
     get: () => value,
-    set: (v) => { value = v; btn.style.background = v; },
+    set: (v) => {
+      // Fully transparent paints nothing: show the checkerboard (.hollow), and give the picker a valid #rrggbbaa.
+      const hollow = v === 'transparent' || /^#[0-9a-f]{6}00$/i.test(v);
+      value = v === 'transparent' ? '#00000000' : v;
+      btn.classList.toggle('hollow', hollow);
+      btn.style.background = hollow ? '' : v;
+    },
   });
   btn.value = initial;
   const me = { swatch: btn, onPick, formula };

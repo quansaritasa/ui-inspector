@@ -70,6 +70,10 @@ const UII_CSS2 = `
   background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
   background-size: 6px 6px; background-position: 0 0, 3px 3px; }
+.nf button.pick.hollow { background-color: #fff;
+  background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
+    linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px; }
 .sw i { display: block; width: 100%; height: 100%; }
 .head .undo { color: #1d4ed8; font-size: 15px; }
 .head .reset { color: #b91c1c; font-size: 15px; }

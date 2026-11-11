@@ -2633,6 +2633,10 @@ const UII_CSS2 = `
   background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
   background-size: 6px 6px; background-position: 0 0, 3px 3px; }
+.nf button.pick.hollow { background-color: #fff;
+  background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
+    linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px; }
 .sw i { display: block; width: 100%; height: 100%; }
 .head .undo { color: #1d4ed8; font-size: 15px; }
 .head .reset { color: #b91c1c; font-size: 15px; }
@@ -4895,7 +4899,13 @@ function uiiColorSwatch(initial, onPick, slot, formula) {
   let value = '#000000';
   Object.defineProperty(btn, 'value', {
     get: () => value,
-    set: (v) => { value = v; btn.style.background = v; },
+    set: (v) => {
+      // Fully transparent paints nothing: show the checkerboard (.hollow), and give the picker a valid #rrggbbaa.
+      const hollow = v === 'transparent' || /^#[0-9a-f]{6}00$/i.test(v);
+      value = v === 'transparent' ? '#00000000' : v;
+      btn.classList.toggle('hollow', hollow);
+      btn.style.background = hollow ? '' : v;
+    },
   });
   btn.value = initial;
   const me = { swatch: btn, onPick, formula };
@@ -5205,7 +5215,7 @@ function uiiColorField(info, label, prop, own, compact) {
   sel.title = 'Which variable this color comes from. Pick one and the swatch'
     + ' edits the variable itself — every element using it changes.';
   sel.value = named;
-  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; };
+  const show = (v) => { box.value = v; if (v === 'transparent' || /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; };
   const refresh = () => show(sel.value ? uiiVarHex(info, sel.value, target) : cur());
   refresh();
   if (prop !== 'border-color') uiiSyncAdd(refresh);
@@ -5299,8 +5309,8 @@ function uiiValueRow(name, value, set, resetName) {
   };
   const hex = uiiRowHex(value);
   if (hex) {
-    // A color picker takes #rrggbb alone: an alpha value keeps its text box.
-    wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
+    // The picker takes #rrggbb[aa]; "transparent" shows hollow. Anything else falls back to black.
+    wrap.appendChild(uiiColorSwatch(hex === 'transparent' || /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
   if (hex) uiiLiveColor(box, write);
