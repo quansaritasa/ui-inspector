@@ -21,6 +21,12 @@ function uiiDeclValue(style, prop) {
   return (o ? o.v : style.getPropertyValue(prop)).trim();
 }
 
+// uiiDeclValue, or the shorthand's when the longhand reads empty: CSSOM blanks
+// `background-color` when the rule writes `background: var(--x)`.
+function uiiDeclOrShort(style, prop) {
+  return uiiDeclValue(style, prop) || (UII_COLOR_SHORTHAND[prop] ? uiiDeclValue(style, UII_COLOR_SHORTHAND[prop]) : '');
+}
+
 // Returns the rule it rewrote, so a caller can replay it once the element is
 // gone (a detached element has no computed style to find the rule by).
 function uiiRuleApply(el, prop, value, d = uiiEditRule(el, prop)) {
