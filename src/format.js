@@ -162,6 +162,7 @@ function uiiFormatDetails(info) {
   if (info.text) L.push('Text: "' + info.text + '"');
   L.push('Size: ' + info.width + '×' + info.height + 'px');
   L.push('Background: ' + uiiColorLine(info.bg));
+  for (const state of ['hover', 'active']) if (info.bgStates[state]) L.push('Background (' + state + '): ' + uiiColorLine(info.bgStates[state]));
   L.push('Text color: ' + uiiColorLine(info.color));
   L.push('Font: ' + info.fontFamily + ' ' + info.fontSize + ' / ' + info.lineHeight + ' weight ' + info.fontWeight);
   L.push('Padding: ' + info.padding + ' | Margin: ' + info.margin);

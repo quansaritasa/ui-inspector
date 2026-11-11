@@ -114,6 +114,68 @@ function uiiEffectiveBg(el) {
   return { rgb: uiiIsTransparent(v) ? 'transparent' : v, from: 'html', el: document.documentElement };
 }
 
+// The :hover / :active rules that paint a background, read once per collect.
+function uiiHoverBgDecls(all) {
+  const out = [];
+  for (const { rule } of all) {
+    if (!/:(hover|active)/.test(rule.selectorText)) continue;
+    const m = /(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/.exec(rule.style.cssText);
+    if (m) out.push({ rule, value: m[1].replace(/\s*!important\s*$/, '').trim() });
+  }
+  return out;
+}
+
+// Those among them that apply to el. A member's `:hover`/`:active` taken out is
+// what el matches while the pointer is elsewhere; `state` is which one it
+// waits for (`:active` wins when both are named) and `now` whether the pointer
+// makes it apply this moment. A member with `:not(:hover)` is a resting rule.
+function uiiHoverBgRules(el, decls) {
+  const out = [];
+  for (const d of decls) {
+    for (const part of uiiSplitSelectors(d.rule.selectorText)) {
+      const s = part.trim();
+      if (!/:(hover|active)/.test(s) || /:not\(:(hover|active)/.test(s)) continue;
+      let hit = false, now = false;
+      try { hit = el.matches(s.replace(/:(hover|active)/g, '') || '*'); now = el.matches(s); } catch (e) { continue; }
+      if (hit) { out.push({ ...d, now, state: s.includes(':active') ? 'active' : 'hover' }); break; }
+    }
+  }
+  return out;
+}
+
+// Run fn with the pointer's :hover background rules blanked, so the cascade
+// reads as it does with the pointer elsewhere: while it is over el, the element
+// that paints the background (el or an ancestor) wins with its :hover color.
+// Synchronous, rules put back at once: nothing repaints in between.
+function uiiAtRest(el, decls, fn) {
+  const live = new Set();
+  for (let n = el; n; n = n.parentElement) uiiHoverBgRules(n, decls).forEach((h) => h.now && live.add(h.rule));
+  if (!live.size) return fn();
+  const saved = [...live].map((r) => [r, r.style.cssText]);
+  try {
+    live.forEach((r) => { r.style.cssText = ''; });
+    return fn();
+  } finally {
+    saved.forEach(([r, t]) => { r.style.cssText = t; });
+  }
+}
+
+// What each pointer state paints, as {hover, active} color records (a state
+// that paints nothing, or the resting color, is left out).
+function uiiStateBgInfo(painter, decls, resting, varMap) {
+  const rules = uiiHoverBgRules(painter, decls);
+  const out = {};
+  for (const state of ['hover', 'active']) {
+    const last = rules.filter((h) => h.state === state).pop();
+    if (!last) continue;
+    const info = uiiColorInfo(uiiNormColor(last.value) || last.value, null, varMap);
+    if (info.hex === resting.hex) continue;
+    info.selector = last.rule.selectorText;
+    out[state] = info;
+  }
+  return out;
+}
+
 function uiiColorInfo(rgb, from, varMap) {
   const hex = uiiToHex(rgb);
   return { hex, rgb, from: from || null, vars: varMap.get(hex) || [] };
@@ -125,9 +187,12 @@ function uiiCollect(el) {
   const all = uiiAllRules();
   const colorVars = uiiColorVars(el, all);
   const varMap = uiiColorVarMap(colorVars);
-  const bg = uiiEffectiveBg(el);
+  const hoverDecls = uiiHoverBgDecls(all);
+  const bg = uiiAtRest(el, hoverDecls, () => uiiEffectiveBg(el));
+  const bgInfo = Object.assign(uiiColorInfo(bg.rgb, bg.from, varMap), { el: bg.el });
   return {
     el,
+    hoverDecls,
     name: uiiName(el),
     kind: uiiKind(el),
     tag: el.tagName.toLowerCase(),
@@ -138,7 +203,8 @@ function uiiCollect(el) {
     src: uiiState.opts.srcAttr ? (el.getAttribute(uiiState.opts.srcAttr) || '') : '',
     width: Math.round(r.width),
     height: Math.round(r.height),
-    bg: Object.assign(uiiColorInfo(bg.rgb, bg.from, varMap), { el: bg.el }),
+    bg: bgInfo,
+    bgStates: uiiStateBgInfo(bg.el, hoverDecls, bgInfo, varMap),
     color: uiiColorInfo(cs.color, null, varMap),
     fontFamily: uiiFirstFont(cs.fontFamily),
     fontFamilyFull: cs.fontFamily,

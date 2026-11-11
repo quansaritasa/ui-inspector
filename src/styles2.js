@@ -70,6 +70,9 @@ const UII_CSS2 = `
   background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
   background-size: 6px 6px; background-position: 0 0, 3px 3px; }
+.nf.hv { gap: 6px; font-size: 11px; color: #4b5563; }
+.nf.hv .hvchip { width: 14px; height: 14px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.2); }
+.nf.hv .hvtxt { font-family: ui-monospace, Menlo, monospace; }
 .nf button.pick.hollow { background-color: #fff;
   background-image: linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
     linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
