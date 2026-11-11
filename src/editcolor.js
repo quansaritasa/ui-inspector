@@ -19,7 +19,12 @@ function uiiBorderSides(el) {
   return ['top', 'right', 'bottom', 'left'].filter((s) =>
     parseFloat(cs.getPropertyValue('border-' + s + '-width')) > 0 && cs.getPropertyValue('border-' + s + '-style') !== 'none');
 }
-function uiiBorderDrawnSide(el) { return uiiBorderSides(el)[0]; }
+// A transparent side (the grid's 18px panel gap on a sprint header cell) draws
+// nothing anyone sees, so a visible side comes first.
+function uiiBorderDrawnSide(el) {
+  const cs = getComputedStyle(el), sides = uiiBorderSides(el);
+  return sides.find((s) => !uiiIsTransparent(cs.getPropertyValue('border-' + s + '-color'))) || sides[0];
+}
 // The border as one copyable line, from the side the fields speak for.
 function uiiBorderText(el) {
   const cs = getComputedStyle(el), s = 'border-' + uiiBorderSide(el);
