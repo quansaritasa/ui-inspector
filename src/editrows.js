@@ -205,14 +205,15 @@ function uiiEditChanges(el) {
 // Text properties read the main text, which is what the edit changes;
 // a variable factor (calc(var(--x) * k)) or a plain authored value (1.125em)
 // wins over the computed px.
-function uiiEditValue(info, prop) {
-  const el = uiiTargetEl(info, prop);
+function uiiEditValue(info, prop, own) {
+  const el = own ? info.el : uiiTargetEl(info, prop);
   const e = uiiEditsFor(el, false);
   if (e && prop in e.props) return e.props[prop];
   // A text edit on a child with no rule of its own lands on the pinned
   // element and reaches the text by inheritance (uiiWriteEl): the field shows
   // the value that was written, not the px it computes to.
-  const h = el !== info.el && uiiEditsFor(info.el, false);
+  // (not when the text has a rule of its own: the edit never reaches it)
+  const h = !own && el !== info.el && !uiiOwnsProp(info, el, prop) && uiiEditsFor(info.el, false);
   if (h && prop in h.props) return h.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);

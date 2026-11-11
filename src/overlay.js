@@ -32,6 +32,7 @@ function uiiMount() {
   Bounce.attach(sh, 'label.sim', { scale: 0.65, over: 0.3, to: (l) => l.querySelector('input[type=checkbox]') });
   Bounce.attach(sh, '.nf, .tf, .txt', { scale: 0.97, over: 0.02 }); // the type-in fields
   Bounce.attach(sh, '.tr', { scale: 0.97, over: 0.02 }); // DOM-tree rows: full width, so a shallow dip
+  uiiAutoId(sh);
   document.documentElement.appendChild(host);
   S.host = host;
   S.shadow = sh;

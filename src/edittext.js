@@ -69,6 +69,13 @@ function uiiSet(info, prop, value) {
   try { uiiSetInner(info, prop, value); } finally { uiiUndoEnd(); }
 }
 
+// Only the pinned element, however its text is split: the field of what this
+// element sets, beside the one for what its text shows (uiiNumSlot).
+function uiiSetOwn(el, prop, value) {
+  uiiUndoBegin();
+  try { uiiApplyEdit(el, prop, value); } finally { uiiUndoEnd(); }
+}
+
 function uiiSetInner(info, prop, value) {
   if (!UII_TEXT_PROPS.includes(prop)) { uiiApplyEdit(info.el, prop, value); return; }
   const els = uiiTextEls(info);
@@ -104,18 +111,12 @@ function uiiRulesOf(el) {
   return I.ruleCache.get(el);
 }
 
-// What the last rule setting `prop` wrote, when it is a plain number
+// What the winning declaration (uiiDeclared) wrote, when it is a plain number
 // (1.125em, 12px, 1.4) that really is what the element shows; '' for calc(),
-// var(), or a rule a more specific one overrides (sheet order is not the
-// cascade, so the value is checked against computed).
+// var(), or when the cascade could not be settled (checked against computed).
 function uiiAuthored(el, prop) {
-  const rules = uiiRulesOf(el);
-  for (let i = rules.length - 1; i >= 0; i--) {
-    const v = rules[i].style && uiiDeclValue(rules[i].style, prop);
-    if (!v) continue;
-    const p = uiiParseNum(v);
-    if (!p || !/^(px|em|rem|%|)$/.test(p.unit)) return '';
-    return Math.abs(parseFloat(uiiConvertUnit(el, prop, p.unit)) - p.n) < 0.01 ? v : '';
-  }
-  return '';
+  const d = uiiDeclared(el, prop);
+  const p = d && uiiParseNum(d.code.slice(d.code.indexOf(': ') + 2));
+  if (!p || !/^(px|em|rem|%|)$/.test(p.unit)) return '';
+  return Math.abs(parseFloat(uiiConvertUnit(el, prop, p.unit)) - p.n) < 0.01 ? d.code.slice(d.code.indexOf(': ') + 2) : '';
 }

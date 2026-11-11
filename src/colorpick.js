@@ -60,7 +60,9 @@ function uiiShowFormula() {
 
 function uiiBuildPicker(paired) {
   // The library takes an element for a container, not a shadow root.
-  const mount = uiiState.shadow.appendChild(uiiEl('div'));
+  const old = uiiState.shadow.getElementById('color-picker');
+  if (old) old.remove(); // destroy() may leave its mount; ids stay unique
+  const mount = uiiState.shadow.appendChild(uiiEl('div', '', undefined, 'color-picker'));
   const picker = new UiiColorPicker({
     container: mount,
     mode: 'popover',

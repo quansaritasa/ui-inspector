@@ -18,27 +18,6 @@ for (const side of ['top', 'right', 'bottom', 'left']) {
   for (const k of ['width', 'style']) UII_SHORTHAND['border-' + side + '-' + k] = ['border-' + side, 'border', 'border-' + k];
 }
 
-// How the page's CSS writes `prop` on `el`: the last matched rule that sets it,
-// longhand or shorthand, as { code: 'font-size: 0.9rem', src: 'file.css .sel' }.
-// null when no rule does (inherited, a default, or only inline). The panel
-// shows the computed result; this is the source behind it.
-function uiiDeclared(el, prop) {
-  const heads = [prop, ...(UII_SHORTHAND[prop] || [])];
-  if (prop === 'border-color') {
-    const side = 'border-' + uiiBorderSide(el);
-    heads.push('border', side + '-color', side);
-  }
-  const rules = uiiRulesOf(el);
-  for (let i = rules.length - 1; i >= 0; i--) {
-    if (!rules[i].style) continue;
-    for (const h of heads) {
-      const v = uiiDeclValue(rules[i].style, h);
-      if (v) return { code: h + ': ' + v, src: (rules[i].file || '').split('/').pop() + ' ' + rules[i].selector };
-    }
-  }
-  return null;
-}
-
 // `el` (optional) is the element the field speaks for: its source line goes
 // under the control.
 function uiiFld(label, control, props, el) {
@@ -61,6 +40,9 @@ function uiiFld(label, control, props, el) {
     const line = f.appendChild(uiiEl('div', 'fml', fm.code));
     line.title = fm.src;
   }
+  // Rules that set it too but lose: what to look at when an edit seems to do nothing.
+  if (fm) for (const d of fm.lost) f.appendChild(uiiEl('div', 'fml lost', d.code + ' · ' + d.src)).title = 'Overridden';
+  if (fm && fm.lost.length) uiiMarkOverridden(f);
   return { f, lab };
 }
 
@@ -197,9 +179,9 @@ function uiiPair(...fields) {
 function uiiRenderEditRows(body, info) {
   uiiCloseVarList(); // its fields are about to be replaced
   uiiCloseColorPicker();
-  const num = (label, props) => uiiNumField(info, label, props).f;
+  const num = (label, props) => uiiNumSlot(info, label, props);
   body.append(
-    uiiCard('Color', uiiPair(uiiColorField(info, 'Text', 'color'), uiiColorField(info, 'Background', 'background-color'))),
+    uiiColorCard(info),
     uiiBorderCard(info),
     uiiCard('Size',
       uiiPair(num('Width', 'width'), num('Height', 'height')),

@@ -49,7 +49,9 @@ function uiiColorLine(c) {
 // One line for an AI chat: the control's name and where to edit it — the
 // stamped source location when the app set one, then the selector, the
 // script(s) that mention it, the stylesheet(s) that style it.
-//   edit-btn (edit.js:12 · #edit-btn · edit.js · style.css)
+//   [#edit-btn (edit.js:12 · edit.js · style.css)]
+// An element with no id, name attribute or aria-label gets its visible text in
+// front — ("Test icon")[...] — since many cells can share one selector.
 function uiiFormatForAI(info) {
   // The selector leads: id plus classes. Then the source location, the one part
   // an AI acts on without searching. Brackets make it one paste-ready token.
@@ -59,7 +61,11 @@ function uiiFormatForAI(info) {
   const css = uiiCssFiles(info);
   if (css.length) loc.push(css.join(', '));
   const edits = uiiEditsText(info.el);
-  return '[' + info.path + (loc.length ? ' (' + loc.join(' · ') + ')' : '') +
+  const attr = uiiState.opts.nameAttr;
+  const named = info.id || (attr && info.el.getAttribute(attr)) || info.el.getAttribute('aria-label');
+  const words = String(info.el.innerText || info.el.value || '').replace(/"/g, "'").split(/\s+/).filter(Boolean);
+  const label = !named && words.length ? '("' + words.slice(0, 10).join(' ') + (words.length > 10 ? '…' : '') + '")' : '';
+  return label + '[' + info.path + (loc.length ? ' (' + loc.join(' · ') + ')' : '') +
     (edits ? ' — apply: ' + edits : '') + ']';
 }
 
@@ -109,9 +115,9 @@ function uiiEditCount() {
 //   style.css .grid-task-title { font-size: calc(var(--g) * 1.1) /* 14.3px */; }
 //   #grid > … > td.grid-index (grid-helpers.js:132) /* no rule yet */ { background-color: #fe0; }
 function uiiFormatChanges() {
-  const L = ['Apply these CSS changes (final values). Edit each rule in place; a declaration with no'
-    + ' marker replaces the value already in the rule; /* add */ = add that line to the rule;'
-    + ' /* new rule */ = create it. Keep var()/calc() as written.'];
+  const L = ['Apply these CSS changes (final values) by editing each rule in place.'
+    + ' /* add */ = add the line; /* new rule */ = create the rule.'
+    + ' Keep var()/calc() as written.'];
   for (const [head, decls] of uiiChangeLines()) L.push(head + ' { ' + decls.join('; ') + '; }');
   if (L.length === 1) return '(no changes yet)';
   if (!uiiState.similar) L.push('Only these elements: add a more specific selector, leave the shared rules.');
