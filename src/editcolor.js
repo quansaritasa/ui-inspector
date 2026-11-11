@@ -144,44 +144,18 @@ function uiiCloseVarList() {
   l.remove();
 }
 
-// A color either sits on the element (#1f2937) or comes from a variable
-// (var(--bg)). The dropdown says which, and the picker edits whatever the
-// dropdown points at: on a variable it moves that palette entry, so every
-// rule using it follows; on "— none —" the element gets a color of its own
-// again. Pointing a color at a different variable is the dropdown alone.
-function uiiColorField(info, label, prop) {
-  const target = uiiTargetEl(info, prop);
-  const wrap = uiiEl('span', 'nf');
-  const pick = uiiColorSwatch('#000000', (v) => write(v), UII_PAIR_SLOT[prop], () => uiiDeclared(target, prop)); // write is defined below, used on click
-  const box = uiiEl('input');
-  box.spellcheck = false;
-  const named = uiiColorVarOf(target, prop);
-  const names = info.colorVars.map((c) => c.name);
-  // A var the palette list missed (it resolves to something uiiColorVars does
-  // not read as a color) still belongs in the list: it is the current answer.
-  if (named && !names.includes(named)) names.push(named);
-  const sel = uiiVarPicker(names, target);
-  sel.title = 'Which variable this color comes from. Pick one and the swatch'
-    + ' edits the variable itself — every element using it changes.';
-  sel.value = named;
-  const show = (v) => { box.value = v; if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) pick.value = v; }; 
-  show(sel.value ? uiiVarHex(info, sel.value, target) : uiiEditValue(info, prop));
-  // One write, two places it can land.
-  const write = (v) => {
-    if (sel.value) uiiVarApply(sel.value, v, target); else uiiSet(info, prop, v);
-    show(v);
-  };
-  box.addEventListener('change', () => write(box.value.trim()));
-  uiiEnterKeeps(box);
-  sel.addEventListener('change', () => {
-    uiiSet(info, prop, sel.value ? 'var(' + sel.value + ')' : box.value.trim());
-    if (sel.value) show(uiiVarHex(info, sel.value, target));
+// Typing a color string applies it on the spot; Enter is no longer needed.
+// Half-typed text ("#1f", "rgb(") is not a color yet and is left alone.
+// One burst of typing is one undo step, closed 600ms after the last key.
+function uiiLiveColor(box, write) {
+  let timer = 0;
+  const end = () => { if (timer) { clearTimeout(timer); timer = 0; uiiUndoEnd(); } };
+  box.addEventListener('change', end);
+  box.addEventListener('input', () => {
+    const v = box.value.trim();
+    if (!v || !CSS.supports('color', v)) return;
+    if (timer) clearTimeout(timer); else uiiUndoBegin();
+    timer = setTimeout(end, 600);
+    write(v);
   });
-  wrap.append(pick, box, sel);
-  // No side draws a line: the color is real but invisible. Still editable.
-  if (prop === 'border-color' && !uiiBorderDrawnSide(target)) {
-    wrap.classList.add('idle');
-    wrap.title = 'No border is drawn (style none or width 0), so this color is not visible yet';
-  }
-  return uiiFld(label, wrap, prop, target).f;
 }

@@ -192,6 +192,21 @@ body.hide-e mark.t-e,body.hide-f mark.t-f,body.hide-g mark.t-g{background:none;b
   .panel .body{max-height:420px}
   .inputs-grid{grid-template-columns:1fr}
 }
+/* Overrides test: a value set on one element that something else overrides. */
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.ov-case{border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+.ov-item>small{display:block;margin-bottom:4px;color:var(--text-muted);font-size:11px}
+.ov-size{font-size:1.25em}
+.ov-size .ov-kid{font-size:12px}
+.ov-hue{color:#b91c1c}
+.ov-hue .ov-kid{color:#1d4ed8}
+.ov-wrap{background:#fde68a;padding:8px}
+.ov-wrap .ov-clear{background:transparent;padding:4px}
+.ov-spec{font-size:20px}
+#ov-spec.ov-spec{font-size:1.5em}
+.ov-late{color:#047857}
+.ov-late{color:#be185d}
+.ov-inline{font-size:2em;background:#e0f2fe}
 </style>
 </head>
 <body>
@@ -611,6 +626,19 @@ body.hide-e mark.t-e,body.hide-f mark.t-f,body.hide-g mark.t-g{background:none;b
       <div class="tile" role="button" tabindex="0" title="En dash"><span class="glyph">–</span><span class="tl">En dash</span></div>
       <div class="tile" role="button" tabindex="0" title="Quotes"><span class="glyph">“ ”</span><span class="tl">Quotes</span></div>
     </div>
+  </div>
+</section>
+
+<!-- ============ OVERRIDES TEST ============ -->
+<section class="panel wide" aria-label="Overrides">
+  <header>Overrides <div class="tools"><span>values set here that something else overrides</span></div></header>
+  <div class="body ov-grid">
+    <div class="ov-item"><small>Size: parent 1.25em, child span 12px</small><div class="ov-case ov-size">Parent <span class="ov-kid">child text with its own rule</span></div></div>
+    <div class="ov-item"><small>Text color: parent red, child span blue</small><div class="ov-case ov-hue">Parent <span class="ov-kid">child text with its own rule</span></div></div>
+    <div class="ov-item"><small>Background: wrapper amber, inner transparent</small><div class="ov-case ov-wrap"><div class="ov-clear">Transparent inner box</div></div></div>
+    <div class="ov-item"><small>Specificity: .class 20px lost to #id 1.5em</small><div class="ov-case"><div id="ov-spec" class="ov-spec">Higher specificity wins</div></div></div>
+    <div class="ov-item"><small>Same rule twice: the later color wins</small><div class="ov-case"><div class="ov-late">Later rule wins</div></div></div>
+    <div class="ov-item"><small>Inline style 1em over a rule 2em</small><div class="ov-case"><div class="ov-inline" style="font-size:1em;background:#fecaca">Inline wins</div></div></div>
   </div>
 </section>
 

@@ -54,8 +54,9 @@ function uiiNumWriter(c) {
     // "normal") is passed through as typed.
     const bare = /^-?\d*\.?\d+$/.test(t);
     const v = bare && unit() === 'var' ? uiiVarCalc(fx.name, parseFloat(t)) : bare ? t + unit() : t;
-    for (const p of props) uiiSet(info, p, v);
+    for (const p of props) (opt.own ? uiiSetOwn(info.el, p, v) : uiiSet(info, p, v));
     c.show(v);
+    if (c.others) c.others();
     if (opt.onSet) opt.onSet(v);
     c.pxNote();
   };
@@ -86,7 +87,8 @@ function uiiNumField(info, label, props, opt) {
   props = [].concat(props);
   opt = opt || {};
   const units = 'units' in opt ? opt.units : (UII_UNITS[props[0]] || UII_UNITS_BOX);
-  const target = uiiTargetEl(info, props[0]);
+  const target = opt.own ? info.el : uiiTargetEl(info, props[0]);
+  const val = (p) => uiiEditValue(info, p, opt.own);
   const wrap = uiiEl('span', 'nf');
   const box = uiiEl('input');
   box.spellcheck = false;
@@ -105,20 +107,22 @@ function uiiNumField(info, label, props, opt) {
     if (![...sel.options].some((o) => o.value === p.unit)) sel.appendChild(new Option(p.unit, p.unit));
     sel.value = p.unit;
   };
-  show(uiiEditValue(info, props[0]));
+  show(val(props[0]));
   // A ↕ / ↔ pair whose sides differ shows no number: either one would lie.
   // The first write sets both sides; show() clears the placeholder.
-  if (new Set(props.map((p) => uiiEditValue(info, p))).size > 1) { box.value = ''; box.placeholder = 'Mixed'; }
+  if (new Set(props.map(val)).size > 1) { box.value = ''; box.placeholder = 'Mixed'; }
   // em and % are read off the element the edit lands on, which is not always
   // the one the field shows (see uiiWriteEl). Asked at conversion time: the
   // answer costs a rule probe, and only switching a unit needs it.
-  const conv = (u) => uiiConvertUnit(uiiWriteEl(info, props[0]), props[0], u);
+  const conv = (u) => uiiConvertUnit(opt.own ? info.el : uiiWriteEl(info, props[0]), props[0], u);
   const c = { info, props, opt, fx, target, conv, box, unit, show };
+  uiiNumSync(c, val);
   const { write, nudge, cur } = uiiNumWriter(c);
   if (sel) sel.addEventListener('change', () => write(sel.value === 'var'
     ? uiiVarCalc(fx.name, parseFloat(getComputedStyle(target).getPropertyValue(props[0])) / fx.varPx)
     : conv(sel.value)));
   wrap.appendChild(uiiStepper((d) => nudge(cur(), d)));
+  if (opt.compact) return uiiNumCompact(wrap, c);
   const fld = uiiFld(label, wrap, props, target);
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {

@@ -48,6 +48,7 @@ function uiiValueRow(name, value, set, resetName) {
     wrap.appendChild(uiiColorSwatch(/^#[0-9a-f]{6}$/i.test(hex) ? hex : '#000000', write));
   }
   box.addEventListener('change', () => write(box.value.trim()));
+  if (hex) uiiLiveColor(box, write);
   uiiEnterKeeps(box);
   wrap.appendChild(box);
   row.append(uiiEl('span', 'n', name), wrap);

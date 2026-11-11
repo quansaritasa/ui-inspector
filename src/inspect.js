@@ -107,11 +107,11 @@ function uiiEffectiveBg(el) {
   let n = el;
   while (n && n !== document.documentElement) {
     const v = getComputedStyle(n).backgroundColor;
-    if (!uiiIsTransparent(v)) return { rgb: v, from: n === el ? null : uiiSegment(n) };
+    if (!uiiIsTransparent(v)) return { rgb: v, from: n === el ? null : uiiSegment(n), el: n };
     n = n.parentElement;
   }
   const v = getComputedStyle(document.documentElement).backgroundColor;
-  return { rgb: uiiIsTransparent(v) ? 'transparent' : v, from: 'html' };
+  return { rgb: uiiIsTransparent(v) ? 'transparent' : v, from: 'html', el: document.documentElement };
 }
 
 function uiiColorInfo(rgb, from, varMap) {
@@ -138,7 +138,7 @@ function uiiCollect(el) {
     src: uiiState.opts.srcAttr ? (el.getAttribute(uiiState.opts.srcAttr) || '') : '',
     width: Math.round(r.width),
     height: Math.round(r.height),
-    bg: uiiColorInfo(bg.rgb, bg.from, varMap),
+    bg: Object.assign(uiiColorInfo(bg.rgb, bg.from, varMap), { el: bg.el }),
     color: uiiColorInfo(cs.color, null, varMap),
     fontFamily: uiiFirstFont(cs.fontFamily),
     fontFamilyFull: cs.fontFamily,
