@@ -5043,7 +5043,9 @@ function uiiColorVarName(v) {
 function uiiColorVarOf(el, prop) {
   const d = uiiAnyDecl(el, prop, uiiColorVarName) && uiiRuleDecl(el, prop);
   const named = uiiColorVarName(d && d.value);
-  if (named || !UII_COLOR_SHORTHAND[prop]) return named;
+  // A winner that is not a var ("transparent", a hex) is the answer: the sheet-order scan below
+  // would name a losing rule's var instead.
+  if (named || d || !UII_COLOR_SHORTHAND[prop]) return named;
   const rules = uiiRulesOf(el);
   const heads = [UII_COLOR_SHORTHAND[prop]];
   if (prop === 'border-color') heads.unshift('border-' + uiiBorderSide(el), 'border-' + uiiBorderSide(el) + '-color');
