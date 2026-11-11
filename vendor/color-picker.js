@@ -1,4 +1,4 @@
-/* Vendored from the color-picker project, dist/color-picker.esm.js @ bb509bf.
+/* Vendored from the color-picker project, dist/color-picker.esm.js @ e67e3d3.
  * Local patches (shadow-DOM awareness; every one marks a spot where the
  * library asked the document instead of its own root):
  *   - document.activeElement / .contains / querySelectorAll -> the root node
@@ -570,49 +570,80 @@ function createCopy({ button: button2, getValue, onStatus, label = "Copy HEX" })
   };
 }
 
-// src/presets.js
+// src/preset-sets.js
 var PRESET_SETS = {
   text: {
-    /* Ordered so neighbours look alike: one tint family at a time, dark to light
-       within it. `Normal` runs gray, slate, stone, neutral, then its light tail for
-       dark surfaces; `#000000` leads it, and the first entry is what `options.js`
-       hands a text slot with no color of its own. The two colored tabs walk the
-       hue wheel; `Highlight` ends with its dark-surface row in the same hue order. */
+    /* Ordered so neighbours look alike, the same way in every tab: the colors that
+       read on white first, then the light tail for dark surfaces. Each part walks
+       one tint family at a time (20° oklch hue buckets from 250°: blue, violet,
+       pink, red, orange, yellow, green, teal, cyan; greys last), dark to light
+       within it. `#000000` leads `Normal`: the first entry is what `options.js`
+       hands a text slot with no color of its own. */
     Normal: [
       "#000000",
-      "#111827",
-      "#1F2937",
-      "#374151",
-      "#4B5563",
-      "#6B7280",
       "#020617",
-      "#0F172A",
-      "#1E293B",
-      "#334155",
-      "#475569",
-      "#64748B",
-      "#94A3B8",
       "#050A18",
       "#0A1128",
+      "#0F172A",
+      "#111827",
       "#0D1B2A",
-      "#0B1B3A",
       "#111B33",
+      "#0B1B3A",
       "#14213D",
       "#1B263B",
-      "#1B2A49",
+      "#1F2937",
+      "#1E293B",
       "#1E2A44",
+      "#1B2A49",
       "#22304A",
       "#2B3A55",
+      "#334155",
+      "#374151",
       "#364A6B",
+      "#475569",
+      "#4B5563",
+      "#6B7280",
+      "#64748B",
+      "#544E66",
+      "#786F89",
+      "#483242",
+      "#745A6A",
+      "#250E14",
+      "#3C2519",
+      "#5E423D",
+      "#81655A",
+      "#594732",
+      "#756B51",
+      "#312B13",
+      "#131904",
+      "#424F3F",
+      "#5F665A",
+      "#687B64",
+      "#476061",
+      "#597C7E",
+      "#171717",
       "#1C1917",
       "#292524",
-      "#44403C",
-      "#57534E",
-      "#171717",
       "#262626",
       "#404040",
+      "#44403C",
       "#525252",
+      "#57534E",
       "#737373",
+      "#94A3B8",
+      "#DCDAF8",
+      "#BFB1CB",
+      "#FEDEEC",
+      "#CFADB2",
+      "#E2C3B5",
+      "#C2B69B",
+      "#F5E6CA",
+      "#C3D0B4",
+      "#EFF5DF",
+      "#D5FBF5",
+      "#9AC0C0",
+      "#CEEEFE",
+      "#A9C6D8",
       "#A3A3A3",
       "#D1D5DB",
       "#E5E7EB",
@@ -622,107 +653,164 @@ var PRESET_SETS = {
     Heading: [
       "#172554",
       "#1E3A5F",
-      "#312E81",
       "#1E3A8A",
-      "#3730A3",
       "#1E40AF",
-      "#4338CA",
+      "#1A57AD",
       "#1D4ED8",
+      "#4A6DA0",
       "#2563EB",
       "#1E1B4B",
+      "#18188C",
+      "#393558",
+      "#312E81",
+      "#3730A3",
+      "#4D4B82",
+      "#4338CA",
+      "#555E96",
+      "#67678E",
+      "#645BBE",
+      "#311344",
       "#2E1065",
+      "#342241",
       "#3B0764",
+      "#4D2368",
       "#4C1D95",
       "#581C87",
-      "#052E16",
+      "#553D72",
+      "#6F458C",
+      "#6244A5",
+      "#6C5A7F",
+      "#7959A5",
+      "#8946BA",
       "#1A2E05",
+      "#083E13",
+      "#04510E",
+      "#344A29",
+      "#365314",
+      "#3F6212",
+      "#4B6341",
+      "#056F15",
+      "#537842",
+      "#052E16",
+      "#064E3B",
       "#0F5132",
       "#14532D",
-      "#365314",
-      "#166534",
-      "#3F6212",
-      "#15803D",
-      "#022C22",
-      "#064E3B",
-      "#134E4A",
       "#065F46",
-      "#115E59",
+      "#166534",
+      "#3B654F",
       "#047857",
+      "#15803D",
+      "#487764",
+      "#022C22",
+      "#134E4A",
+      "#115E59",
       "#0F766E",
       "#042F2E",
+      "#01434C",
+      "#225C63",
+      "#027A84",
       "#083344",
+      "#164E63",
+      "#155E75",
+      "#366C77",
+      "#0E7490",
       "#0A3D62",
       "#0C4A6E",
-      "#164E63",
       "#075985",
-      "#155E75",
       "#0369A1",
-      "#0E7490"
+      "#4A718B"
     ],
     Highlight: [
       "#4F46E5",
-      "#818CF8",
-      "#60A5FA",
       "#5B21B6",
       "#6B21A8",
       "#6D28D9",
       "#7E22CE",
-      "#7C3AED",
       "#9333EA",
-      "#A78BFA",
-      "#C084FC",
       "#701A75",
       "#86198F",
       "#A21CAF",
       "#C026D3",
-      "#E879F9",
+      "#94116A",
+      "#9E4F80",
+      "#CE0999",
       "#9D174D",
       "#BE185D",
       "#DB2777",
-      "#F472B6",
       "#7F1D1D",
       "#881337",
       "#991B1B",
-      "#9A3412",
       "#B91C1C",
       "#BE123C",
-      "#C2410C",
+      "#B35851",
       "#DC2626",
       "#E11D48",
-      "#EF4444",
-      "#F87171",
       "#78350F",
+      "#9A3412",
       "#92400E",
+      "#C2410C",
+      "#B45309",
       "#854D0E",
       "#A16207",
-      "#B45309",
+      "#4D7C0F",
+      "#60A5FA",
+      "#93C5FD",
+      "#818CF8",
+      "#9B63F5",
+      "#A78BFA",
+      "#C084FC",
+      "#AE6EB0",
+      "#E879F9",
+      "#DDA9F7",
+      "#CA5E96",
+      "#E741C4",
+      "#CF88C8",
+      "#F472B6",
+      "#F9A8D4",
+      "#FF5387",
+      "#C66878",
+      "#EF4444",
+      "#F87171",
+      "#FDA4AF",
       "#EA580C",
+      "#D0765A",
       "#F97316",
+      "#F99B7E",
+      "#BF7439",
       "#FB923C",
+      "#FDBA74",
       "#CA8A04",
       "#F59E0B",
-      "#4D7C0F",
+      "#EAB308",
+      "#8F8214",
+      "#B69836",
+      "#B8B351",
+      "#FACC15",
+      "#D9DB7B",
+      "#FDE047",
+      "#8F9B3C",
+      "#C0CC0E",
+      "#BEF264",
+      "#0C9B33",
       "#65A30A",
+      "#75AD62",
       "#22C55E",
       "#84CC16",
-      "#0D9488",
+      "#9DD384",
+      "#2FFD70",
+      "#3B9F6D",
       "#34D399",
-      "#0891B2",
-      "#38BDF8",
-      "#93C5FD",
-      "#F9A8D4",
-      "#FDA4AF",
-      "#FDBA74",
-      "#FBBF24",
-      "#EAB308",
-      "#FACC15",
-      "#FDE047",
-      "#BEF264",
-      "#A3E635",
       "#6EE7B7",
+      "#0D9488",
+      "#2DB396",
       "#2DD4BF",
+      "#15BBBD",
       "#67E8F9",
-      "#22D3EE"
+      "#0891B2",
+      "#0BAEC8",
+      "#22D3EE",
+      "#1086D3",
+      "#38BDF8"
     ]
   },
   background: {
@@ -730,126 +818,187 @@ var PRESET_SETS = {
       "#70B1ED",
       "#3189FD",
       "#6BA5FB",
+      "#9DB0DF",
       "#90AEFE",
       "#8AA2E4",
       "#8D9BFB",
       "#8075FD",
+      "#9B8BFB",
       "#B0A5F2",
+      "#AA9CCB",
       "#BC90FF",
       "#BB8FDE",
       "#B94BFD",
       "#D78FF6",
       "#D180E1",
+      "#BC89C3",
+      "#C8A2CB",
       "#D995D9",
       "#E70CD0",
       "#F186D4",
       "#D289BB",
       "#EB77B6",
       "#E197BC",
+      "#C993A6",
       "#FF82B2",
       "#FA0C86",
       "#E183A1",
       "#F67591",
       "#F290A2",
+      "#D5848E",
+      "#DA9FA4",
+      "#E8777A",
       "#FE8B82",
       "#FE2832",
       "#DC8C81",
       "#F87868",
+      "#DD8364",
+      "#E89B80",
       "#FE8F5D",
       "#F3813F",
       "#D76807",
+      "#D6A588",
       "#DE8F57",
+      "#FC933C",
+      "#E58212",
+      "#CF8F43",
       "#F29B1D",
+      "#C69C6D",
       "#DCA65E",
       "#DB940E",
       "#B88007",
       "#C4A040",
+      "#C3AF7E",
       "#D6AB1B",
+      "#AF9F52",
       "#9B8F08",
       "#BDB55D",
+      "#ABA874",
       "#B1A92B",
       "#BAB818",
+      "#ADBC48",
+      "#92AC18",
       "#93B25A",
       "#6C9E08",
       "#8AC652",
+      "#9CBC91",
+      "#69B54C",
+      "#7FAD70",
       "#51BF68",
       "#78C687",
       "#0BA75D",
+      "#82B291",
       "#10D095",
       "#55BB96",
       "#51CAA7",
+      "#76C2B2",
       "#0BA28F",
       "#39BAB4",
       "#09CBC5",
+      "#30C7D1",
+      "#6DB2BA",
       "#1FB8CF",
       "#0A9DB2",
       "#04C4F0",
       "#6DBEDC",
+      "#37ACD9",
       "#0A96D6",
-      "#0EB0FD"
+      "#0EB0FD",
+      "#7FAACE"
     ],
     /* The pale washes the group used to ship, kept as one category because the
        contrast suggestions rank partners out of this palette: none of the 60
        badge inks clears 4.5:1 against a mid-tone text like #0F766E, so without a
        pale set the suggestions panel has nothing to offer for such a pair. The
        old six categories are merged and de-duplicated here, with five more washes
-       in the hue gaps and four across red and orange — 43 colors, then 17 more across every hue so it matches
-       `Vivid` at 60. Contrast against #0F766E is what caps the set: a wash light enough to stay useful
-       there has little chroma left to spend, so the red/orange four sit at
-       3.78-5.00:1, inside the range the merged washes already covered. */
+       in the hue gaps and four across red and orange — 43 colors, then 17 more across every hue, then
+       30 more picked farthest-first (oklch L .88-.96, chroma .03-.075, dE00 >= 4.1 from every other
+       entry, >= 3.78:1 against #0F766E) so it matches `Vivid` at 90. Contrast against #0F766E is what
+       caps the set: a wash light enough to stay useful there has little chroma left to spend, so the
+       red/orange four sit at 3.78-5.00:1, inside the range the merged washes already covered. */
     Pale: [
       "#BFDBFE",
       "#EFF6FF",
       "#DBEAFE",
       "#D3DFF3",
+      "#CFD6F6",
+      "#D8D4EA",
       "#EDE9FE",
       "#E0D8FD",
       "#F3E8FF",
+      "#E8D6F4",
       "#F0D1FF",
+      "#FCE1FC",
       "#EAD7E8",
+      "#FDCCF4",
       "#FCE7F3",
       "#FBCFE8",
+      "#F9D2DC",
       "#FFE4E6",
       "#FEF2F2",
       "#FECACA",
       "#F1D7D2",
+      "#FDE6DB",
+      "#F1D0BE",
       "#FDE4CF",
       "#FFDAB9",
+      "#E5D4C3",
       "#FED7AA",
       "#FFF7ED",
       "#FFEDD5",
+      "#FAE1B8",
+      "#E7D5B7",
       "#F0DDA9",
       "#FDEAB6",
+      "#F0E4C3",
       "#FFFBEB",
       "#FEF3C7",
       "#FDE68A",
       "#E2DFC9",
+      "#DFDAAC",
       "#FBF6AE",
+      "#EFEECB",
       "#EDF0BA",
+      "#D7DBBA",
       "#DCE4AF",
       "#F7FEE7",
       "#ECFCCB",
       "#E6F0D3",
+      "#C7E2AE",
       "#D5F9BA",
       "#CDE7C7",
+      "#DCFDD8",
+      "#DFF1DF",
+      "#B8E5BA",
+      "#CBDDCD",
       "#F0FDF4",
       "#BBF7D0",
       "#DCFCE7",
+      "#C0E1CC",
       "#B6EDCE",
       "#D1FAE5",
       "#ECFDF5",
+      "#A4E8D2",
       "#BAFBE8",
       "#D8F2EA",
       "#BCE9DC",
+      "#C4DED7",
       "#99F6E4",
       "#F0FDFA",
       "#CCFBF1",
       "#E6FFFB",
+      "#9EE8DF",
+      "#B0FCF4",
+      "#B6E1E0",
+      "#D0FCFD",
       "#A6EDF0",
       "#A8FAFF",
       "#C8E4E7",
       "#CDF5FF",
+      "#A4EBFE",
+      "#B7DFEB",
       "#BAE6FD",
+      "#C5DBE9",
       "#F0F9FF",
       "#E0F2FE",
       "#FAFAFA",
@@ -861,6 +1010,8 @@ var PRESET_SETS = {
     ]
   }
 };
+
+// src/presets.js
 function mergePalette(base = {}, override = {}) {
   const merged = { ...base, ...override };
   return Object.fromEntries(Object.entries(merged).map(([name, colors]) => {
@@ -1441,10 +1592,15 @@ function createFields({ picker, entries, labels = {} }) {
 // src/popover.js
 var MARGIN = 8;
 var GAP = 10;
+var PLACEMENTS = ["bottom-start", "bottom-end", "top-start", "top-end", "right-start", "right-end", "left-start", "left-end"];
 var SHEET = "(max-width: 680px)";
 var MIN_ROOM = 160;
 var within = (value, min, max) => max < min ? min : Math.min(Math.max(value, min), max);
-function createPopover({ panel, getAnchor }) {
+function createPopover({ panel, getAnchor, placement: wanted = "bottom-start", offset: nudge, position: fixed }) {
+  if (!PLACEMENTS.includes(wanted)) console.warn(`ColorPicker: unknown placement ${JSON.stringify(wanted)} \u2014 using 'bottom-start'.`);
+  const placement = PLACEMENTS.includes(wanted) ? wanted : "bottom-start";
+  const at0 = fixed && Number.isFinite(fixed.x) && Number.isFinite(fixed.y) ? fixed : null;
+  const offset = { x: Number(nudge && nudge.x) || 0, y: Number(nudge && nudge.y) || 0 };
   let frame = 0;
   let placed = null;
   let pinned = false;
@@ -1455,14 +1611,32 @@ function createPopover({ panel, getAnchor }) {
   const coordinates = (box, anchorBox) => {
     let left = anchorBox ? anchorBox.left : (innerWidth - box.width) / 2;
     let top = anchorBox ? anchorBox.bottom + GAP : (innerHeight - box.height) / 2;
-    let flipped = false;
+    let above = false;
     if (anchorBox) {
-      if (left + box.width > innerWidth - MARGIN) left = anchorBox.right - box.width;
-      if (top + box.height > innerHeight - MARGIN) {
-        const above = anchorBox.top - GAP - box.height;
-        flipped = above >= MARGIN;
-        top = flipped ? above : innerHeight - MARGIN - box.height;
+      const [side, align] = placement.split("-");
+      const end = align === "end";
+      if (side === "left" || side === "right") {
+        const before = anchorBox.left - GAP - box.width;
+        const after = anchorBox.right + GAP;
+        left = side === "left" ? before : after;
+        if (side === "left" ? left < MARGIN && after + box.width <= innerWidth - MARGIN : left + box.width > innerWidth - MARGIN && before >= MARGIN) {
+          left = side === "left" ? after : before;
+        }
+        top = end ? anchorBox.bottom - box.height : anchorBox.top;
+      } else {
+        left = end ? anchorBox.right - box.width : anchorBox.left;
+        if (!end && left + box.width > innerWidth - MARGIN) left = anchorBox.right - box.width;
+        const under = anchorBox.bottom + GAP;
+        const over = anchorBox.top - GAP - box.height;
+        above = side === "top" ? !(over < MARGIN && under + box.height <= innerHeight - MARGIN) : under + box.height > innerHeight - MARGIN && over >= MARGIN;
+        top = above ? over : under;
       }
+      left += offset.x;
+      top += offset.y;
+    }
+    if (at0) {
+      left = at0.x;
+      top = at0.y;
     }
     const at = {
       left: Math.round(within(left, MARGIN, innerWidth - MARGIN - box.width)),
@@ -1472,7 +1646,7 @@ function createPopover({ panel, getAnchor }) {
       ...at,
       /* A panel hung above its trigger stops at the trigger, not at the screen
          edge: growth downwards would cover the anchor it hangs off. */
-      room: flipped ? Math.round(box.height) : Math.round(innerHeight - MARGIN - at.top)
+      room: above ? Math.round(box.height) : Math.round(innerHeight - MARGIN - at.top)
     };
   };
   const paint = () => {
@@ -1567,6 +1741,11 @@ function assemble(picker) {
   picker.refs = built.refs;
   picker.root.append(built.root);
   picker.root.style.setProperty("--cp-slots", String(slots.length));
+  for (const key of ["width", "height"]) {
+    const size = options[key];
+    if (typeof size === "number" && size > 0) picker.root.style.setProperty(`--cp-${key}`, `${size}px`);
+    else if (typeof size === "string" && size) picker.root.style.setProperty(`--cp-${key}`, size);
+  }
   if (options.mode === "popover") picker.root.classList.add("cp-popover");
   if (options.mode === "inline") picker.root.classList.add("cp-inline");
   host.append(picker.root);
@@ -1608,7 +1787,7 @@ function assemble(picker) {
   } else if (options.triggers) {
     picker.triggers = createTriggers({ picker, target: options.triggers, slots, labels: options.labels });
   }
-  picker.popover = options.mode === "popover" ? createPopover({ panel: picker.refs.panel, getAnchor: () => picker.anchor }) : null;
+  picker.popover = options.mode === "popover" ? createPopover({ panel: picker.refs.panel, getAnchor: () => picker.anchor, placement: options.placement, offset: options.offset, position: options.position }) : null;
 }
 
 // src/tablist.js
@@ -1681,7 +1860,7 @@ function createFocusTrap(root) {
 }
 
 // src/drag.js
-var MARGIN2 = 8;
+var GRAB = 80;
 var SHEET2 = "(max-width: 680px)";
 var CONTROLS = 'button, input, select, textarea, a[href], [role="slider"]';
 var within2 = (value, min, max) => max < min ? min : Math.min(Math.max(value, min), max);
@@ -1696,8 +1875,8 @@ function createDrag({ panel, handle, onStart }) {
     panel.style.transform = offset.x || offset.y ? `translate(${offset.x}px, ${offset.y}px)` : "";
   };
   const clampTo = (box) => {
-    offset.x = within2(offset.x, MARGIN2 - box.left, innerWidth - MARGIN2 - box.left - box.width);
-    offset.y = within2(offset.y, MARGIN2 - box.top, innerHeight - MARGIN2 - box.top - box.height);
+    offset.x = within2(offset.x, GRAB - box.left - box.width, innerWidth - GRAB - box.left);
+    offset.y = within2(offset.y, -box.top, innerHeight - GRAB - box.top);
   };
   const clamp2 = () => {
     if (!offset.x && !offset.y) return;
@@ -1770,7 +1949,7 @@ function createDrag({ panel, handle, onStart }) {
 }
 
 // src/resize.js
-var MARGIN3 = 8;
+var MARGIN2 = 8;
 var MIN_WIDTH = 400;
 var MIN_HEIGHT = 320;
 var SHEET3 = "(max-width: 680px)";
@@ -1794,8 +1973,8 @@ function createResize({ panel, grip, mode, onStart, onChange }) {
   const onPointerMove = (event) => {
     if (!start) return;
     const { rect } = start;
-    const roomWidth = mode === "popover" ? innerWidth - MARGIN3 - rect.left : innerWidth - 2 * MARGIN3;
-    const roomHeight = mode === "popover" ? innerHeight - MARGIN3 - rect.top : innerHeight - 2 * MARGIN3;
+    const roomWidth = mode === "popover" ? innerWidth - MARGIN2 - rect.left : innerWidth - 2 * MARGIN2;
+    const roomHeight = mode === "popover" ? innerHeight - MARGIN2 - rect.top : innerHeight - 2 * MARGIN2;
     const width = within3(start.width + (event.clientX - start.x), MIN_WIDTH, roomWidth);
     const height = within3(start.height + (event.clientY - start.y), MIN_HEIGHT, roomHeight);
     panel.style.width = `${Math.round(width)}px`;
@@ -1822,7 +2001,7 @@ function createResize({ panel, grip, mode, onStart, onChange }) {
 }
 
 // src/maximize.js
-var MARGIN4 = 8;
+var MARGIN3 = 8;
 var SHEET4 = "(max-width: 680px)";
 function createMaximize({ panel, button: button2, drag, pin, labels }) {
   let saved = null;
@@ -1832,12 +2011,12 @@ function createMaximize({ panel, button: button2, drag, pin, labels }) {
     button2.title = name;
   };
   const fill = () => {
-    panel.style.width = `${Math.max(0, innerWidth - 2 * MARGIN4)}px`;
-    panel.style.height = `${Math.max(0, innerHeight - 2 * MARGIN4)}px`;
+    panel.style.width = `${Math.max(0, innerWidth - 2 * MARGIN3)}px`;
+    panel.style.height = `${Math.max(0, innerHeight - 2 * MARGIN3)}px`;
     panel.style.maxHeight = "none";
     panel.style.position = "fixed";
-    panel.style.left = `${MARGIN4}px`;
-    panel.style.top = `${MARGIN4}px`;
+    panel.style.left = `${MARGIN3}px`;
+    panel.style.top = `${MARGIN3}px`;
   };
   const maximize = () => {
     if (saved) return;
@@ -2078,6 +2257,14 @@ var DEFAULTS = {
   showContrastSuggestions: false,
   /* Suggestions measure a pair: `['text', 'background']`. Without one they stay off. */
   contrastPair: null,
+  /* Panel size: a number is px, a string is any CSS length. null = the stylesheet's default. */
+  width: null,
+  height: null,
+  /* Popover only: which side/edge of the trigger the panel hangs off (see PLACEMENTS in popover.js), nudged by `offset: { x, y }` px. */
+  placement: "bottom-start",
+  offset: null,
+  /* Popover only: `{ x, y }` viewport px. Overrides the trigger-relative placement. */
+  position: null,
   draggable: true,
   resizable: true,
   theme: "light",
