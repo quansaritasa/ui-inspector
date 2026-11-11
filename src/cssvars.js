@@ -101,6 +101,24 @@ function uiiColorVarMap(vars) {
   return map;
 }
 
+// A rule's selector list as its top-level members. `:is(a, b)` / `:where(a, b)`
+// / `:not(a, b)` carry commas of their own, so a plain split(',') cuts them into
+// halves that are not selectors and never match.
+function uiiSplitSelectors(text) {
+  const out = [];
+  let depth = 0, start = 0, quote = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) { if (c === '\\') i++; else if (c === quote) quote = ''; continue; }
+    if (c === '"' || c === "'") quote = c;
+    else if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth--;
+    else if (c === ',' && depth === 0) { out.push(text.slice(start, i)); start = i + 1; }
+  }
+  out.push(text.slice(start));
+  return out;
+}
+
 // The rule that gives `name` its value for `el`: the last rule in sheet order
 // that declares it and whose selector matches el or an ancestor (`:root` is
 // where an app keeps its palette, but a theme block may set it lower down).
@@ -110,7 +128,7 @@ function uiiVarRule(name, el, all) {
   let hit = null;
   for (const { rule, file } of all) {
     if (!rule.style.getPropertyValue(name)) continue;
-    for (const sel of rule.selectorText.split(',')) {
+    for (const sel of uiiSplitSelectors(rule.selectorText)) {
       const s = sel.trim();
       let up = null;
       try { up = s && el.closest(s); } catch (e) { up = null; }
@@ -125,7 +143,7 @@ function uiiVarRule(name, el, all) {
 function uiiMatchedRules(el, all) {
   const out = [];
   for (const { rule, file, cond } of all) {
-    const parts = rule.selectorText.split(',');
+    const parts = uiiSplitSelectors(rule.selectorText);
     for (const sel of parts) {
       const s = sel.trim();
       if (!s) continue;
