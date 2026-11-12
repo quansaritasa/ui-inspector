@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.4 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.5 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -3727,24 +3727,24 @@ function uiiUnmount() {
   S.pickBoxes = [];
 }
 
-// The panel sits on the right, unless x (the pointer) is in the right 30% of
-// the screen — then it moves left so it does not cover what was just picked.
-// A panel already on the wanted side stays where it is, so a spot the user
-// dragged it to is kept.
+// The panel sits on the right by default. A pointer within 40% of the screen
+// width of the panel's edge moves it to the opposite side so it does not cover
+// what was just picked. In the middle band (not within 40% of either edge)
+// the panel stays where it is, so a spot the user dragged it to is kept.
 function uiiPanelAway(x) {
   const p = uiiState.panel.root;
   const r = p.getBoundingClientRect();
   const w = window.innerWidth;
-  const wantLeft = x > w * 0.7;
-  if (r.width && (r.left + r.width / 2 < w / 2) === wantLeft) return;
+  const onLeft = r.width ? r.left + r.width / 2 < w / 2 : false;
+  const wantLeft = onLeft ? x >= w * 0.4 : x > w * 0.6;
+  if (wantLeft === onLeft) return;
   if (wantLeft) { p.style.left = '16px'; p.style.right = 'auto'; }
   else { p.style.left = 'auto'; p.style.right = '16px'; }
 }
 
 // The panel opens with inspect mode, already filled: the element under the
 // pointer is pinned, so there is no empty panel to look at and no click to
-// make first. It is parked on the right, or on the left when the pointer is
-// in the right 30% of the screen, because the pointer is sitting on what is
+// make first. It is parked per uiiPanelAway, because the pointer is sitting on what is
 // about to be inspected and a 500px panel over it would be in the way.
 // Without a pointer position (the shortcut pressed on a freshly loaded page)
 // nothing is pinned and the panel stays closed until the first click.
