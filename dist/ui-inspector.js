@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.5 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.7 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -2729,6 +2729,7 @@ const UII_CSS = `
 .fld .fml { font: 10px/1.4 ui-monospace, Consolas, monospace; color: #6b7280; word-break: break-all; user-select: text; }
 .fld .lab.ovr { color: #d97706; font-weight: 700; }
 .nf .os { color: #6b7280; font-size: 11px; }
+.fld .fml .fmi { font: inherit; color: inherit; width: 70%; border: 1px solid #d1d5db; border-radius: 3px; padding: 0 3px; background: transparent; }
 .fld .fml.lost { text-decoration: line-through; opacity: .75; }
 .fld .lab.scrub { cursor: ew-resize; }
 .nf, .tf, .seg { height: 28px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
@@ -4406,8 +4407,9 @@ function uiiEditValue(info, prop, own) {
   // A text edit on a child with no rule of its own lands on the pinned
   // element and reaches the text by inheritance (uiiWriteEl): the field shows
   // the value that was written, not the px it computes to.
-  // (not when the text has a rule of its own: the edit never reaches it)
-  const h = !own && el !== info.el && !uiiOwnsProp(info, el, prop) && uiiEditsFor(info.el, false);
+  // (not when the text has a rule of its own, even a relative one like 1.25em:
+  // the parent's px is not what that rule says)
+  const h = !own && el !== info.el && !uiiRuleDecl(el, prop) && uiiEditsFor(info.el, false);
   if (h && prop in h.props) return h.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
@@ -4588,6 +4590,35 @@ function uiiWriteEl(info, prop) {
   if (!UII_TEXT_PROPS.includes(prop)) return info.el;
   const main = uiiTextEls(info)[0];
   return uiiOwnsProp(info, main, prop) ? main : info.el;
+}
+
+// The ancestor whose rule sizes `el` by a variable factor, for a text property
+// `el` only inherits: `.cm-label` has no font-size rule, `.context-menu` says
+// calc(var(--g) * 1.05). That rule is what an AI should edit, so the field
+// shows its factor and an edit lands on that element. Null when `el` has a rule
+// of its own, or the nearest ancestor that sets it does so as a plain value
+// (nothing to factor). Cached per selection; costs one rule match per ancestor
+// climbed, so it only runs for a text property with no rule of its own.
+function uiiVarOwner(el, prop) {
+  if (!UII_TEXT_PROPS.includes(prop) || uiiAnyDecl(el, prop, Boolean)) return null;
+  const I = uiiState.info;
+  if (!I.ownerCache) I.ownerCache = new Map();
+  let m = I.ownerCache.get(el);
+  if (!m) I.ownerCache.set(el, (m = new Map()));
+  if (!m.has(prop)) {
+    let found = null;
+    for (let p = el.parentElement, i = 0; p && p !== document.documentElement && i < 12; p = p.parentElement, i++) {
+      if (!uiiAnyDecl(p, prop, Boolean)) continue;
+      // Edited already: the screen no longer matches the rule, the edit is the formula.
+      const pe = uiiEditsFor(p, false);
+      if (pe && prop in pe.props && uiiParseVarFactor(pe.props[prop])) { found = p; break; }
+      const d = uiiRuleDecl(p, prop);
+      if (d && uiiVarFactor(p, d.value, parseFloat(getComputedStyle(p).getPropertyValue(prop)))) found = p;
+      break;
+    }
+    m.set(prop, found);
+  }
+  return m.get(prop);
 }
 
 function uiiFindTextEls(el) {
@@ -5031,12 +5062,43 @@ function uiiNumField(info, label, props, opt) {
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));
-    fld.lab.textContent = label + (unit() && unit() !== 'px' && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
+    fld.lab.textContent = label + ((c.anc || (unit() && unit() !== 'px')) && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
   };
   c.pxNote();
   uiiScrub(fld.lab, cur, nudge);
   fld.set = show;
+  if (sel) uiiAncestorLine(fld, c);
   return fld;
+}
+
+// An inherited text size: the ancestor whose rule sizes it by a variable factor
+// gets its own line under the field, editable. The box above stays what this
+// element draws (px, em…, written on the element itself); a factor typed here
+// lands on the ancestor; the box keeps its value and the title shows the px. Anything that is not a variable
+// factor is refused, since a px value could not go back into the css.
+function uiiAncestorLine(fld, c) {
+  const { info, props, opt } = c, prop = props[0];
+  const ow = c.fx || opt.own ? null : uiiVarOwner(c.target, prop);
+  if (!ow) return;
+  const fx = uiiFormula(ow, prop), d = uiiRuleDecl(ow, prop);
+  if (!fx || !d) return;
+  const now = () => { const e = uiiEditsFor(ow, false); return e && prop in e.props ? e.props[prop] : uiiVarCalc(fx.name, fx.k); };
+  const line = uiiEl('div', 'fml');
+  const inp = uiiEl('input', 'fmi');
+  inp.spellcheck = false;
+  inp.title = 'Inherited from ' + d.file + ' ' + d.selector + ': an edit changes that rule for everything under it';
+  inp.value = now();
+  line.append('↑ ' + prop + ': ', inp);
+  fld.f.appendChild(line);
+  c.anc = true; // the title always spells out the px on screen
+  c.pxNote();
+  inp.addEventListener('change', () => {
+    const v = inp.value.trim();
+    if (!uiiParseVarFactor(v)) { inp.value = now(); return; }
+    uiiSetOwn(ow, prop, v);
+    c.pxNote(); // the box keeps what it says; only the title follows the screen
+  });
+  uiiEnterKeeps(inp);
 }
 
 // ▲▼ pair: click steps once, holding repeats after 400ms.

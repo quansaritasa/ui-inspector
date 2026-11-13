@@ -127,12 +127,43 @@ function uiiNumField(info, label, props, opt) {
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));
-    fld.lab.textContent = label + (unit() && unit() !== 'px' && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
+    fld.lab.textContent = label + ((c.anc || (unit() && unit() !== 'px')) && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
   };
   c.pxNote();
   uiiScrub(fld.lab, cur, nudge);
   fld.set = show;
+  if (sel) uiiAncestorLine(fld, c);
   return fld;
+}
+
+// An inherited text size: the ancestor whose rule sizes it by a variable factor
+// gets its own line under the field, editable. The box above stays what this
+// element draws (px, em…, written on the element itself); a factor typed here
+// lands on the ancestor; the box keeps its value and the title shows the px. Anything that is not a variable
+// factor is refused, since a px value could not go back into the css.
+function uiiAncestorLine(fld, c) {
+  const { info, props, opt } = c, prop = props[0];
+  const ow = c.fx || opt.own ? null : uiiVarOwner(c.target, prop);
+  if (!ow) return;
+  const fx = uiiFormula(ow, prop), d = uiiRuleDecl(ow, prop);
+  if (!fx || !d) return;
+  const now = () => { const e = uiiEditsFor(ow, false); return e && prop in e.props ? e.props[prop] : uiiVarCalc(fx.name, fx.k); };
+  const line = uiiEl('div', 'fml');
+  const inp = uiiEl('input', 'fmi');
+  inp.spellcheck = false;
+  inp.title = 'Inherited from ' + d.file + ' ' + d.selector + ': an edit changes that rule for everything under it';
+  inp.value = now();
+  line.append('↑ ' + prop + ': ', inp);
+  fld.f.appendChild(line);
+  c.anc = true; // the title always spells out the px on screen
+  c.pxNote();
+  inp.addEventListener('change', () => {
+    const v = inp.value.trim();
+    if (!uiiParseVarFactor(v)) { inp.value = now(); return; }
+    uiiSetOwn(ow, prop, v);
+    c.pxNote(); // the box keeps what it says; only the title follows the screen
+  });
+  uiiEnterKeeps(inp);
 }
 
 // ▲▼ pair: click steps once, holding repeats after 400ms.

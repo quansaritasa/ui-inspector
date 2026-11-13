@@ -30,8 +30,9 @@ function uiiEditValue(info, prop, own) {
   // A text edit on a child with no rule of its own lands on the pinned
   // element and reaches the text by inheritance (uiiWriteEl): the field shows
   // the value that was written, not the px it computes to.
-  // (not when the text has a rule of its own: the edit never reaches it)
-  const h = !own && el !== info.el && !uiiOwnsProp(info, el, prop) && uiiEditsFor(info.el, false);
+  // (not when the text has a rule of its own, even a relative one like 1.25em:
+  // the parent's px is not what that rule says)
+  const h = !own && el !== info.el && !uiiRuleDecl(el, prop) && uiiEditsFor(info.el, false);
   if (h && prop in h.props) return h.props[prop];
   if (prop === 'background-color') return info.bg.hex;
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
