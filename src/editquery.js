@@ -37,7 +37,10 @@ function uiiEditValue(info, prop, own) {
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
   // One picker sets all four sides; it shows the first one that draws.
   if (prop === 'border-color') return uiiToHex(getComputedStyle(el).getPropertyValue('border-' + uiiBorderSide(el) + '-color'));
-  const fx = uiiFormula(el, prop);
+  const ow = own ? null : uiiVarOwner(el, prop);
+  const oe = ow && uiiEditsFor(ow, false);
+  if (oe && prop in oe.props) return oe.props[prop];
+  const fx = uiiFormula(ow || el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
 }

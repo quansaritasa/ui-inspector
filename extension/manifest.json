@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UI Inspector",
-  "version": "0.19.5",
+  "version": "0.19.6",
   "description": "Outline controls, pin one, copy its selector, colors and CSS rules for an AI.",
   "minimum_chrome_version": "102",
   "permissions": [

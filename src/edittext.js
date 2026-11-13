@@ -39,7 +39,33 @@ function uiiOwnsProp(info, t, prop) {
 function uiiWriteEl(info, prop) {
   if (!UII_TEXT_PROPS.includes(prop)) return info.el;
   const main = uiiTextEls(info)[0];
-  return uiiOwnsProp(info, main, prop) ? main : info.el;
+  return uiiVarOwner(main, prop) || (uiiOwnsProp(info, main, prop) ? main : info.el);
+}
+
+// The ancestor whose rule sizes `el` by a variable factor, for a text property
+// `el` only inherits: `.cm-label` has no font-size rule, `.context-menu` says
+// calc(var(--g) * 1.05). That rule is what an AI should edit, so the field
+// shows its factor and an edit lands on that element. Null when `el` has a rule
+// of its own, or the nearest ancestor that sets it does so as a plain value
+// (nothing to factor). Cached per selection; costs one rule match per ancestor
+// climbed, so it only runs for a text property with no rule of its own.
+function uiiVarOwner(el, prop) {
+  if (!UII_TEXT_PROPS.includes(prop) || uiiAnyDecl(el, prop, Boolean)) return null;
+  const I = uiiState.info;
+  if (!I.ownerCache) I.ownerCache = new Map();
+  let m = I.ownerCache.get(el);
+  if (!m) I.ownerCache.set(el, (m = new Map()));
+  if (!m.has(prop)) {
+    let found = null;
+    for (let p = el.parentElement, i = 0; p && p !== document.documentElement && i < 12; p = p.parentElement, i++) {
+      if (!uiiAnyDecl(p, prop, Boolean)) continue;
+      const d = uiiRuleDecl(p, prop);
+      if (d && uiiVarFactor(p, d.value, parseFloat(getComputedStyle(p).getPropertyValue(prop)))) found = p;
+      break;
+    }
+    m.set(prop, found);
+  }
+  return m.get(prop);
 }
 
 function uiiFindTextEls(el) {

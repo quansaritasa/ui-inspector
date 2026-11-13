@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.5 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.6 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -4413,7 +4413,10 @@ function uiiEditValue(info, prop, own) {
   if (prop === 'color') return el === info.el ? info.color.hex : uiiToHex(getComputedStyle(el).color);
   // One picker sets all four sides; it shows the first one that draws.
   if (prop === 'border-color') return uiiToHex(getComputedStyle(el).getPropertyValue('border-' + uiiBorderSide(el) + '-color'));
-  const fx = uiiFormula(el, prop);
+  const ow = own ? null : uiiVarOwner(el, prop);
+  const oe = ow && uiiEditsFor(ow, false);
+  if (oe && prop in oe.props) return oe.props[prop];
+  const fx = uiiFormula(ow || el, prop);
   if (fx) return uiiVarCalc(fx.name, fx.k);
   return uiiAuthored(el, prop) || getComputedStyle(el).getPropertyValue(prop).trim();
 }
@@ -4587,7 +4590,33 @@ function uiiOwnsProp(info, t, prop) {
 function uiiWriteEl(info, prop) {
   if (!UII_TEXT_PROPS.includes(prop)) return info.el;
   const main = uiiTextEls(info)[0];
-  return uiiOwnsProp(info, main, prop) ? main : info.el;
+  return uiiVarOwner(main, prop) || (uiiOwnsProp(info, main, prop) ? main : info.el);
+}
+
+// The ancestor whose rule sizes `el` by a variable factor, for a text property
+// `el` only inherits: `.cm-label` has no font-size rule, `.context-menu` says
+// calc(var(--g) * 1.05). That rule is what an AI should edit, so the field
+// shows its factor and an edit lands on that element. Null when `el` has a rule
+// of its own, or the nearest ancestor that sets it does so as a plain value
+// (nothing to factor). Cached per selection; costs one rule match per ancestor
+// climbed, so it only runs for a text property with no rule of its own.
+function uiiVarOwner(el, prop) {
+  if (!UII_TEXT_PROPS.includes(prop) || uiiAnyDecl(el, prop, Boolean)) return null;
+  const I = uiiState.info;
+  if (!I.ownerCache) I.ownerCache = new Map();
+  let m = I.ownerCache.get(el);
+  if (!m) I.ownerCache.set(el, (m = new Map()));
+  if (!m.has(prop)) {
+    let found = null;
+    for (let p = el.parentElement, i = 0; p && p !== document.documentElement && i < 12; p = p.parentElement, i++) {
+      if (!uiiAnyDecl(p, prop, Boolean)) continue;
+      const d = uiiRuleDecl(p, prop);
+      if (d && uiiVarFactor(p, d.value, parseFloat(getComputedStyle(p).getPropertyValue(prop)))) found = p;
+      break;
+    }
+    m.set(prop, found);
+  }
+  return m.get(prop);
 }
 
 function uiiFindTextEls(el) {
@@ -4998,8 +5027,15 @@ function uiiNumField(info, label, props, opt) {
   box.spellcheck = false;
   wrap.appendChild(box);
   // calc(var(--x) * k) in the stylesheet: the box edits k, unit "× --x".
-  const fx = units ? uiiFormula(target, props[0]) : null;
+  // An inherited size takes the factor of the ancestor rule that sets it
+  // (uiiVarOwner); the edit lands on that ancestor.
+  const ow = units && !opt.own ? uiiVarOwner(target, props[0]) : null;
+  const fx = units ? uiiFormula(ow || target, props[0]) : null;
   const sel = units ? wrap.appendChild(uiiUnitSelect(units, fx)) : null;
+  if (ow && fx) {
+    const od = uiiRuleDecl(ow, props[0]);
+    sel.title += ' · inherited from ' + (od ? od.file + ' ' + od.selector : 'an ancestor') + ': an edit changes that rule for everything under it';
+  }
   const unit = () => (sel ? sel.value : '');
   const show = (v) => {
     box.placeholder = '';

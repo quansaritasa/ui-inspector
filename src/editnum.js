@@ -94,8 +94,15 @@ function uiiNumField(info, label, props, opt) {
   box.spellcheck = false;
   wrap.appendChild(box);
   // calc(var(--x) * k) in the stylesheet: the box edits k, unit "× --x".
-  const fx = units ? uiiFormula(target, props[0]) : null;
+  // An inherited size takes the factor of the ancestor rule that sets it
+  // (uiiVarOwner); the edit lands on that ancestor.
+  const ow = units && !opt.own ? uiiVarOwner(target, props[0]) : null;
+  const fx = units ? uiiFormula(ow || target, props[0]) : null;
   const sel = units ? wrap.appendChild(uiiUnitSelect(units, fx)) : null;
+  if (ow && fx) {
+    const od = uiiRuleDecl(ow, props[0]);
+    sel.title += ' · inherited from ' + (od ? od.file + ' ' + od.selector : 'an ancestor') + ': an edit changes that rule for everything under it';
+  }
   const unit = () => (sel ? sel.value : '');
   const show = (v) => {
     box.placeholder = '';
