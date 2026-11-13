@@ -94,15 +94,8 @@ function uiiNumField(info, label, props, opt) {
   box.spellcheck = false;
   wrap.appendChild(box);
   // calc(var(--x) * k) in the stylesheet: the box edits k, unit "× --x".
-  // An inherited size takes the factor of the ancestor rule that sets it
-  // (uiiVarOwner); the edit lands on that ancestor.
-  const ow = units && !opt.own ? uiiVarOwner(target, props[0]) : null;
-  const fx = units ? uiiFormula(ow || target, props[0]) : null;
+  const fx = units ? uiiFormula(target, props[0]) : null;
   const sel = units ? wrap.appendChild(uiiUnitSelect(units, fx)) : null;
-  if (ow && fx) {
-    const od = uiiRuleDecl(ow, props[0]);
-    sel.title += ' · inherited from ' + (od ? od.file + ' ' + od.selector : 'an ancestor') + ': an edit changes that rule for everything under it';
-  }
   const unit = () => (sel ? sel.value : '');
   const show = (v) => {
     box.placeholder = '';
@@ -134,12 +127,43 @@ function uiiNumField(info, label, props, opt) {
   // A factor, em or % says nothing about the size on screen: "Size (13.2px)".
   c.pxNote = () => {
     const px = parseFloat(getComputedStyle(target).getPropertyValue(props[0]));
-    fld.lab.textContent = label + (unit() && unit() !== 'px' && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
+    fld.lab.textContent = label + ((c.anc || (unit() && unit() !== 'px')) && !isNaN(px) ? ' (' + uiiRound3(px) + 'px)' : '');
   };
   c.pxNote();
   uiiScrub(fld.lab, cur, nudge);
   fld.set = show;
+  if (sel) uiiAncestorLine(fld, c);
   return fld;
+}
+
+// An inherited text size: the ancestor whose rule sizes it by a variable factor
+// gets its own line under the field, editable. The box above stays what this
+// element draws (px, em…, written on the element itself); a factor typed here
+// lands on the ancestor; the box keeps its value and the title shows the px. Anything that is not a variable
+// factor is refused, since a px value could not go back into the css.
+function uiiAncestorLine(fld, c) {
+  const { info, props, opt } = c, prop = props[0];
+  const ow = c.fx || opt.own ? null : uiiVarOwner(c.target, prop);
+  if (!ow) return;
+  const fx = uiiFormula(ow, prop), d = uiiRuleDecl(ow, prop);
+  if (!fx || !d) return;
+  const now = () => { const e = uiiEditsFor(ow, false); return e && prop in e.props ? e.props[prop] : uiiVarCalc(fx.name, fx.k); };
+  const line = uiiEl('div', 'fml');
+  const inp = uiiEl('input', 'fmi');
+  inp.spellcheck = false;
+  inp.title = 'Inherited from ' + d.file + ' ' + d.selector + ': an edit changes that rule for everything under it';
+  inp.value = now();
+  line.append('↑ ' + prop + ': ', inp);
+  fld.f.appendChild(line);
+  c.anc = true; // the title always spells out the px on screen
+  c.pxNote();
+  inp.addEventListener('change', () => {
+    const v = inp.value.trim();
+    if (!uiiParseVarFactor(v)) { inp.value = now(); return; }
+    uiiSetOwn(ow, prop, v);
+    c.pxNote(); // the box keeps what it says; only the title follows the screen
+  });
+  uiiEnterKeeps(inp);
 }
 
 // ▲▼ pair: click steps once, holding repeats after 400ms.

@@ -39,7 +39,7 @@ function uiiOwnsProp(info, t, prop) {
 function uiiWriteEl(info, prop) {
   if (!UII_TEXT_PROPS.includes(prop)) return info.el;
   const main = uiiTextEls(info)[0];
-  return uiiVarOwner(main, prop) || (uiiOwnsProp(info, main, prop) ? main : info.el);
+  return uiiOwnsProp(info, main, prop) ? main : info.el;
 }
 
 // The ancestor whose rule sizes `el` by a variable factor, for a text property
@@ -59,6 +59,9 @@ function uiiVarOwner(el, prop) {
     let found = null;
     for (let p = el.parentElement, i = 0; p && p !== document.documentElement && i < 12; p = p.parentElement, i++) {
       if (!uiiAnyDecl(p, prop, Boolean)) continue;
+      // Edited already: the screen no longer matches the rule, the edit is the formula.
+      const pe = uiiEditsFor(p, false);
+      if (pe && prop in pe.props && uiiParseVarFactor(pe.props[prop])) { found = p; break; }
       const d = uiiRuleDecl(p, prop);
       if (d && uiiVarFactor(p, d.value, parseFloat(getComputedStyle(p).getPropertyValue(prop)))) found = p;
       break;
