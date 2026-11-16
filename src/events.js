@@ -74,6 +74,13 @@ function uiiOnMove(e) {
 }
 
 function uiiOnBlock(e) {
+  // Disabled controls swallow click, so pick on pointerdown for them.
+  if (e.type === 'pointerdown' && !uiiFromPanel(e) && e.target.nodeType === 1 && e.target.closest(':disabled')) {
+    e.preventDefault();
+    e.stopPropagation();
+    uiiPickFrom(e);
+    return;
+  }
   // A drag that starts in the panel (scrub, resize, move) and ends outside it
   // makes the browser click the common ancestor — <html> — which would re-pin.
   // pointerdown too: cancelling it below stops the browser sending mousedown,
@@ -89,6 +96,10 @@ function uiiOnClick(e) {
   e.preventDefault();
   e.stopPropagation();
   if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
+  uiiPickFrom(e);
+}
+
+function uiiPickFrom(e) {
   const el = uiiTargetFrom(e);
   if (!el) return;
   uiiPanelAway(e.clientX);
@@ -129,11 +140,17 @@ function uiiTogglePick(el, ready) {
   uiiDrawPicks();
   const seq = ++S.pickSeq;
   if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
+  uiiCopyPicks(null, seq);
+}
+
+// Just the list, "[a], [b] and [c]", so the user writes the ask around it.
+// seq: skip when a newer pick has landed; the button passes none.
+function uiiCopyPicks(btn, seq) {
+  const S = uiiState;
   Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
-    if (seq !== S.pickSeq) return;
-    // Just the list, "[a], [b] and [c]", so the user writes the ask around it
+    if (seq !== undefined && seq !== S.pickSeq) return;
     const ids = infos.map(uiiFormatForAI);
-    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1]);
+    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1], btn);
   });
 }
 

@@ -172,8 +172,8 @@ function uiiRenderPanel(info) {
   b.textContent = '';
   const idHead = uiiEl('div', 'sec', 'Identity ', 'section-identity');
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
-  copyAI.title = 'One line: name, selector, element, stylesheet rules';
-  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info), copyAI));
+  copyAI.title = 'One line: name, selector, element, stylesheet rules (the whole pick list when several)';
+  copyAI.addEventListener('click', () => (uiiState.picks.length > 1 ? uiiCopyPicks(copyAI) : uiiCopy(uiiFormatForAI(info), copyAI)));
   idHead.append(uiiCheck('autoCopy', ' Auto copy', 'Copy the ID line on every click, no Cmd/Ctrl needed', uiiAutoCopySave), copyAI);
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
