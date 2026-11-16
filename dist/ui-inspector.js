@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.5 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.6 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -4084,6 +4084,13 @@ function uiiOnMove(e) {
 }
 
 function uiiOnBlock(e) {
+  // Disabled controls swallow click, so pick on pointerdown for them.
+  if (e.type === 'pointerdown' && !uiiFromPanel(e) && e.target.nodeType === 1 && e.target.closest(':disabled')) {
+    e.preventDefault();
+    e.stopPropagation();
+    uiiPickFrom(e);
+    return;
+  }
   // A drag that starts in the panel (scrub, resize, move) and ends outside it
   // makes the browser click the common ancestor — <html> — which would re-pin.
   // pointerdown too: cancelling it below stops the browser sending mousedown,
@@ -4099,6 +4106,10 @@ function uiiOnClick(e) {
   e.preventDefault();
   e.stopPropagation();
   if (uiiState.downInPanel) { uiiState.downInPanel = false; return; }
+  uiiPickFrom(e);
+}
+
+function uiiPickFrom(e) {
   const el = uiiTargetFrom(e);
   if (!el) return;
   uiiPanelAway(e.clientX);
@@ -4139,11 +4150,17 @@ function uiiTogglePick(el, ready) {
   uiiDrawPicks();
   const seq = ++S.pickSeq;
   if (!S.picks.length) { uiiFlash('Pick list empty'); return; }
+  uiiCopyPicks(null, seq);
+}
+
+// Just the list, "[a], [b] and [c]", so the user writes the ask around it.
+// seq: skip when a newer pick has landed; the button passes none.
+function uiiCopyPicks(btn, seq) {
+  const S = uiiState;
   Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
-    if (seq !== S.pickSeq) return;
-    // Just the list, "[a], [b] and [c]", so the user writes the ask around it
+    if (seq !== undefined && seq !== S.pickSeq) return;
     const ids = infos.map(uiiFormatForAI);
-    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1]);
+    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1], btn);
   });
 }
 
@@ -6839,8 +6856,8 @@ function uiiRenderPanel(info) {
   b.textContent = '';
   const idHead = uiiEl('div', 'sec', 'Identity ', 'section-identity');
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
-  copyAI.title = 'One line: name, selector, element, stylesheet rules';
-  copyAI.addEventListener('click', () => uiiCopy(uiiFormatForAI(info), copyAI));
+  copyAI.title = 'One line: name, selector, element, stylesheet rules (the whole pick list when several)';
+  copyAI.addEventListener('click', () => (uiiState.picks.length > 1 ? uiiCopyPicks(copyAI) : uiiCopy(uiiFormatForAI(info), copyAI)));
   idHead.append(uiiCheck('autoCopy', ' Auto copy', 'Copy the ID line on every click, no Cmd/Ctrl needed', uiiAutoCopySave), copyAI);
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
