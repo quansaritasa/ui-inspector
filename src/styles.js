@@ -167,6 +167,7 @@ const UII_CSS = `
 .fld .fml { font: 10px/1.4 ui-monospace, Consolas, monospace; color: #6b7280; word-break: break-all; user-select: text; }
 .fld .lab.ovr { color: #d97706; font-weight: 700; }
 .nf .os { color: #6b7280; font-size: 11px; }
+.fld .fml .fmi { font: inherit; color: inherit; width: 70%; border: 1px solid #d1d5db; border-radius: 3px; padding: 0 3px; background: transparent; }
 .fld .fml.lost { text-decoration: line-through; opacity: .75; }
 .fld .lab.scrub { cursor: ew-resize; }
 .nf, .tf, .seg { height: 28px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
