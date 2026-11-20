@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.8 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.9 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -4115,6 +4115,9 @@ function uiiPickFrom(e) {
   if (!el) return;
   uiiPanelAway(e.clientX);
   const ready = uiiSelect(el, e.shiftKey);
+  // pointerdown is cancelled, so the browser never focuses the box. Do it here:
+  // typing in a picked field must stay typing, not fire the C/V/A shortcuts.
+  if (!e.shiftKey && uiiInEditable(e.target) && !e.target.disabled) e.target.focus({ preventScroll: true });
   if (e.shiftKey) { uiiTogglePick(el, ready); return; }
   // Cmd/Ctrl+click (or any click with Auto copy ticked) pins and copies the
   // Copy ID line in one go. It waits for the script scan so the line names
@@ -7091,7 +7094,7 @@ function uiiOnKey(e) {
   // variables, T the DOM tree, I the color picker.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
+  if (k === 'c' && S.info) uiiKeyAction(e, () => (S.picks.length > 1 ? uiiCopyPicks() : uiiCopy(uiiFormatForAI(S.info))));
   else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);

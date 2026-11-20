@@ -104,6 +104,9 @@ function uiiPickFrom(e) {
   if (!el) return;
   uiiPanelAway(e.clientX);
   const ready = uiiSelect(el, e.shiftKey);
+  // pointerdown is cancelled, so the browser never focuses the box. Do it here:
+  // typing in a picked field must stay typing, not fire the C/V/A shortcuts.
+  if (!e.shiftKey && uiiInEditable(e.target) && !e.target.disabled) e.target.focus({ preventScroll: true });
   if (e.shiftKey) { uiiTogglePick(el, ready); return; }
   // Cmd/Ctrl+click (or any click with Auto copy ticked) pins and copies the
   // Copy ID line in one go. It waits for the script scan so the line names

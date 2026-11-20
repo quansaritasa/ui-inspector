@@ -106,7 +106,7 @@ function uiiOnKey(e) {
   // variables, T the DOM tree, I the color picker.
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (k === 'c' && S.info) uiiKeyAction(e, () => uiiCopy(uiiFormatForAI(S.info)));
+  if (k === 'c' && S.info) uiiKeyAction(e, () => (S.picks.length > 1 ? uiiCopyPicks() : uiiCopy(uiiFormatForAI(S.info))));
   else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
