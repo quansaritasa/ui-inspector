@@ -103,19 +103,25 @@ function uiiAddPropRow(info) {
 function uiiPropsSection(body, info) {
   const vars = uiiElementVars(info);
   const props = uiiDeclaredProps(info);
+  const inh = uiiInheritedProps(info, new Set(props.map((p) => p.prop)));
   const wrap = uiiEl('details', 'more');
   const n = (c, word) => c + ' ' + word + (c === 1 ? '' : 's');
   const sum = uiiEl('summary', 'sec', 'Declared — ' + n(props.length, 'property').replace('propertys', 'properties')
-    + ', ' + n(vars.length, 'variable') + ' ', 'section-declared');
+    + ', ' + n(vars.length, 'variable') + (inh.length ? ', ' + inh.length + ' inherited' : '') + ' ', 'section-declared');
   const find = uiiEl('input', 'find', undefined, 'filter-declared');
   sum.appendChild(find);
   const list = uiiEl('div', 'vrs', undefined, 'declared-list');
   for (const v of vars) list.appendChild(uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, info.el), v.name).row);
   for (const p of props) list.appendChild(uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val), p.prop).row);
+  for (const p of inh) {
+    const { row } = uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val), p.prop);
+    row.title = 'Inherited from ' + p.file + ' ' + p.selector;
+    list.appendChild(row);
+  }
   list.appendChild(uiiAddPropRow(info));
   uiiFindBox(find, list);
   // Short enough to read at a glance, or an element already being worked on.
-  wrap.open = vars.length + props.length <= 8 || !!uiiEditsFor(info.el, false);
+  wrap.open = vars.length + props.length + inh.length <= 8 || !!uiiEditsFor(info.el, false);
   wrap.append(sum, list);
   body.appendChild(wrap);
 }
