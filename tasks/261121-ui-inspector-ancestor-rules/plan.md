@@ -88,6 +88,7 @@ Add the ancestor-inherited properties to Declared, filtered to the ones that act
 | Row | Status |
 |---|---|
 | Plan | Iteration 1 planned |
+| Shipped | https://github.com/quansaritasa/ui-inspector/pull/9 |
 | Review | Pass with Changes (pass 1) |
 
 - [x] 1. Inherited-property finder
