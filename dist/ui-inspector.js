@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.10 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.11 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -3146,6 +3146,56 @@ function uiiFormatDetails(info) {
   return L.join('\n');
 }
 
+/* ================= match the last pick =================
+   Shift+click several elements, then copy a prompt: make the earlier ones
+   look like the last. Only the props that differ are listed. */
+
+const UII_MATCH_PROPS = [
+  'color', 'background-color', 'background-image', 'font-family', 'font-size', 'font-weight',
+  'font-style', 'line-height', 'letter-spacing', 'text-align', 'text-transform', 'text-decoration-line',
+  'padding', 'border-width', 'border-style', 'border-color', 'border-radius', 'box-shadow', 'opacity',
+];
+
+// "[a], [b] and [c]" — the pick list as one phrase.
+const uiiJoinList = (ids) => (ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1]);
+
+const uiiMatchRead = (el) => {
+  const cs = getComputedStyle(el);
+  return UII_MATCH_PROPS.map((p) => cs.getPropertyValue(p).replace(/rgba?\([^)]*\)/g, uiiToHex));
+};
+
+// infos: the pick list, the last one the style source.
+function uiiMatchPrompt(infos) {
+  const src = infos[infos.length - 1], targets = infos.slice(0, -1);
+  const want = uiiMatchRead(src.el);
+  const diffs = targets.map((t) => {
+    const have = uiiMatchRead(t.el);
+    return UII_MATCH_PROPS.filter((_, i) => have[i] !== want[i]);
+  });
+  const head = 'Make ' + uiiJoinList(targets.map(uiiFormatForAI)) + ' match the styling of ' + uiiFormatForAI(src) + '.';
+  const used = UII_MATCH_PROPS.filter((p) => diffs.some((d) => d.includes(p)));
+  if (!used.length) return head + '\nThey already match on every visual property checked.';
+  const decls = used.map((p) => '  ' + p + ': ' + want[UII_MATCH_PROPS.indexOf(p)] + ';');
+  const per = targets.map((t, i) => '  ' + (t.name || t.tag) + ' → ' + (diffs[i].join(', ') || 'already matches'));
+  return head + '\nApply to each target:\n' + decls.join('\n') + '\nCurrently differs:\n' + per.join('\n');
+}
+
+// btn: shows the "Copied" feedback; the C-style key passes none.
+function uiiCopyMatch(btn) {
+  const S = uiiState;
+  if (S.picks.length < 2) { uiiFlash('Shift+click 2+ elements — the last one is the style'); return; }
+  Promise.all(S.picks.map((p) => p.ready)).then((infos) => uiiCopy(uiiMatchPrompt(infos), btn));
+}
+
+// Spread into the Identity header; nothing until two elements are picked.
+function uiiMatchBtn() {
+  if (uiiState.picks.length < 2) return [];
+  const b = uiiEl('button', 'mini', '🎯 Match last', 'match-last');
+  b.title = 'Prompt: make the earlier picks match the last pick\'s styling (props that differ)';
+  b.addEventListener('click', () => uiiCopyMatch(b));
+  return [b];
+}
+
 /* ================= stylesheet lookups =================
    Two things the computed style cannot tell you: which --custom-property a
    color came from, and which selectors put it there. Both are recovered by
@@ -4164,7 +4214,7 @@ function uiiCopyPicks(btn, seq) {
   Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
     if (seq !== undefined && seq !== S.pickSeq) return;
     const ids = infos.map(uiiFormatForAI);
-    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1], btn);
+    uiiCopy(uiiJoinList(ids), btn);
   });
 }
 
@@ -6962,7 +7012,7 @@ function uiiRenderPanel(info) {
   const copyAI = uiiEl('button', 'mini', '📋 Copy ID', 'copy-id');
   copyAI.title = 'One line: name, selector, element, stylesheet rules (the whole pick list when several)';
   copyAI.addEventListener('click', () => (uiiState.picks.length > 1 ? uiiCopyPicks(copyAI) : uiiCopy(uiiFormatForAI(info), copyAI)));
-  idHead.append(uiiCheck('autoCopy', ' Auto copy', 'Copy the ID line on every click, no Cmd/Ctrl needed', uiiAutoCopySave), copyAI);
+  idHead.append(uiiCheck('autoCopy', ' Auto copy', 'Copy the ID line on every click, no Cmd/Ctrl needed', uiiAutoCopySave), copyAI, ...uiiMatchBtn());
   b.appendChild(idHead);
   b.appendChild(uiiRow('Selector', info.path));
   if (info.id) b.appendChild(uiiRow('id', info.id));
@@ -7135,6 +7185,7 @@ function uiiOnKey(e) {
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => (S.picks.length > 1 ? uiiCopyPicks() : uiiCopy(uiiFormatForAI(S.info))));
   else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
+  else if (k === 'm') uiiKeyAction(e, uiiCopyMatch);
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
   else if (k === 't') uiiKeyAction(e, uiiToggleTree);
@@ -7155,6 +7206,7 @@ const UII_HINTS = [
   ['color-picker', 'I', 'color picker'],
   ['copy-id', 'C', 'copy ID'],
   ['copy-for-ai', 'A', 'copy all changes'],
+  ['match-last', 'M', 'match last pick'],
 ];
 
 function uiiHintsSoon() {

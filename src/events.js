@@ -153,7 +153,7 @@ function uiiCopyPicks(btn, seq) {
   Promise.all(S.picks.map((p) => p.ready)).then((infos) => {
     if (seq !== undefined && seq !== S.pickSeq) return;
     const ids = infos.map(uiiFormatForAI);
-    uiiCopy(ids.length < 2 ? ids[0] : ids.slice(0, -1).join(', ') + ' and ' + ids[ids.length - 1], btn);
+    uiiCopy(uiiJoinList(ids), btn);
   });
 }
 

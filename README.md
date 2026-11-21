@@ -83,6 +83,7 @@ files, and browsers block that fetch from `file://`.
 | Drag the panel header | Move the panel |
 | Drag any panel edge or corner | Resize it, like a desktop window |
 | **—** / **▢** in the panel header | Minimize the panel to its header / restore it |
+| `M` or **🎯 Match last** (2+ picks) | Copy a prompt: make the earlier `Shift+click` picks match the **last** pick's styling — lists the source values and, per target, only the props that differ |
 | `C` with an element pinned | Copy that same one line without reaching for the panel — the badge says `✅ copied` |
 | **📋 Copy ID** on **Identity** | Copy one bracketed line: `[selector (source · script files · stylesheet files)]`, e.g. `[#edit-btn.btn (edit.js:12 · style.css)]` — an element with an id also carries its classes, the part that greps in the source; one with no id, `data-ui` name or `aria-label` gets its visible text (first 10 words) in front, `("Test icon")[…]`, to tell it from its look-alikes |
 | Edit a value in the **Style** section | Apply it to the element at once (inline style) — try a color, font size or padding without touching the code |

@@ -108,6 +108,7 @@ function uiiOnKey(e) {
   const k = e.key.toLowerCase();
   if (k === 'c' && S.info) uiiKeyAction(e, () => (S.picks.length > 1 ? uiiCopyPicks() : uiiCopy(uiiFormatForAI(S.info))));
   else if (k === 'a') uiiKeyAction(e, uiiCopyChanges);
+  else if (k === 'm') uiiKeyAction(e, uiiCopyMatch);
   else if (k === 'v') uiiKeyAction(e, uiiPeek);
   else if (k === 'p') uiiKeyAction(e, uiiToggleVars);
   else if (k === 't') uiiKeyAction(e, uiiToggleTree);
@@ -128,6 +129,7 @@ const UII_HINTS = [
   ['color-picker', 'I', 'color picker'],
   ['copy-id', 'C', 'copy ID'],
   ['copy-for-ai', 'A', 'copy all changes'],
+  ['match-last', 'M', 'match last pick'],
 ];
 
 function uiiHintsSoon() {
