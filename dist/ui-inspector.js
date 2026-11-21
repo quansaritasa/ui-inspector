@@ -1,4 +1,4 @@
-/*! ui-inspector v0.19.9 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
+/*! ui-inspector v0.19.10 — Press a shortcut, hover any control, click to see its name, colors, font and matching CSS rules — then copy a summary for an AI to edit it.
  * https://github.com/quansaritasa/ui-inspector  (MIT)
  * Built from src/ by build.js — edit the sources, not this file. */
 (function (global) {
@@ -5857,6 +5857,39 @@ function uiiToggleVars() {
   else S.panel.root.classList.remove('on');
 }
 
+/* ================= inherited declarations =================
+   The Declared list shows what the pinned element's own rules set. A property
+   that inherits can also come from an ancestor's rule; this finds those, and
+   only those that really reach the element. */
+
+// Inherited longhands worth listing. Shorthands (`font`, `list-style`) are
+// left out: authored as one declaration they carry no single longhand value.
+const UII_INHERITED = ['color', 'cursor', 'direction', 'font-family', 'font-size', 'font-style', 'font-variant',
+  'font-weight', 'letter-spacing', 'line-height', 'list-style-type', 'text-align', 'text-indent', 'text-transform',
+  'visibility', 'white-space', 'word-spacing'];
+
+// [{prop, value, file, selector}] — for every inherited property the element
+// does not set itself (`own`: names its rules set), the nearest ancestor rule
+// that declares it, kept only while the value on screen is still that
+// ancestor's: something in between overriding it means this rule does not
+// reach the element.
+function uiiInheritedProps(info, own) {
+  const el = info.el, cs = getComputedStyle(el), found = new Map(), blocked = new Set();
+  for (let p = el.parentElement, i = 0; p && p !== document.documentElement && i < 12; p = p.parentElement, i++) {
+    const pcs = getComputedStyle(p);
+    for (const r of uiiMatchedRules(p, info.all)) {
+      if (!r.style) continue;
+      for (const d of uiiDeclList(r.style)) {
+        if (!UII_INHERITED.includes(d.name) || own.has(d.name) || el.style.getPropertyValue(d.name)) continue;
+        if (blocked.has(d.name) || (found.has(d.name) && found.get(d.name).anc !== p)) continue; // a nearer ancestor decided it
+        if (cs.getPropertyValue(d.name) !== pcs.getPropertyValue(d.name)) { blocked.add(d.name); continue; }
+        found.set(d.name, { prop: d.name, value: d.value, file: r.file, selector: r.selector, anc: p });
+      }
+    }
+  }
+  return [...found.values()].sort((a, b) => (a.prop < b.prop ? -1 : 1));
+}
+
 /* ================= the pinned element's own declarations =================
    The cards above cover the properties worth a dedicated control. This is the
    rest: every property the element's matched rules actually set, every
@@ -5962,19 +5995,25 @@ function uiiAddPropRow(info) {
 function uiiPropsSection(body, info) {
   const vars = uiiElementVars(info);
   const props = uiiDeclaredProps(info);
+  const inh = uiiInheritedProps(info, new Set(props.map((p) => p.prop)));
   const wrap = uiiEl('details', 'more');
   const n = (c, word) => c + ' ' + word + (c === 1 ? '' : 's');
   const sum = uiiEl('summary', 'sec', 'Declared — ' + n(props.length, 'property').replace('propertys', 'properties')
-    + ', ' + n(vars.length, 'variable') + ' ', 'section-declared');
+    + ', ' + n(vars.length, 'variable') + (inh.length ? ', ' + inh.length + ' inherited' : '') + ' ', 'section-declared');
   const find = uiiEl('input', 'find', undefined, 'filter-declared');
   sum.appendChild(find);
   const list = uiiEl('div', 'vrs', undefined, 'declared-list');
   for (const v of vars) list.appendChild(uiiValueRow(v.name, v.value, (val) => uiiVarApply(v.name, val, info.el), v.name).row);
   for (const p of props) list.appendChild(uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val), p.prop).row);
+  for (const p of inh) {
+    const { row } = uiiValueRow(p.prop, p.value, (val) => uiiSet(info, p.prop, val), p.prop);
+    row.title = 'Inherited from ' + p.file + ' ' + p.selector;
+    list.appendChild(row);
+  }
   list.appendChild(uiiAddPropRow(info));
   uiiFindBox(find, list);
   // Short enough to read at a glance, or an element already being worked on.
-  wrap.open = vars.length + props.length <= 8 || !!uiiEditsFor(info.el, false);
+  wrap.open = vars.length + props.length + inh.length <= 8 || !!uiiEditsFor(info.el, false);
   wrap.append(sum, list);
   body.appendChild(wrap);
 }
