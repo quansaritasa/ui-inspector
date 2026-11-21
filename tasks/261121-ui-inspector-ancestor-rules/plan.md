@@ -88,8 +88,9 @@ Add the ancestor-inherited properties to Declared, filtered to the ones that act
 | Row | Status |
 |---|---|
 | Plan | Iteration 1 planned |
+| Review | Pass with Changes (pass 1) |
 
 - [x] 1. Inherited-property finder
 - [x] 2. Render in Declared
 
-Current status: coded, awaiting review
+Current status: reviewed, Pass with Changes (3 minor); ADR suggested: No
